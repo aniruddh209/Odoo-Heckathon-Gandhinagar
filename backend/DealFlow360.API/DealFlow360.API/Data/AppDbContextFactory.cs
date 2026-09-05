@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
 namespace DealFlow360.API.Data;
 
@@ -9,8 +10,19 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
     {
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         
-        // Target SQL Server connection string for EF Core migrations
-        optionsBuilder.UseSqlServer("Server=localhost;Database=DealFlow;Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=True;");
+        var basePath = Directory.GetCurrentDirectory();
+        var config = new ConfigurationBuilder()
+            .SetBasePath(basePath)
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
+
+        var connStr = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+            ?? config.GetConnectionString("DefaultConnection")
+            ?? "Server=localhost;Database=DealFlow;Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=True;";
+
+        optionsBuilder.UseSqlServer(connStr);
 
         return new AppDbContext(optionsBuilder.Options);
     }
