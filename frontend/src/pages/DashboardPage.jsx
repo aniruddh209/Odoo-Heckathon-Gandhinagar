@@ -104,10 +104,12 @@ export const DashboardPage = () => {
       }
 
       // 5. Approvals Attention Queue
+      let retrievedApprovals = [];
       if (isSalesManager || isFinance || isAdmin) {
         try {
           const approvRes = await approvalApi.getPendingApprovals();
           const items = approvRes.items || approvRes.data || (Array.isArray(approvRes) ? approvRes : []);
+          retrievedApprovals = items;
           setPendingApprovals(items.slice(0, 4));
         } catch {
           // Soft fail
@@ -136,8 +138,8 @@ export const DashboardPage = () => {
             activeSchedulesCount: schedules.filter((s) => s.status === 'Active' || s.isActive).length,
             unallocatedOrdersCount: unallocatedCount,
             openBackordersCount: 0,
-            pendingFinanceApprovalsCount: pendingApprovals.length,
-            pendingFinanceApprovalsValue: pendingApprovals.reduce((s, a) => s + (a.grandTotal || 0), 0),
+            pendingFinanceApprovalsCount: retrievedApprovals.length,
+            pendingFinanceApprovalsValue: retrievedApprovals.reduce((s, a) => s + (a.grandTotal || 0), 0),
           });
         } catch {
           // Soft fail
@@ -170,7 +172,7 @@ export const DashboardPage = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isSalesManager, isFinance, isAdmin, pendingApprovals.length]);
+  }, [isSalesManager, isFinance, isAdmin]);
 
   useEffect(() => {
     loadDashboardData();

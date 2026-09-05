@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { getStoredToken, getStoredUser, clearStoredAuth } from '../api/apiClient';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  const navigate = useNavigate();
   const [token, setToken] = useState(() => getStoredToken());
   const [user, setUser] = useState(() => getStoredUser());
   const [isLoading, setIsLoading] = useState(true);
@@ -31,11 +33,12 @@ export const AuthProvider = ({ children }) => {
       clearStoredAuth();
       setToken(null);
       setUser(null);
+      navigate('/login', { replace: true, state: null });
     };
 
     window.addEventListener('dealflow:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('dealflow:unauthorized', handleUnauthorized);
-  }, []);
+  }, [navigate]);
 
   const login = async (credentials) => {
     const res = await authApi.login(credentials);
@@ -55,6 +58,7 @@ export const AuthProvider = ({ children }) => {
     authApi.logout();
     setToken(null);
     setUser(null);
+    navigate('/login', { replace: true, state: null });
   };
 
   const role = user?.role || null;
@@ -69,8 +73,13 @@ export const AuthProvider = ({ children }) => {
 
   const hasRole = (roles) => {
     if (!role) return false;
-    if (role === 'Admin') return true;
     const allowed = Array.isArray(roles) ? roles : [roles];
+    // Strict isolation: if a route/feature is specifically for Customer, non-customers (even Admin) do not have this role
+    if (allowed.length === 1 && allowed[0] === 'Customer') {
+      return role === 'Customer';
+    }
+    // Admin has superuser access to internal enterprise staff workspaces
+    if (role === 'Admin') return true;
     return allowed.includes(role);
   };
 

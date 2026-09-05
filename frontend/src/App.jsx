@@ -45,7 +45,7 @@ export function App() {
           <Route
             path="/portal/my-account"
             element={
-              <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+              <ProtectedRoute allowedRoles={['Customer']}>
                 <CustomerAccountPage />
               </ProtectedRoute>
             }
@@ -53,7 +53,7 @@ export function App() {
           <Route
             path="/portal/quotations/:id"
             element={
-              <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+              <ProtectedRoute allowedRoles={['Customer']}>
                 <CustomerAccountPage />
               </ProtectedRoute>
             }

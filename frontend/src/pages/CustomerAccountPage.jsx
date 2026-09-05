@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { customerApi, salesConnectionApi } from '../api';
@@ -40,7 +40,7 @@ import {
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const CustomerAccountPage = () => {
-  const { user, logout } = useAuth();
+  const { user, isCustomer, logout } = useAuth();
   const toast = useToast();
   const [searchParams] = useSearchParams();
   const { id: routeQuoteId } = useParams();
@@ -66,11 +66,11 @@ export const CustomerAccountPage = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isInvoiceDrawerOpen, setIsInvoiceDrawerOpen] = useState(false);
 
-  useEffect(() => {
-    loadCustomerData();
-  }, []);
-
-  const loadCustomerData = async () => {
+  const loadCustomerData = useCallback(async () => {
+    if (!isCustomer) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -99,7 +99,21 @@ export const CustomerAccountPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isCustomer, selectedQuote]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (!isCustomer) {
+      setIsLoading(false);
+      return;
+    }
+
+    loadCustomerData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isCustomer, user?.id, loadCustomerData]);
 
   // Deep-linking: auto-open proposal if query param or route param is present
   useEffect(() => {

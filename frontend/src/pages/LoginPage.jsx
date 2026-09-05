@@ -57,14 +57,66 @@ export const LoginPage = () => {
     setError(null);
   };
 
-  const handleLoginSuccess = (user) => {
+  const getRoleLandingRoute = (role) => {
+    switch (role) {
+      case 'Customer':
+        return '/portal/my-account';
+      case 'SalesRep':
+      case 'SalesManager':
+      case 'FinanceOperations':
+      case 'Admin':
+      default:
+        return '/dashboard';
+    }
+  };
+
+  const isRouteAllowedForRole = (pathname, role) => {
+    if (!pathname || pathname === '/login' || pathname === '/signup') return false;
+
+    // Customer portal accounts are strictly for Customer
+    if (pathname.startsWith('/portal/my-account') || pathname.startsWith('/portal/quotations')) {
+      return role === 'Customer';
+    }
+
+    // Public / Magic link quote portal is accessible
+    if (pathname.startsWith('/portal/quote/')) {
+      return true;
+    }
+
+    // Customer cannot access internal CRM routes
+    if (role === 'Customer') {
+      return false;
+    }
+
+    // Internal role restrictions
+    if (pathname.startsWith('/admin') || pathname.startsWith('/workspace/users')) {
+      return role === 'Admin' || role === 'SalesManager';
+    }
+
+    if (pathname.startsWith('/workspace/approvals') || pathname.startsWith('/workspace/deal-health')) {
+      return role === 'SalesManager' || role === 'FinanceOperations' || role === 'Admin';
+    }
+
+    if (pathname.startsWith('/workspace/reports')) {
+      return role === 'SalesManager' || role === 'FinanceOperations' || role === 'Admin';
+    }
+
+    if (pathname.startsWith('/workspace/inquiries') || pathname.startsWith('/workspace/sales-connections')) {
+      return role === 'SalesRep' || role === 'SalesManager' || role === 'Admin';
+    }
+
+    return true;
+  };
+
+  const handleLoginSuccess = (authenticatedUser) => {
     const from = location.state?.from?.pathname;
-    if (from) {
+    const defaultRoute = getRoleLandingRoute(authenticatedUser.role);
+
+    // Only honour 'from' if it is verified as authorized for the newly authenticated user's role
+    if (from && isRouteAllowedForRole(from, authenticatedUser.role)) {
       navigate(from, { replace: true });
-    } else if (user.role === 'Customer') {
-      navigate('/portal/my-account', { replace: true });
     } else {
-      navigate('/dashboard', { replace: true });
+      navigate(defaultRoute, { replace: true });
     }
   };
 
