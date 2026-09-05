@@ -548,10 +548,10 @@ export const CustomerAccountPage = () => {
           <div className="flex items-center gap-3">
             <Button
               variant="primary"
-              size="sm"
+              size="xs"
               icon={Sparkles}
               onClick={() => setActiveTab('connect')}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs flex items-center gap-1.5"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-1"
             >
               Connect to Sales
             </Button>
@@ -576,8 +576,8 @@ export const CustomerAccountPage = () => {
 
         {error && <ErrorAlert message={error} onRetry={loadCustomerData} />}
 
-        {/* Action-Required Banner if Pending Proposals, or Welcome Direct Connect Banner if Pristine */}
-        {pendingQuotes.length > 0 ? (
+        {/* Action-Required Banner if Pending Proposals */}
+        {pendingQuotes.length > 0 && (
           <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
@@ -592,15 +592,6 @@ export const CustomerAccountPage = () => {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
-                size="xs"
-                icon={Sparkles}
-                onClick={() => setActiveTab('connect')}
-                className="bg-white text-blue-700 border-blue-200 hover:bg-blue-50 font-semibold"
-              >
-                Connect to Sales
-              </Button>
-              <Button
                 variant="primary"
                 size="xs"
                 onClick={() => {
@@ -611,32 +602,6 @@ export const CustomerAccountPage = () => {
                 Review Next Proposal
               </Button>
             </div>
-          </div>
-        ) : (
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white rounded-full">
-                  Direct Brand Procurement
-                </span>
-                <span className="text-xs text-blue-100 font-medium">Fast SLA Routing</span>
-              </div>
-              <h2 className="text-base font-bold text-white tracking-tight">
-                Connect Directly with Sales Representatives
-              </h2>
-              <p className="text-xs text-blue-100 max-w-2xl">
-                Ready to configure hardware, software licenses, or negotiate volume enterprise terms? Connect directly with our certified commercial team to get an instant customized quotation.
-              </p>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Sparkles}
-              onClick={() => setActiveTab('connect')}
-              className="bg-white text-blue-700 hover:bg-blue-50 font-bold shrink-0 shadow-xs"
-            >
-              Connect to Sales
-            </Button>
           </div>
         )}
 

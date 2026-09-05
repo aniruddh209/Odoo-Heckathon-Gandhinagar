@@ -1167,8 +1167,8 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
           <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200/80 flex items-start gap-3">
             <Building2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
             <div className="text-xs text-blue-900">
-              <span className="font-bold block text-sm">Operating Companies & Vendor Brands</span>
-              Manage company entities representing internal business divisions or external vendor brands (e.g. Dell Technologies, Samsung Electronics, Cisco Systems, Hewlett Packard Enterprise). Products and customer sales inquiries are partitioned across these entities.
+              <span className="font-bold block text-sm">Operating Companies & Entities</span>
+              Manage company entities representing the primary operating business (DealFlow360 Technologies Pvt. Ltd.). Catalog products and customer sales inquiries are governed under this entity.
             </div>
           </div>
 
@@ -1477,14 +1477,14 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
             <Input
               label="Company Code"
               required
-              placeholder="e.g. CISCO, DELL, HPE"
+              placeholder="e.g. DF360"
               value={compCode}
               onChange={(e) => setCompCode(e.target.value.toUpperCase())}
             />
             <Input
-              label="Company / Brand Name"
+              label="Company / Entity Name"
               required
-              placeholder="e.g. Cisco Systems, Dell Tech"
+              placeholder="e.g. DealFlow360 Technologies Pvt. Ltd."
               value={compName}
               onChange={(e) => setCompName(e.target.value)}
             />
@@ -1492,7 +1492,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
 
           <Textarea
             label="Description (Optional)"
-            placeholder="Overview of operating division or vendor brand..."
+            placeholder="Overview of operating division or enterprise entity..."
             rows={2}
             value={compDesc}
             onChange={(e) => setCompDesc(e.target.value)}
@@ -1500,7 +1500,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
 
           <Input
             label="Official Website (Optional)"
-            placeholder="e.g. https://www.cisco.com"
+            placeholder="e.g. https://www.dealflow360.in"
             value={compWebsite}
             onChange={(e) => setCompWebsite(e.target.value)}
           />

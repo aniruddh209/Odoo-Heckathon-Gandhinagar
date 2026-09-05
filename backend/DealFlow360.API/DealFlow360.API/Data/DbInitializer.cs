@@ -72,34 +72,36 @@ public static class DbInitializer
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 4. USERS (Indian Identities + Demo Compatibility Aliases)
+        // 4. USERS (Single-Company Hackathon Model: Exactly 4 Active Internal Users)
         // ═══════════════════════════════════════════════════════════════════════
-        var userSeeds = new List<(string Name, string Email, string Password, Role Role, int? TeamId)>
+        var userSeeds = new List<(string Name, string Email, string Password, Role Role, int? TeamId, bool IsActive)>
         {
-            // Primary Indian Personas
-            ("Arjun Mehta (Admin)", "admin@dealflow360.io", "Admin@123", Role.Admin, null),
-            ("Arjun Mehta", "arjun.mehta@demo.dealflow360.local", "Admin@123", Role.Admin, null),
+            // Primary Indian Personas - The 4 Active Internal Roles
+            ("Arjun Mehta (Admin)", "admin@dealflow360.io", "Admin@123", Role.Admin, null, true),
+            ("Arjun Mehta", "arjun.mehta@demo.dealflow360.local", "Admin@123", Role.Admin, null, true),
 
-            ("Rohan Sharma (Sales Manager)", "manager@dealflow360.io", "Manager@123", Role.SalesManager, westSouthTeam.Id),
-            ("Rohan Sharma", "rohan.sharma@demo.dealflow360.local", "Manager@123", Role.SalesManager, westSouthTeam.Id),
+            ("Rohan Sharma (Sales Manager)", "manager@dealflow360.io", "Manager@123", Role.SalesManager, westSouthTeam.Id, true),
+            ("Rohan Sharma", "rohan.sharma@demo.dealflow360.local", "Manager@123", Role.SalesManager, westSouthTeam.Id, true),
 
-            ("Priya Patel (Sales Rep)", "rep@dealflow360.io", "Rep@123", Role.SalesRep, westSouthTeam.Id),
-            ("Priya Patel", "priya.patel@demo.dealflow360.local", "Rep@123", Role.SalesRep, westSouthTeam.Id),
-            ("Aditya Shah", "aditya.shah@demo.dealflow360.local", "Rep@123", Role.SalesRep, westSouthTeam.Id),
-            ("Neha Desai", "neha.desai@demo.dealflow360.local", "Rep@123", Role.SalesRep, northEastTeam.Id),
-            ("Karan Joshi", "karan.joshi@demo.dealflow360.local", "Rep@123", Role.SalesRep, northEastTeam.Id),
+            ("Priya Patel (Sales Rep)", "rep@dealflow360.io", "Rep@123", Role.SalesRep, westSouthTeam.Id, true),
+            ("Priya Patel", "priya.patel@demo.dealflow360.local", "Rep@123", Role.SalesRep, westSouthTeam.Id, true),
 
-            ("Sneha Iyer (Finance Operations)", "finance@dealflow360.io", "Finance@123", Role.FinanceOperations, null),
-            ("Sneha Iyer", "sneha.iyer@demo.dealflow360.local", "Finance@123", Role.FinanceOperations, null),
-            ("Vikram Nair", "vikram.nair@demo.dealflow360.local", "Finance@123", Role.FinanceOperations, null),
+            ("Sneha Iyer (Finance Operations)", "finance@dealflow360.io", "Finance@123", Role.FinanceOperations, null, true),
+            ("Sneha Iyer", "sneha.iyer@demo.dealflow360.local", "Finance@123", Role.FinanceOperations, null, true),
 
-            // Customer Portal Users
-            ("Rahul Verma (Customer)", "customer@dealflow360.io", "Customer@123", Role.Customer, null),
-            ("Rahul Verma", "rahul.verma@demo.dealflow360.local", "Customer@123", Role.Customer, null),
-            ("Ananya Gupta", "ananya.gupta@demo.dealflow360.local", "Customer@123", Role.Customer, null),
-            ("Amit Kulkarni", "amit.kulkarni@demo.dealflow360.local", "Customer@123", Role.Customer, null),
-            ("Pooja Shah", "pooja.shah@demo.dealflow360.local", "Customer@123", Role.Customer, null),
-            ("Nikhil Agarwal", "nikhil.agarwal@demo.dealflow360.local", "Customer@123", Role.Customer, null)
+            // Inactive Extra Internal Personas (Enforcing single Sales Rep & Finance model)
+            ("Aditya Shah", "aditya.shah@demo.dealflow360.local", "Rep@123", Role.SalesRep, westSouthTeam.Id, false),
+            ("Neha Desai", "neha.desai@demo.dealflow360.local", "Rep@123", Role.SalesRep, northEastTeam.Id, false),
+            ("Karan Joshi", "karan.joshi@demo.dealflow360.local", "Rep@123", Role.SalesRep, northEastTeam.Id, false),
+            ("Vikram Nair", "vikram.nair@demo.dealflow360.local", "Finance@123", Role.FinanceOperations, null, false),
+
+            // Customer Portal Users (Active clients buying from DealFlow360 Technologies Pvt. Ltd.)
+            ("Rahul Verma (Customer)", "customer@dealflow360.io", "Customer@123", Role.Customer, null, true),
+            ("Rahul Verma", "rahul.verma@demo.dealflow360.local", "Customer@123", Role.Customer, null, true),
+            ("Ananya Gupta", "ananya.gupta@demo.dealflow360.local", "Customer@123", Role.Customer, null, true),
+            ("Amit Kulkarni", "amit.kulkarni@demo.dealflow360.local", "Customer@123", Role.Customer, null, true),
+            ("Pooja Shah", "pooja.shah@demo.dealflow360.local", "Customer@123", Role.Customer, null, true),
+            ("Nikhil Agarwal", "nikhil.agarwal@demo.dealflow360.local", "Customer@123", Role.Customer, null, true)
         };
 
         foreach (var u in userSeeds)
@@ -114,7 +116,7 @@ public static class DbInitializer
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(u.Password),
                     Role = u.Role,
                     SalesTeamId = u.TeamId,
-                    IsActive = true,
+                    IsActive = u.IsActive,
                     CreatedAtUtc = DateTime.UtcNow
                 });
             }
@@ -124,7 +126,7 @@ public static class DbInitializer
                 existingUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(u.Password);
                 existingUser.Role = u.Role;
                 if (u.TeamId.HasValue) existingUser.SalesTeamId = u.TeamId;
-                existingUser.IsActive = true;
+                existingUser.IsActive = u.IsActive;
             }
         }
         await context.SaveChangesAsync();
@@ -147,18 +149,18 @@ public static class DbInitializer
             // Gold Tier (15% max discount)
             ("Sharma Technologies Pvt. Ltd.", "procurement@sharmatech.in", "+91-22-68901234", goldTier.Id, repUser.Id),
             ("Mumbai Office Solutions Pvt. Ltd.", "ops@mumbaioffice.in", "+91-22-49123456", goldTier.Id, repUser.Id),
-            ("Bengaluru CloudWorks Pvt. Ltd.", "it@bengalurucloud.in", "+91-80-41235678", goldTier.Id, adityaUser.Id),
+            ("Bengaluru CloudWorks Pvt. Ltd.", "it@bengalurucloud.in", "+91-80-41235678", goldTier.Id, repUser.Id),
 
             // Silver Tier (10% max discount)
             ("Patel Industrial Systems Pvt. Ltd.", "purchase@patelindustrial.in", "+91-261-2789012", silverTier.Id, repUser.Id),
             ("Ahmedabad Manufacturing Solutions Pvt. Ltd.", "commercial@ahmedabadmfg.in", "+91-79-26543210", silverTier.Id, repUser.Id),
-            ("Pune Enterprise Networks Pvt. Ltd.", "enterprise@punenetworks.in", "+91-20-67123450", silverTier.Id, adityaUser.Id),
-            ("Chennai Digital Infrastructure Pvt. Ltd.", "it@chennaidigital.in", "+91-44-48901234", silverTier.Id, nehaUser.Id),
+            ("Pune Enterprise Networks Pvt. Ltd.", "enterprise@punenetworks.in", "+91-20-67123450", silverTier.Id, repUser.Id),
+            ("Chennai Digital Infrastructure Pvt. Ltd.", "it@chennaidigital.in", "+91-44-48901234", silverTier.Id, repUser.Id),
 
             // Bronze Tier (5% max discount)
-            ("Delhi Business Automation Pvt. Ltd.", "admin@delhibusiness.in", "+91-11-23456789", bronzeTier.Id, nehaUser.Id),
-            ("Hyderabad Data Systems Pvt. Ltd.", "support@hyderabaddata.in", "+91-40-66789012", bronzeTier.Id, karanUser.Id),
-            ("Jaipur Smart Workplace Pvt. Ltd.", "hello@jaipursmart.in", "+91-141-2890123", bronzeTier.Id, karanUser.Id)
+            ("Delhi Business Automation Pvt. Ltd.", "admin@delhibusiness.in", "+91-11-23456789", bronzeTier.Id, repUser.Id),
+            ("Hyderabad Data Systems Pvt. Ltd.", "support@hyderabaddata.in", "+91-40-66789012", bronzeTier.Id, repUser.Id),
+            ("Jaipur Smart Workplace Pvt. Ltd.", "hello@jaipursmart.in", "+91-141-2890123", bronzeTier.Id, repUser.Id)
         };
 
         foreach (var cs in customerSeeds)
@@ -220,60 +222,50 @@ public static class DbInitializer
         await context.SaveChangesAsync();
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 6. BRAND / OEM COMPANIES
+        // 6. SINGLE COMPANY HACKATHON MODEL (DealFlow360 Technologies Pvt. Ltd.)
         // ═══════════════════════════════════════════════════════════════════════
-        var companySeeds = new List<(string Name, string Code, string Desc, string Web, string Email, string Phone)>
+        var df360 = await context.Companies.FirstOrDefaultAsync(c => c.Code == "DF360");
+        if (df360 == null)
         {
-            ("TechBharat Systems", "TBS", "Leading Indian enterprise hardware manufacturer specializing in laptops, workstations, and high-performance docks.", "https://www.techbharat.in", "enterprise-sales@techbharat.in", "+91-22-67890100"),
-            ("IndoCompute Technologies", "ICT", "Premier commercial display and digital visual solutions provider for modern workplaces.", "https://www.indocompute.in", "commercial@indocompute.in", "+91-80-45678900"),
-            ("NetSetu Networks", "NSN", "Indigenous secure enterprise Wi-Fi 6 routers, network appliances, and structured switching solutions.", "https://www.netsetu.in", "contact@netsetu.in", "+91-11-43210980"),
-            ("Shakti Digital Infrastructure", "SDI", "High-reliability cloud backup, device management, and enterprise server infrastructure platforms.", "https://www.shaktidigital.in", "sales@shaktidigital.in", "+91-44-23456700")
-        };
-
-        foreach (var cs in companySeeds)
+            df360 = new Company
+            {
+                Name = "DealFlow360 Technologies Pvt. Ltd.",
+                Code = "DF360",
+                Description = "DealFlow360 Technologies Pvt. Ltd. - Premier enterprise digital sales, IT hardware and cloud infrastructure solutions provider in India.",
+                Website = "https://www.dealflow360.in",
+                ContactEmail = "sales@dealflow360.in",
+                ContactPhone = "+91-79-4000-1234",
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            context.Companies.Add(df360);
+        }
+        else
         {
-            var comp = await context.Companies.FirstOrDefaultAsync(c => c.Code == cs.Code);
-            if (comp == null)
-            {
-                context.Companies.Add(new Company
-                {
-                    Name = cs.Name,
-                    Code = cs.Code,
-                    Description = cs.Desc,
-                    Website = cs.Web,
-                    ContactEmail = cs.Email,
-                    ContactPhone = cs.Phone,
-                    IsActive = true,
-                    CreatedAtUtc = DateTime.UtcNow
-                });
-            }
-            else
-            {
-                comp.Name = cs.Name;
-                comp.Description = cs.Desc;
-                comp.Website = cs.Web;
-                comp.ContactEmail = cs.Email;
-                comp.ContactPhone = cs.Phone;
-                comp.IsActive = true;
-            }
+            df360.Name = "DealFlow360 Technologies Pvt. Ltd.";
+            df360.Description = "DealFlow360 Technologies Pvt. Ltd. - Premier enterprise digital sales, IT hardware and cloud infrastructure solutions provider in India.";
+            df360.Website = "https://www.dealflow360.in";
+            df360.ContactEmail = "sales@dealflow360.in";
+            df360.ContactPhone = "+91-79-4000-1234";
+            df360.IsActive = true;
         }
         await context.SaveChangesAsync();
 
-        // Deactivate legacy mock/dummy companies
-        var legacyCompanyCodes = new[] { "CISCO", "DELL", "HPE", "SAMSUNG", "LENOVO_TEST" };
-        var legacyCompanies = await context.Companies
-            .Where(c => legacyCompanyCodes.Contains(c.Code.ToUpper()) || c.Code.StartsWith("AUD_") || c.Name.StartsWith("Audit"))
+        // Deactivate all other internal/vendor companies so exactly 1 internal company is active
+        var allOtherCompanies = await context.Companies
+            .Where(c => c.Code != "DF360")
             .ToListAsync();
-        foreach (var lc in legacyCompanies)
+        foreach (var oc in allOtherCompanies)
         {
-            lc.IsActive = false;
+            oc.IsActive = false;
         }
         await context.SaveChangesAsync();
 
-        var tbs = await context.Companies.FirstAsync(c => c.Code == "TBS");
-        var ict = await context.Companies.FirstAsync(c => c.Code == "ICT");
-        var nsn = await context.Companies.FirstAsync(c => c.Code == "NSN");
-        var sdi = await context.Companies.FirstAsync(c => c.Code == "SDI");
+        // Compatibility references for existing seed definitions
+        var tbs = df360;
+        var ict = df360;
+        var nsn = df360;
+        var sdi = df360;
 
         // ═══════════════════════════════════════════════════════════════════════
         // 7. PRODUCT CATEGORIES
@@ -372,12 +364,19 @@ public static class DbInitializer
         }
         await context.SaveChangesAsync();
 
-        // Deactivate legacy mock/test products
-        var legacyCompanyIds = legacyCompanies.Select(c => c.Id).ToList();
+        // Assign all active catalog products to DealFlow360 Technologies Pvt. Ltd.
+        var allActiveProducts = await context.Products
+            .Where(p => p.IsActive && !p.SKU.StartsWith("SKU-AUD") && !p.SKU.StartsWith("PROD-TEST") && !p.Name.StartsWith("Audit"))
+            .ToListAsync();
+        foreach (var p in allActiveProducts)
+        {
+            p.CompanyId = df360.Id;
+            p.IsActive = true;
+        }
+
+        // Deactivate any legacy audit/test products
         var legacyProducts = await context.Products
-            .Where(p => p.SKU.StartsWith("SKU-AUD") || p.SKU.StartsWith("PROD-TEST") || p.Name.StartsWith("Audit") ||
-                        (p.CompanyId != null && legacyCompanyIds.Contains(p.CompanyId.Value)) ||
-                        p.CompanyId == null)
+            .Where(p => p.SKU.StartsWith("SKU-AUD") || p.SKU.StartsWith("PROD-TEST") || p.Name.StartsWith("Audit"))
             .ToListAsync();
         foreach (var lp in legacyProducts)
         {
@@ -480,30 +479,44 @@ public static class DbInitializer
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 10. DISCOUNT GOVERNANCE RULES
+        // 10. DISCOUNT GOVERNANCE RULES (Tier Ceilings & Category Ceilings)
         // ═══════════════════════════════════════════════════════════════════════
         var discountRules = new List<DiscountRule>
         {
-            // Gold Tier Global Ceiling
+            // Global Ceilings
             new() { TierId = goldTier.Id, CategoryId = null, MaxDiscountPercent = 15.00m, ManagerThreshold = 10.00m, FinanceThreshold = 15.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            // Silver Tier Global Ceiling
             new() { TierId = silverTier.Id, CategoryId = null, MaxDiscountPercent = 10.00m, ManagerThreshold = 7.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            // Bronze Tier Global Ceiling
             new() { TierId = bronzeTier.Id, CategoryId = null, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            // Hardware Category Ceiling
+
+            // Gold Category Specific Ceilings (Services & Subscriptions capped at 10%)
             new() { TierId = goldTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 15.00m, ManagerThreshold = 8.00m, FinanceThreshold = 12.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            // Services Category Ceiling (Strict 10% limit)
             new() { TierId = goldTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            // Subscriptions Category Ceiling
-            new() { TierId = goldTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 12.00m, ManagerThreshold = 6.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow }
+            new() { TierId = goldTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 6.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+
+            // Silver Category Specific Ceilings (Hardware capped at 10%, Services capped at 10%)
+            new() { TierId = silverTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 6.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = silverTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = silverTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+
+            // Bronze Category Specific Ceilings (Capped at 5%)
+            new() { TierId = bronzeTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = bronzeTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = bronzeTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow }
         };
 
         foreach (var dr in discountRules)
         {
-            var exists = await context.DiscountRules.AnyAsync(r => r.TierId == dr.TierId && r.CategoryId == dr.CategoryId);
-            if (!exists)
+            var rule = await context.DiscountRules.FirstOrDefaultAsync(r => r.TierId == dr.TierId && r.CategoryId == dr.CategoryId);
+            if (rule == null)
             {
                 context.DiscountRules.Add(dr);
+            }
+            else
+            {
+                rule.MaxDiscountPercent = dr.MaxDiscountPercent;
+                rule.ManagerThreshold = dr.ManagerThreshold;
+                rule.FinanceThreshold = dr.FinanceThreshold;
+                rule.IsActive = true;
             }
         }
         await context.SaveChangesAsync();
@@ -715,34 +728,39 @@ public static class DbInitializer
         await context.SaveChangesAsync();
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 15. SALES REPRESENTATIVE ROUTING ASSIGNMENTS
+        // 15. SALES REPRESENTATIVE ROUTING ASSIGNMENTS (Priya Patel as primary for DF360)
         // ═══════════════════════════════════════════════════════════════════════
-        var salesAssignments = new List<(int CompId, int RepId, int? CatId, string Notes)>
+        // Deactivate non-primary assignments
+        var oldAssignments = await context.SalesAssignments.ToListAsync();
+        foreach (var oa in oldAssignments)
         {
-            (tbs.Id, repUser.Id, null, "Priya Patel handles primary enterprise workstation & laptop procurement for TechBharat"),
-            (ict.Id, repUser.Id, null, "Priya Patel is dedicated account rep for IndoCompute professional displays"),
-            (nsn.Id, adityaUser.Id, null, "Aditya Shah handles enterprise networking and secure switching for NetSetu"),
-            (sdi.Id, nehaUser.Id, null, "Neha Desai manages data center infrastructure and cloud backup lines for Shakti Digital"),
-            (tbs.Id, managerUser.Id, srvCat.Id, "Rohan Sharma (Manager) oversees large professional services contracts for TechBharat")
-        };
-
-        foreach (var sa in salesAssignments)
-        {
-            var exists = await context.SalesAssignments.AnyAsync(a => a.CompanyId == sa.CompId && a.SalesRepresentativeId == sa.RepId && a.CategoryId == sa.CatId);
-            if (!exists)
+            if (oa.CompanyId != df360.Id || oa.SalesRepresentativeId != repUser.Id)
             {
-                context.SalesAssignments.Add(new SalesAssignment
-                {
-                    CompanyId = sa.CompId,
-                    SalesRepresentativeId = sa.RepId,
-                    CategoryId = sa.CatId,
-                    IsDefault = !sa.CatId.HasValue,
-                    Priority = sa.CatId.HasValue ? 50 : 10,
-                    Notes = sa.Notes,
-                    IsActive = true,
-                    CreatedAtUtc = DateTime.UtcNow
-                });
+                oa.IsActive = false;
             }
+        }
+
+        var primaryAssignment = await context.SalesAssignments.FirstOrDefaultAsync(a => a.CompanyId == df360.Id && a.SalesRepresentativeId == repUser.Id && a.CategoryId == null);
+        if (primaryAssignment == null)
+        {
+            context.SalesAssignments.Add(new SalesAssignment
+            {
+                CompanyId = df360.Id,
+                SalesRepresentativeId = repUser.Id,
+                CategoryId = null,
+                IsDefault = true,
+                Priority = 100,
+                Notes = "Priya Patel is the dedicated primary Enterprise Sales Representative for DealFlow360 Technologies Pvt. Ltd.",
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            primaryAssignment.IsDefault = true;
+            primaryAssignment.Priority = 100;
+            primaryAssignment.IsActive = true;
+            primaryAssignment.Notes = "Priya Patel is the dedicated primary Enterprise Sales Representative for DealFlow360 Technologies Pvt. Ltd.";
         }
         await context.SaveChangesAsync();
 
@@ -758,7 +776,7 @@ public static class DbInitializer
             {
                 QuotationNumber = "QT-IND-2026-0001",
                 CustomerId = jaipurSmart.Id,
-                SalesRepId = karanUser.Id,
+                SalesRepId = repUser.Id,
                 Status = QuoteStatus.Draft,
                 ApprovalStatus = ApprovalStatus.None,
                 CurrencyCode = "INR",
@@ -953,7 +971,7 @@ public static class DbInitializer
             {
                 QuotationNumber = "QT-IND-2026-0004",
                 CustomerId = delhiBusiness.Id,
-                SalesRepId = nehaUser.Id,
+                SalesRepId = repUser.Id,
                 Status = QuoteStatus.Sent,
                 ApprovalStatus = ApprovalStatus.None,
                 CurrencyCode = "INR",
@@ -1007,7 +1025,7 @@ public static class DbInitializer
             {
                 QuotationNumber = "QT-IND-2026-0005",
                 CustomerId = bengaluruCloud.Id,
-                SalesRepId = adityaUser.Id,
+                SalesRepId = repUser.Id,
                 Status = QuoteStatus.UnderNegotiation,
                 ApprovalStatus = ApprovalStatus.None,
                 CurrencyCode = "INR",
@@ -1064,7 +1082,7 @@ public static class DbInitializer
             context.QuotationLineComments.Add(new QuotationLineComment
             {
                 QuotationLineId = line1.Id,
-                UserId = adityaUser.Id,
+                UserId = repUser.Id,
                 Comment = "Accepted 12% discount under Gold Tier terms. Counter-offer updated.",
                 CreatedAtUtc = DateTime.UtcNow.AddHours(-4)
             });
@@ -1090,7 +1108,7 @@ public static class DbInitializer
             {
                 QuotationNumber = "QT-IND-2026-0006",
                 CustomerId = chennaiDigital.Id,
-                SalesRepId = nehaUser.Id,
+                SalesRepId = repUser.Id,
                 Status = QuoteStatus.Approved,
                 ApprovalStatus = ApprovalStatus.Approved,
                 CurrencyCode = "INR",
@@ -1168,7 +1186,7 @@ public static class DbInitializer
             {
                 QuotationNumber = "QT-IND-2026-0007",
                 CustomerId = puneNetworks.Id,
-                SalesRepId = adityaUser.Id,
+                SalesRepId = repUser.Id,
                 Status = QuoteStatus.ConvertedToOrder,
                 ApprovalStatus = ApprovalStatus.Approved,
                 CurrencyCode = "INR",
@@ -1521,9 +1539,9 @@ public static class DbInitializer
         var inquirySeeds = new List<(string ReqNum, int CustId, int CompId, int ProdId, int RepId, SalesConnectionStatus Status, int Qty, string Msg, string Contact, int? QuoteId)>
         {
             ("SCR-IND-2026-0001", sharmaTech.Id, tbs.Id, pLaptop14.Id, repUser.Id, SalesConnectionStatus.Accepted, 5, "Looking for quotation on 5 units of Business Laptop Pro 14 for our BKC team.", "Email", q2.Id),
-            ("SCR-IND-2026-0002", bengaluruCloud.Id, nsn.Id, pRouter.Id, adityaUser.Id, SalesConnectionStatus.QuoteCreated, 2, "Require enterprise router with VPN setup for our Indiranagar engineering office.", "Phone", q5.Id),
-            ("SCR-IND-2026-0003", delhiBusiness.Id, ict.Id, pMon27.Id, nehaUser.Id, SalesConnectionStatus.Pending, 4, "Inquiry for 4 units of 27-inch 4K Business Monitors with dual arm mounts.", "WhatsApp", null),
-            ("SCR-IND-2026-0004", jaipurSmart.Id, tbs.Id, pKmCombo.Id, karanUser.Id, SalesConnectionStatus.Contacted, 15, "Need commercial pricing on 15 wireless keyboard/mouse sets.", "Email", null)
+            ("SCR-IND-2026-0002", bengaluruCloud.Id, nsn.Id, pRouter.Id, repUser.Id, SalesConnectionStatus.QuoteCreated, 2, "Require enterprise router with VPN setup for our Indiranagar engineering office.", "Phone", q5.Id),
+            ("SCR-IND-2026-0003", delhiBusiness.Id, ict.Id, pMon27.Id, repUser.Id, SalesConnectionStatus.Pending, 4, "Inquiry for 4 units of 27-inch 4K Business Monitors with dual arm mounts.", "WhatsApp", null),
+            ("SCR-IND-2026-0004", jaipurSmart.Id, tbs.Id, pKmCombo.Id, repUser.Id, SalesConnectionStatus.Contacted, 15, "Need commercial pricing on 15 wireless keyboard/mouse sets.", "Email", null)
         };
 
         foreach (var inq in inquirySeeds)
@@ -1554,6 +1572,21 @@ public static class DbInitializer
                 existingInq.PreferredContactMethod = inq.Contact;
                 existingInq.QuotationId = inq.QuoteId;
             }
+        }
+        // Ensure all historical quotations are attributed to Priya Patel (repUser.Id)
+        var allQuotes = await context.Quotations.ToListAsync();
+        foreach (var q in allQuotes)
+        {
+            q.SalesRepId = repUser.Id;
+        }
+        await context.SaveChangesAsync();
+
+        // Ensure all historical sales inquiries are linked to DealFlow360 Technologies Pvt. Ltd. and Priya Patel
+        var allInquiries = await context.SalesConnectionRequests.ToListAsync();
+        foreach (var inq in allInquiries)
+        {
+            inq.CompanyId = df360.Id;
+            inq.SalesRepresentativeId = repUser.Id;
         }
         await context.SaveChangesAsync();
     }

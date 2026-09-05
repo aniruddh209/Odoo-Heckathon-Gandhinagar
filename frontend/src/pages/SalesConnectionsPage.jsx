@@ -452,15 +452,26 @@ export const SalesConnectionsPage = () => {
         return (
           <div className="flex items-center gap-1.5">
             {r.status === 'Pending' && (
-              <Button
-                variant="primary"
-                size="xs"
-                icon={Check}
-                onClick={() => triggerAcceptModal(r)}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold"
-              >
-                Accept
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  size="xs"
+                  icon={Check}
+                  onClick={() => triggerAcceptModal(r)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                >
+                  Accept
+                </Button>
+                <Button
+                  variant="danger"
+                  size="xs"
+                  icon={XCircle}
+                  onClick={() => triggerRejectModal(r)}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold"
+                >
+                  Reject
+                </Button>
+              </>
             )}
 
             {r.status === 'Accepted' && (
@@ -472,7 +483,7 @@ export const SalesConnectionsPage = () => {
                   onClick={() => handleOpenInQuoteBuilder(r)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
                 >
-                  Generate Quote
+                  Create Quote
                 </Button>
                 <Button
                   variant="secondary"
@@ -482,7 +493,7 @@ export const SalesConnectionsPage = () => {
                   className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold text-xs"
                   title="Instant 1-Click Quote with Tier Discount"
                 >
-                  1-Click
+                  1-Click Quote
                 </Button>
                 <Button
                   variant="secondary"

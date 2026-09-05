@@ -58,8 +58,12 @@ export const ConnectSalesSection = ({ profile, onConnectionCreated, onNavigateTo
       const prodList = Array.isArray(prodsRes) ? prodsRes : prodsRes?.value || [];
       setCompanies(compList);
       setProducts(prodList);
+      if (compList.length > 0) {
+        const defaultComp = compList.find(c => c.code === 'DF360') || compList[0];
+        setSelectedCompany(defaultComp);
+      }
     } catch (err) {
-      setError(err.message || 'Failed to load verified brand catalog.');
+      setError(err.message || 'Failed to load verified catalog.');
     } finally {
       setIsLoadingCatalog(false);
     }
@@ -182,10 +186,10 @@ export const ConnectSalesSection = ({ profile, onConnectionCreated, onNavigateTo
               <span>Smart Representative Resolution</span>
             </div>
             <h2 className="text-xl font-bold tracking-tight text-white">
-              Connect Directly with Brand Sales Representatives
+              Connect with DealFlow360 Sales Operations
             </h2>
             <p className="text-slate-300 text-xs mt-1 max-w-2xl leading-relaxed">
-              Select your required product line and verified operating brand. Our deterministic routing engine instantly pairs you with the certified commercial representative for priority quotation and consultative pricing.
+              Select your required enterprise hardware, services, or cloud subscriptions from DealFlow360 Technologies Pvt. Ltd. Send an inquiry request to your dedicated sales representative to initiate customized commercial quotation and tier discounts.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -243,13 +247,13 @@ export const ConnectSalesSection = ({ profile, onConnectionCreated, onNavigateTo
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-mono">1</span>
-                Select Operating Brand / OEM Partner
+                Operating Company
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Verified enterprise hardware and infrastructure brands configured by Sales Operations
+                All commercial offerings and proposals are fulfilled directly by DealFlow360 Technologies Pvt. Ltd.
               </p>
             </div>
-            {selectedCompany && (
+            {selectedCompany && companies.length > 1 && (
               <button
                 type="button"
                 onClick={() => {
@@ -259,7 +263,7 @@ export const ConnectSalesSection = ({ profile, onConnectionCreated, onNavigateTo
                 }}
                 className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
               >
-                Clear Brand Filter (Show All Brands)
+                Clear Filter
               </button>
             )}
           </div>
@@ -549,7 +553,7 @@ export const ConnectSalesSection = ({ profile, onConnectionCreated, onNavigateTo
                 icon={Send}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-6 py-2.5 font-semibold shadow-xs"
               >
-                {isSubmitting ? 'Dispatching Connection Request...' : 'Connect with Sales Representative'}
+                {isSubmitting ? 'Sending Request...' : 'Send Request'}
               </Button>
             </div>
           </form>
