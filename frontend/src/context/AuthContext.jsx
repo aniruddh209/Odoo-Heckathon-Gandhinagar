@@ -52,17 +52,20 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (data) => {
     const res = await authApi.login(data);
-    localStorage.setItem('dealflow_jwt_token', res.token);
+    const jwt = res.accessToken || res.token;
+    localStorage.setItem('dealflow_jwt_token', jwt);
     localStorage.setItem('dealflow_user', JSON.stringify(res.user));
-    setToken(res.token);
+    setToken(jwt);
     setUser(res.user);
+    return res.user;
   };
 
   const signup = async (data) => {
     const res = await authApi.signup(data);
-    localStorage.setItem('dealflow_jwt_token', res.token);
+    const jwt = res.accessToken || res.token;
+    localStorage.setItem('dealflow_jwt_token', jwt);
     localStorage.setItem('dealflow_user', JSON.stringify(res.user));
-    setToken(res.token);
+    setToken(jwt);
     setUser(res.user);
   };
 
@@ -119,7 +122,7 @@ export const AuthProvider = ({ children }) => {
         portalToken,
         portalCustomerName,
         isAuthenticated: !!token && !!user,
-        isPortalAuthenticated: !!portalToken,
+        isPortalAuthenticated: !!portalToken || (!!token && user?.role === 'Customer'),
         isLoading,
         login,
         signup,

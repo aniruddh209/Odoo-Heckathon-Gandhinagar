@@ -35,6 +35,11 @@ export const ProtectedRoute = ({
     return <Navigate to="/login" replace />;
   }
 
+  // Redirect Customer role accounts to customer portal
+  if (user?.role === 'Customer') {
+    return <Navigate to="/portal/quotes" replace />;
+  }
+
   // Check Role Permissions
   if (allowedRoles && allowedRoles.length > 0) {
     const isAllowed = allowedRoles.some((r) => hasRole(r));

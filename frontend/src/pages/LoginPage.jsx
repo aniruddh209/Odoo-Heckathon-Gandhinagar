@@ -10,24 +10,28 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
 
-  const [email, setEmail] = useState('sales.rep@dealflow360.com');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('rep@dealflow360.io');
+  const [password, setPassword] = useState('Rep@123');
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     try {
-      await login({ Email: email, Password: password });
-      navigate('/');
+      const loggedUser = await login({ Email: email, Password: password });
+      if (loggedUser?.role === 'Customer') {
+        navigate('/portal/quotes');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err?.message || 'Login failed. Please verify credentials.');
     }
   };
 
-  const handleQuickFill = (roleEmail) => {
+  const handleQuickFill = (roleEmail, rolePassword) => {
     setEmail(roleEmail);
-    setPassword('Password123!');
+    setPassword(rolePassword);
   };
 
   return (
@@ -109,35 +113,43 @@ export const LoginPage = () => {
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => handleQuickFill('sales.rep@dealflow360.com')}
+                onClick={() => handleQuickFill('rep@dealflow360.io', 'Rep@123')}
                 className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
               >
                 <div className="font-semibold text-slate-800">Sales Rep</div>
-                <div className="text-[10px] text-slate-400">Quotes & Orders</div>
+                <div className="text-[10px] text-slate-400">rep@dealflow360.io</div>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickFill('sales.mgr@dealflow360.com')}
+                onClick={() => handleQuickFill('manager@dealflow360.io', 'Manager@123')}
                 className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
               >
                 <div className="font-semibold text-slate-800">Sales Manager</div>
-                <div className="text-[10px] text-slate-400">Tier 1 Approvals</div>
+                <div className="text-[10px] text-slate-400">manager@dealflow360.io</div>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickFill('finance.ops@dealflow360.com')}
+                onClick={() => handleQuickFill('finance@dealflow360.io', 'Finance@123')}
                 className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
               >
                 <div className="font-semibold text-slate-800">Finance & Ops</div>
-                <div className="text-[10px] text-slate-400">Tier 2 & Invoicing</div>
+                <div className="text-[10px] text-slate-400">finance@dealflow360.io</div>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickFill('admin@dealflow360.com')}
+                onClick={() => handleQuickFill('admin@dealflow360.io', 'Admin@123')}
                 className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
               >
                 <div className="font-semibold text-slate-800">System Admin</div>
-                <div className="text-[10px] text-slate-400">Master Config</div>
+                <div className="text-[10px] text-slate-400">admin@dealflow360.io</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('customer@dealflow360.io', 'Customer@123')}
+                className="col-span-2 p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer bg-slate-50/50"
+              >
+                <div className="font-semibold text-slate-800">Customer Client (Acme Global)</div>
+                <div className="text-[10px] text-slate-400">customer@dealflow360.io (Redirects to Customer Portal)</div>
               </button>
             </div>
           </div>

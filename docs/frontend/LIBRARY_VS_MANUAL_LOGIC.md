@@ -408,3 +408,20 @@ export const RiskScoreCard = ({
 | **Class Composition** | `clsx` + `tailwind-merge` (38 kB) | Native `cn.js` (0.2 kB) | 10 lines of code; zero parsing overhead |
 | **Language & Tooling** | TypeScript + `tsc` + `@types/*` | Pure JavaScript (ES2024) + Vite + React 19 | 249 ms build time; zero type-checking compilation bottlenecks |
 | **Runtime Dependencies** | 8+ packages | **4 packages** (`react`, `react-dom`, `react-router-dom`, `lucide-react`) | Maximum reliability, minimum supply-chain vulnerability surface |
+
+---
+
+## 6. Full-Stack Data Authority: Real ASP.NET Core & SQL Server vs Client-Side Mock Stores
+
+In many frontend prototypes, complex business logic (pricing formulas, multi-warehouse stock allocations, margin calculations, approval triggers) is mocked on the client using fake arrays, `localStorage`, or timer mocks. 
+
+DealFlow360 strictly adheres to **Server-Side Financial Authority**:
+1. **Real Entity Framework Core 10 & SQL Server**: All tables, users, inventory, quotations, and orders exist in a physical Microsoft SQL Server database (`localhost\DealFlow360`).
+2. **Server-Executed Calculation Engines**:
+   - `MarginCalculationEngine` computes costs, revenue, gross margin %, and blended margin.
+   - `BlendedDiscountRiskEngine` scores commercial risk based on tier ceilings, line-level spikes, and order totals.
+   - `DiscountGovernanceEngine` enforces margin floors and policy compliance.
+   - `WarehouseAllocationEngine` performs geographic and stock-based inventory allocation.
+3. **No Duplicate Client Math**: The frontend never attempts to re-implement commercial algorithms. When a line item changes, the frontend triggers `POST /api/quotations/{id}/recalculate` and displays the exact financial figures verified by the backend.
+4. **Zero-Leak Customer Boundary**: The customer portal strictly consumes `/api/portal/*` endpoints which strip internal cost prices, margin percentages, and internal remarks before serializing data across the wire.
+

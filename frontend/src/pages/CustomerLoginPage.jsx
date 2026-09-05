@@ -14,7 +14,7 @@ export const CustomerLoginPage = () => {
   const [token, setToken] = useState(searchParams.get('token') || 'token-secure-portal-sample');
   const [error, setError] = useState(null);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!token.trim()) {
       setError('A secure portal access token is required.');
@@ -22,12 +22,8 @@ export const CustomerLoginPage = () => {
     }
 
     try {
-      portalLogin(quoteId.trim(), token.trim());
-      if (quoteId) {
-        navigate(`/portal/quotes/${quoteId.trim()}`);
-      } else {
-        navigate('/portal/quotes');
-      }
+      await portalLogin(quoteId.trim(), token.trim());
+      navigate(`/portal/quotes/${token.trim()}`);
     } catch (err) {
       setError('Unable to authenticate into customer portal. Please check the access link sent to your email.');
     }
