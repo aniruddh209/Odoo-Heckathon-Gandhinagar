@@ -1,35 +1,40 @@
 import { apiClient } from './apiClient.js';
 
 export const adminApi = {
-  // Discount Rules
-  getDiscountRules: () => apiClient.get('/discount-rules'),
-  getDiscountMatrix: () => apiClient.get('/discount-rules'),
-  createDiscountRule: (data) => apiClient.post('/discount-rules', data),
-  updateDiscountRule: (id, data) => apiClient.put(`/discount-rules/${id}`, data),
-  updateDiscountMatrixRule: (id, data) => apiClient.put(`/discount-rules/${id}`, data),
+  // Users
+  getUsers: () => apiClient.get('/admin/users'),
+  createUser: (data) => apiClient.post('/admin/users', data),
+  updateUser: (id, data) => apiClient.put(`/admin/users/${id}`, data),
 
-  // Approval Rules / Policies
-  getApprovalRules: () => apiClient.get('/approval-rules'),
-  getApprovalPolicies: () => apiClient.get('/approval-rules'),
-  createApprovalRule: (data) => apiClient.post('/approval-rules', data),
-  updateApprovalRule: (id, data) => apiClient.put(`/approval-rules/${id}`, data),
-  updateApprovalPolicy: (id, data) => apiClient.put(`/approval-rules/${id}`, data),
+  // Discount Rules
+  getDiscountRules: () => apiClient.get('/admin/discount-rules'),
+  getDiscountMatrix: () => apiClient.get('/admin/discount-rules'),
+  createDiscountRule: (data) => apiClient.post('/admin/discount-rules', data),
+
+  // Approval Rules
+  getApprovalRules: () => apiClient.get('/admin/approval-rules'),
+  getApprovalPolicies: () => apiClient.get('/admin/approval-rules'),
+  createApprovalRule: (data) => apiClient.post('/admin/approval-rules', data),
 
   // Warehouses
-  getWarehouses: () => apiClient.get('/warehouses'),
-  createWarehouse: (data) => apiClient.post('/warehouses', data),
-  updateWarehouse: (id, data) => apiClient.put(`/warehouses/${id}`, data),
-  getWarehouseStock: (warehouseId) => apiClient.get(`/warehouses/${warehouseId}/stock`),
-  updateStock: (warehouseId, productId, quantity) =>
-    apiClient.put(`/warehouses/${warehouseId}/stock/${productId}`, { quantity }),
+  getWarehouses: () => apiClient.get('/admin/warehouses'),
+  createWarehouse: (data) => apiClient.post('/admin/warehouses', data),
+  adjustStock: (id, data) => apiClient.post(`/admin/warehouses/${id}/adjust-stock`, data),
 
   // Subscription Plans
-  getSubscriptionPlans: () => apiClient.get('/subscription-plans'),
-  createSubscriptionPlan: (data) => apiClient.post('/subscription-plans', data),
-  updateSubscriptionPlan: (id, data) => apiClient.put(`/subscription-plans/${id}`, data),
+  getSubscriptionPlans: () => apiClient.get('/admin/subscription-plans'),
+  createSubscriptionPlan: (data) => apiClient.post('/admin/subscription-plans', data),
 
   // Upsell Rules
-  getUpsellRules: () => apiClient.get('/upsell-rules'),
-  createUpsellRule: (data) => apiClient.post('/upsell-rules', data),
-  updateUpsellRule: (id, data) => apiClient.put(`/upsell-rules/${id}`, data),
+  getUpsellRules: () => apiClient.get('/admin/upsell-rules'),
+  createUpsellRule: (data) => apiClient.post('/admin/upsell-rules', data),
+
+  // Sales Teams
+  getSalesTeams: () => apiClient.get('/admin/sales-teams'),
+  createSalesTeam: (data) => apiClient.post('/admin/sales-teams', data),
+
+  // Customer Tiers
+  getCustomerTiers: () => apiClient.get('/admin/customer-tiers'),
+  createCustomerTier: (data) => apiClient.post('/admin/customer-tiers', data),
 };
+

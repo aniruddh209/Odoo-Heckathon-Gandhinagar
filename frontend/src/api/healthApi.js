@@ -1,39 +1,17 @@
 import { apiClient } from './apiClient.js';
 
 export const healthApi = {
-  getDealHealthSummary: () => apiClient.get('/dashboard/deal-health'),
+  getDealHealthSummary: () => apiClient.get('/dealhealth/summary'),
 
-  getAlerts: (severity, type) => {
-    const params = new URLSearchParams();
-    if (severity) params.append('severity', severity);
-    if (type) params.append('type', type);
-    const query = params.toString();
-    return apiClient.get(`/deal-health/alerts${query ? `?${query}` : ''}`);
-  },
-  getDealAlerts: (severity, type) => {
-    const params = new URLSearchParams();
-    if (severity) params.append('severity', severity);
-    if (type) params.append('type', type);
-    const query = params.toString();
-    return apiClient.get(`/deal-health/alerts${query ? `?${query}` : ''}`);
-  },
+  getAlerts: () => apiClient.get('/dealhealth/summary'),
+  getDealAlerts: () => apiClient.get('/dealhealth/summary'),
 
-  getStalledDeals: (daysThreshold) => {
-    const params = new URLSearchParams();
-    if (daysThreshold) params.append('daysThreshold', daysThreshold.toString());
-    const query = params.toString();
-    return apiClient.get(`/deal-health/stalled-deals${query ? `?${query}` : ''}`);
-  },
+  getStalledDeals: () => apiClient.get('/dealhealth/summary'),
 
-  getRepAnomalies: () => apiClient.get('/deal-health/anomalies'),
-  getDeliverySlippages: () => apiClient.get('/deal-health/delivery-slippages'),
+  getRepAnomalies: () => apiClient.get('/dealhealth/summary'),
+  getDeliverySlippages: () => apiClient.get('/dealhealth/summary'),
 
   getQuotationHealth: (quotationId) =>
-    apiClient.get(`/quotations/${quotationId}/health`),
-
-  nudgeRep: (alertId, notes) =>
-    apiClient.post(`/deal-health/alerts/${alertId}/nudge`, { notes }),
-
-  escalateAlert: (alertId, justification) =>
-    apiClient.post(`/deal-health/alerts/${alertId}/escalate`, { justification }),
+    apiClient.get(`/quotations/${quotationId}`),
 };
+

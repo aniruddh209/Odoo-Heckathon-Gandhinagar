@@ -5,15 +5,13 @@ export const quotationApi = {
     const params = new URLSearchParams();
     if (typeof paramsOrStatus === 'string') {
       if (paramsOrStatus) params.append('status', paramsOrStatus);
-      if (ownerId) params.append('ownerId', ownerId.toString());
+      if (ownerId) params.append('salesRepId', ownerId.toString());
       if (customerId) params.append('customerId', customerId.toString());
     } else if (paramsOrStatus && typeof paramsOrStatus === 'object') {
       if (paramsOrStatus.Status) params.append('status', paramsOrStatus.Status);
       if (paramsOrStatus.status) params.append('status', paramsOrStatus.status);
-      if (paramsOrStatus.SearchTerm) params.append('search', paramsOrStatus.SearchTerm);
-      if (paramsOrStatus.PageNumber) params.append('pageNumber', paramsOrStatus.PageNumber.toString());
-      if (paramsOrStatus.PageSize) params.append('pageSize', paramsOrStatus.PageSize.toString());
-      if (paramsOrStatus.ownerId) params.append('ownerId', paramsOrStatus.ownerId.toString());
+      if (paramsOrStatus.salesRepId) params.append('salesRepId', paramsOrStatus.salesRepId.toString());
+      if (paramsOrStatus.ownerId) params.append('salesRepId', paramsOrStatus.ownerId.toString());
       if (paramsOrStatus.customerId) params.append('customerId', paramsOrStatus.customerId.toString());
     }
     const query = params.toString();
@@ -39,7 +37,7 @@ export const quotationApi = {
     return result;
   },
 
-  getPipeline: () => apiClient.get('/pipeline'),
+  getPipeline: () => apiClient.get('/reports/pipeline'),
   createQuotation: (data) => apiClient.post('/quotations', data),
   getQuotation: (id) => apiClient.get(`/quotations/${id}`),
   getQuotationById: (id) => apiClient.get(`/quotations/${id}`),
@@ -64,24 +62,16 @@ export const quotationApi = {
   getUpsellRecommendations: (id) => apiClient.get(`/quotations/${id}/recommendations`),
   getRecommendations: (id) => apiClient.get(`/quotations/${id}/recommendations`),
 
-  acceptRecommendation: (quotationId, productId) =>
-    apiClient.post(`/quotations/${quotationId}/recommendations/${productId}/accept`),
+  submitForApproval: (id) => apiClient.post(`/quotations/${id}/submit-approval`),
+  submitQuotation: (id) => apiClient.post(`/quotations/${id}/submit-approval`),
 
-  dismissRecommendation: (quotationId, productId) =>
-    apiClient.post(`/quotations/${quotationId}/recommendations/${productId}/dismiss`),
+  sendToCustomer: (id) => apiClient.post(`/quotations/${id}/generate-portal-link`),
+  sendToPortal: (id) => apiClient.post(`/quotations/${id}/generate-portal-link`),
+  generatePortalLink: (id) => apiClient.post(`/quotations/${id}/generate-portal-link`),
 
-  submitForApproval: (id) => apiClient.post(`/quotations/${id}/submit`),
-  submitQuotation: (id) => apiClient.post(`/quotations/${id}/submit`),
-
-  sendToCustomer: (id) => apiClient.post(`/quotations/${id}/send-portal`),
-  sendToPortal: (id) => apiClient.post(`/quotations/${id}/send-portal`),
-
-  convertToOrder: (id) => apiClient.post(`/quotations/${id}/confirm-order`),
-  confirmOrder: (id) => apiClient.post(`/quotations/${id}/confirm-order`),
-
-  cloneQuotation: (id) => apiClient.post(`/quotations/${id}/clone`),
-  duplicate: (id) => apiClient.post(`/quotations/${id}/clone`),
+  convertToOrder: (id) => apiClient.post(`/quotations/${id}/convert-to-order`),
+  confirmOrder: (id) => apiClient.post(`/quotations/${id}/convert-to-order`),
 
   deleteQuotation: (id) => apiClient.delete(`/quotations/${id}`),
-  getAuditHistory: (id) => apiClient.get(`/quotations/${id}/audit`),
 };
+

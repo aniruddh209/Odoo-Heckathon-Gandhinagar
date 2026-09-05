@@ -1,44 +1,26 @@
 import { apiClient } from './apiClient.js';
 
 export const billingApi = {
-  getSubscriptionPlans: () => apiClient.get('/subscription-plans'),
+  getSubscriptionPlans: () => apiClient.get('/admin/subscription-plans'),
   createSubscriptionPlan: (data) =>
-    apiClient.post('/subscription-plans', data),
+    apiClient.post('/admin/subscription-plans', data),
 
-  getSubscriptions: () => apiClient.get('/subscriptions'),
+  getSubscriptions: () => apiClient.get('/admin/subscription-plans'),
 
   getOrderBilling: (orderId) =>
-    apiClient.get(`/orders/${orderId}/billing`),
+    apiClient.post(`/billing/generate-order-billing/${orderId}`),
 
+  generateOrderBilling: (orderId) =>
+    apiClient.post(`/billing/generate-order-billing/${orderId}`),
   generateBilling: (orderId) =>
-    apiClient.post(`/orders/${orderId}/billing/generate`),
+    apiClient.post(`/billing/generate-order-billing/${orderId}`),
 
-  getBillingSchedules: (status, dueBefore) => {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (dueBefore) params.append('dueBefore', dueBefore);
-    const query = params.toString();
-    return apiClient.get(`/billing-schedules${query ? `?${query}` : ''}`);
-  },
-
-  generateScheduledInvoice: (scheduleId) =>
-    apiClient.post(`/billing-schedules/${scheduleId}/generate-invoice`),
-
-  changeSubscription: (subscriptionId, data) =>
+  changeSubscription: (scheduleId, data) =>
     apiClient.post(
-      `/subscriptions/${subscriptionId}/change`,
+      `/billing/subscriptions/${scheduleId}/seat-change`,
       {
-        newQuantity: data.NewQuantity ?? data.newQuantity ?? 1,
-        effectiveImmediately: data.EffectiveDate ? true : true,
-      }
-    ),
-
-  cancelSubscription: (subscriptionId, data) =>
-    apiClient.post(
-      `/subscriptions/${subscriptionId}/cancel`,
-      {
-        reason: data.CancellationReason || data.reason || 'User cancelled',
-        issueCreditNote: true,
+        newPlanId: data.NewPlanId ?? data.newPlanId ?? null,
+        newQuantity: data.NewQuantity ?? data.newQuantity ?? data.newSeatCount ?? 1,
       }
     ),
 
@@ -46,14 +28,17 @@ export const billingApi = {
   getInvoiceById: (id) => apiClient.get(`/invoices/${id}`),
 
   recordPayment: (invoiceId, data) =>
-    apiClient.post(`/invoices/${invoiceId}/payments`, {
+    apiClient.post(`/invoices/${invoiceId}/pay`, {
       amount: data.Amount ?? data.amount,
       paymentMethod: data.PaymentMethod ?? data.paymentMethod ?? 'Wire',
+      reference: data.Reference ?? data.reference ?? '',
     }),
 
-  getInvoicePayments: (invoiceId) =>
-    apiClient.get(`/invoices/${invoiceId}/payments`),
-
   createCreditNote: (invoiceId, data) =>
-    apiClient.post(`/invoices/${invoiceId}/credit-notes`, data),
+    apiClient.post(`/invoices/${invoiceId}/credit-note`, {
+      amount: data.Amount ?? data.amount,
+      reason: data.Reason ?? data.reason ?? 'Customer adjustment',
+      orderLineId: data.OrderLineId ?? data.orderLineId ?? null,
+    }),
 };
+
