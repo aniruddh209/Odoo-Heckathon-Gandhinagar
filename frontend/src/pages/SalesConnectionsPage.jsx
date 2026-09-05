@@ -24,6 +24,8 @@ import {
   XCircle,
   MessageSquare,
   Check,
+  Boxes,
+  AlertTriangle,
 } from 'lucide-react';
 import { salesConnectionApi } from '../api';
 import {
@@ -400,20 +402,41 @@ export const SalesConnectionsPage = () => {
     {
       header: 'Brand & Product',
       accessor: 'productName',
-      render: (r) => (
-        <div>
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono">
-              {r.companyName}
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">({r.productSku})</span>
+      render: (r) => {
+        const isStockOk = r.isStockSufficient ?? ((r.totalAvailableStock ?? 0) >= (r.requestedQuantity || 1));
+        const availStock = r.totalAvailableStock ?? 0;
+        const reqQty = r.requestedQuantity || 1;
+
+        return (
+          <div>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono">
+                {r.companyName}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">({r.productSku})</span>
+            </div>
+            <span className="font-medium text-xs text-slate-800 block line-clamp-1">{r.productName}</span>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[11px] text-slate-500 font-mono">
+                ₹{r.basePrice?.toLocaleString('en-IN')} × {reqQty} {reqQty > 1 ? 'Units' : 'Unit'}
+              </span>
+            </div>
+            <div className="mt-1">
+              {isStockOk ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                  <span>Stock: {availStock} avail in hubs</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                  <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
+                  <span>Shortage: {availStock} in hubs (Need {reqQty})</span>
+                </span>
+              )}
+            </div>
           </div>
-          <span className="font-medium text-xs text-slate-800 block line-clamp-1">{r.productName}</span>
-          <span className="text-[11px] text-slate-500 font-mono">
-            ₹{r.basePrice?.toLocaleString('en-IN')} × {r.requestedQuantity} {r.requestedQuantity > 1 ? 'Units' : 'Unit'}
-          </span>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: 'Est. Deal Value',
@@ -449,6 +472,10 @@ export const SalesConnectionsPage = () => {
       header: 'Quick Action',
       accessor: 'id',
       render: (r) => {
+        const isStockOk = r.isStockSufficient ?? ((r.totalAvailableStock ?? 0) >= (r.requestedQuantity || 1));
+        const availStock = r.totalAvailableStock ?? 0;
+        const reqQty = r.requestedQuantity || 1;
+
         return (
           <div className="flex items-center gap-1.5">
             {r.status === 'Pending' && (
@@ -457,8 +484,18 @@ export const SalesConnectionsPage = () => {
                   variant="primary"
                   size="xs"
                   icon={Check}
+                  disabled={!isStockOk}
                   onClick={() => triggerAcceptModal(r)}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                  className={
+                    isStockOk
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white font-semibold'
+                      : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60'
+                  }
+                  title={
+                    isStockOk
+                      ? 'Accept and claim inquiry into active pipeline'
+                      : `Cannot accept: Requested ${reqQty} units, but only ${availStock} available across all warehouses.`
+                  }
                 >
                   Accept
                 </Button>
@@ -1045,6 +1082,85 @@ export const SalesConnectionsPage = () => {
               </div>
             </div>
 
+            {/* Warehouse Stock Availability Card */}
+            {(() => {
+              const isStockOk = selectedInquiry.isStockSufficient ?? ((selectedInquiry.totalAvailableStock ?? 0) >= (selectedInquiry.requestedQuantity || 1));
+              const availStock = selectedInquiry.totalAvailableStock ?? 0;
+              const onHandStock = selectedInquiry.totalOnHandStock ?? 0;
+              const reqQty = selectedInquiry.requestedQuantity || 1;
+              const shortfall = Math.max(0, reqQty - availStock);
+
+              return (
+                <div className={`p-4 rounded-xl border space-y-3 ${
+                  isStockOk 
+                    ? 'bg-emerald-50/50 border-emerald-200' 
+                    : 'bg-rose-50/60 border-rose-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                      isStockOk ? 'text-emerald-900' : 'text-rose-900'
+                    }`}>
+                      <Boxes className="w-4 h-4" />
+                      Warehouse Inventory Governance
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      isStockOk 
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                        : 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                    }`}>
+                      {isStockOk ? '✓ Stock Sufficient' : '⚠️ Shortage — Acceptance Blocked'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-white/80 p-2 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">Requested</span>
+                      <strong className="text-xs font-mono text-slate-900">{reqQty} Units</strong>
+                    </div>
+                    <div className={`p-2 rounded-lg border ${
+                      isStockOk ? 'bg-white/80 border-emerald-200' : 'bg-rose-100/50 border-rose-300'
+                    }`}>
+                      <span className="text-[10px] text-slate-500 block">Total Available</span>
+                      <strong className={`text-xs font-mono ${isStockOk ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        {availStock} Units
+                      </strong>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">Total On Hand</span>
+                      <strong className="text-xs font-mono text-slate-700">{onHandStock} Units</strong>
+                    </div>
+                  </div>
+
+                  {!isStockOk && (
+                    <div className="p-2.5 rounded-lg bg-rose-100 text-rose-900 text-xs font-medium border border-rose-200 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>Acceptance Guard Active:</strong> Total warehouse stock ({availStock} units) is less than customer demand ({reqQty} units). Shortfall of <strong>{shortfall} units</strong>. Sales representative cannot accept until warehouse replenishment occurs.
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedInquiry.warehouseStocks && selectedInquiry.warehouseStocks.length > 0 && (
+                    <div className="space-y-1 pt-2 border-t border-slate-200/60">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                        Multi-Warehouse Stock Breakdown
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                        {selectedInquiry.warehouseStocks.map((wh) => (
+                          <div key={wh.warehouseId} className="bg-white/80 px-2.5 py-1.5 rounded-lg border border-slate-200 flex items-center justify-between">
+                            <span className="text-slate-700 font-medium truncate max-w-[140px]">{wh.warehouseName}</span>
+                            <span className="font-mono text-slate-900 font-bold">
+                              {wh.available} avail <span className="text-slate-400 font-normal">({wh.onHand} OH)</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {selectedInquiry.customerMessage && (
               <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100 space-y-1.5">
                 <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -1100,30 +1216,38 @@ export const SalesConnectionsPage = () => {
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-700/80">
-                {selectedInquiry.status === 'Pending' && (
-                  <>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      icon={Check}
-                      disabled={isSubmittingAction}
-                      onClick={() => triggerAcceptModal(selectedInquiry)}
-                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
-                    >
-                      Accept &amp; Claim Inquiry
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      icon={XCircle}
-                      disabled={isSubmittingAction}
-                      onClick={() => triggerRejectModal(selectedInquiry)}
-                      className="text-rose-300 border-rose-800 hover:bg-rose-950/40 text-xs"
-                    >
-                      Disqualify
-                    </Button>
-                  </>
-                )}
+                {selectedInquiry.status === 'Pending' && (() => {
+                  const isStockOk = selectedInquiry.isStockSufficient ?? ((selectedInquiry.totalAvailableStock ?? 0) >= (selectedInquiry.requestedQuantity || 1));
+                  return (
+                    <>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={Check}
+                        disabled={isSubmittingAction || !isStockOk}
+                        onClick={() => triggerAcceptModal(selectedInquiry)}
+                        className={
+                          isStockOk
+                            ? "bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
+                            : "bg-slate-700 text-slate-400 cursor-not-allowed opacity-50 text-xs"
+                        }
+                        title={isStockOk ? "Accept & Claim" : "Cannot accept: Warehouse stock is insufficient across all hubs"}
+                      >
+                        Accept &amp; Claim Inquiry
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        icon={XCircle}
+                        disabled={isSubmittingAction}
+                        onClick={() => triggerRejectModal(selectedInquiry)}
+                        className="text-rose-300 border-rose-800 hover:bg-rose-950/40 text-xs"
+                      >
+                        Disqualify
+                      </Button>
+                    </>
+                  );
+                })()}
 
                 {selectedInquiry.status === 'Accepted' && (
                   <>
@@ -1274,45 +1398,79 @@ export const SalesConnectionsPage = () => {
         title="Accept & Claim Sales Inquiry"
         description="Claim this customer inquiry into your active pipeline to initiate engagement."
         size="md"
-        footer={
-          <>
-            <Button variant="outline" size="sm" onClick={() => setActiveModal(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={isSubmittingAction}
-              onClick={handleAcceptSubmit}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
-            >
-              {isSubmittingAction ? 'Claiming...' : 'Confirm Acceptance'}
-            </Button>
-          </>
-        }
+        footer={(() => {
+          const isStockOk = selectedInquiry?.isStockSufficient ?? ((selectedInquiry?.totalAvailableStock ?? 0) >= (selectedInquiry?.requestedQuantity || 1));
+          return (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setActiveModal(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={isSubmittingAction || !isStockOk}
+                onClick={handleAcceptSubmit}
+                className={
+                  isStockOk
+                    ? "bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                    : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                }
+              >
+                {isSubmittingAction ? 'Claiming...' : 'Confirm Acceptance'}
+              </Button>
+            </>
+          );
+        })()}
       >
-        {selectedInquiry && (
-          <div className="space-y-4 text-xs">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
-              <strong className="block font-semibold">Inquiry #{selectedInquiry.requestNumber}</strong>
-              <span>
-                {selectedInquiry.customerName} • {selectedInquiry.productName} ({selectedInquiry.requestedQuantity} Units)
-              </span>
-            </div>
+        {selectedInquiry && (() => {
+          const isStockOk = selectedInquiry.isStockSufficient ?? ((selectedInquiry.totalAvailableStock ?? 0) >= (selectedInquiry.requestedQuantity || 1));
+          const availStock = selectedInquiry.totalAvailableStock ?? 0;
+          const reqQty = selectedInquiry.requestedQuantity || 1;
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Optional Rep Acceptance Note
-              </label>
-              <Textarea
-                rows={3}
-                value={acceptNotes}
-                onChange={(e) => setAcceptNotes(e.target.value)}
-                placeholder="E.g., Reviewing client's infrastructure needs. Scheduled preliminary reach out for tomorrow morning."
-              />
+          return (
+            <div className="space-y-4 text-xs">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
+                <strong className="block font-semibold">Inquiry #{selectedInquiry.requestNumber}</strong>
+                <span>
+                  {selectedInquiry.customerName} • {selectedInquiry.productName} ({selectedInquiry.requestedQuantity} Units)
+                </span>
+              </div>
+
+              {!isStockOk ? (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-900 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                    <AlertTriangle className="w-4 h-4 text-rose-600" />
+                    <span>Insufficient Inventory Across All Warehouses</span>
+                  </div>
+                  <p className="text-[11px] text-rose-700 leading-relaxed">
+                    Customer requested <strong>{reqQty} units</strong>, but total stock available across all company warehouses is only <strong>{availStock} units</strong>. Sales representative cannot accept this inquiry until warehouse stock is replenished.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 flex items-center justify-between">
+                  <span className="flex items-center gap-1 font-semibold text-[11px]">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    Warehouse Inventory Available:
+                  </span>
+                  <span className="font-mono font-bold text-xs text-emerald-700">{availStock} Units across hubs</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Optional Rep Acceptance Note
+                </label>
+                <Textarea
+                  rows={3}
+                  value={acceptNotes}
+                  disabled={!isStockOk}
+                  onChange={(e) => setAcceptNotes(e.target.value)}
+                  placeholder="E.g., Reviewing client's infrastructure needs. Scheduled preliminary reach out for tomorrow morning."
+                />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* MODAL 2: CONTACT CUSTOMER */}

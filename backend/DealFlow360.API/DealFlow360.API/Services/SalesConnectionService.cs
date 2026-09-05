@@ -163,7 +163,9 @@ public class SalesConnectionService : ISalesConnectionService
             throw new KeyNotFoundException("Selected company/brand is not recognized or active.");
         }
 
-        var product = await _context.Products.FindAsync(dto.ProductId);
+        var product = await _context.Products
+            .Include(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
+            .FirstOrDefaultAsync(p => p.Id == dto.ProductId);
         if (product == null || !product.IsActive)
         {
             throw new KeyNotFoundException("Selected product is not found in active catalog.");
@@ -253,7 +255,7 @@ public class SalesConnectionService : ISalesConnectionService
         return await _context.SalesConnectionRequests
             .Include(r => r.Customer).ThenInclude(c => c.Tier)
             .Include(r => r.Company)
-            .Include(r => r.Product)
+            .Include(r => r.Product).ThenInclude(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
             .Include(r => r.SalesRepresentative)
             .Include(r => r.Quotation)
             .Where(r => r.CustomerId == customerId)
@@ -456,7 +458,7 @@ public class SalesConnectionService : ISalesConnectionService
         var connection = await _context.SalesConnectionRequests
             .Include(r => r.Customer)
             .Include(r => r.Company)
-            .Include(r => r.Product)
+            .Include(r => r.Product).ThenInclude(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
             .Include(r => r.SalesRepresentative)
             .Include(r => r.Quotation)
             .FirstOrDefaultAsync(r => r.Id == id);
@@ -474,6 +476,28 @@ public class SalesConnectionService : ISalesConnectionService
         if (connection.Status != SalesConnectionStatus.Pending)
         {
             throw new InvalidOperationException($"Inquiry #{connection.RequestNumber} has already been updated to '{connection.Status}' and cannot be accepted again.");
+        }
+
+        // Warehouse Stock Sufficiency Governance: Customer requested quantity of physical goods must not exceed warehouse inventory
+        bool isPhysical = IsPhysicalProduct(connection.Product);
+        if (isPhysical)
+        {
+            var totalAvailableStock = await _context.InventoryStocks
+                .Where(s => s.ProductId == connection.ProductId && s.Warehouse.IsActive)
+                .SumAsync(s => (int?)(s.OnHand - s.Reserved)) ?? 0;
+
+            var totalOnHand = await _context.InventoryStocks
+                .Where(s => s.ProductId == connection.ProductId && s.Warehouse.IsActive)
+                .SumAsync(s => (int?)s.OnHand) ?? 0;
+
+            if (totalAvailableStock < connection.RequestedQuantity)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot accept inquiry #{connection.RequestNumber}. Insufficient inventory across warehouses: " +
+                    $"Customer requested {connection.RequestedQuantity} units of '{connection.Product?.Name ?? "product"}', " +
+                    $"but total available stock across all warehouses is only {totalAvailableStock} units (Total On Hand: {totalOnHand}). " +
+                    $"Please replenish warehouse inventory before accepting this inquiry.");
+            }
         }
 
         var oldStatus = connection.Status;
@@ -510,7 +534,7 @@ public class SalesConnectionService : ISalesConnectionService
         var connection = await _context.SalesConnectionRequests
             .Include(r => r.Customer)
             .Include(r => r.Company)
-            .Include(r => r.Product)
+            .Include(r => r.Product).ThenInclude(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
             .Include(r => r.SalesRepresentative)
             .Include(r => r.Quotation)
             .FirstOrDefaultAsync(r => r.Id == id);
@@ -566,7 +590,7 @@ public class SalesConnectionService : ISalesConnectionService
         var connection = await _context.SalesConnectionRequests
             .Include(r => r.Customer)
             .Include(r => r.Company)
-            .Include(r => r.Product)
+            .Include(r => r.Product).ThenInclude(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
             .Include(r => r.SalesRepresentative)
             .Include(r => r.Quotation)
             .FirstOrDefaultAsync(r => r.Id == id);
@@ -620,7 +644,7 @@ public class SalesConnectionService : ISalesConnectionService
         var connection = await _context.SalesConnectionRequests
             .Include(r => r.Customer)
             .Include(r => r.Company)
-            .Include(r => r.Product)
+            .Include(r => r.Product).ThenInclude(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
             .Include(r => r.SalesRepresentative)
             .Include(r => r.Quotation)
             .FirstOrDefaultAsync(r => r.Id == id);
@@ -672,7 +696,7 @@ public class SalesConnectionService : ISalesConnectionService
         var r = await _context.SalesConnectionRequests
             .Include(r => r.Customer)
             .Include(r => r.Company)
-            .Include(r => r.Product)
+            .Include(r => r.Product).ThenInclude(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
             .Include(r => r.SalesRepresentative)
             .Include(r => r.Quotation)
             .FirstOrDefaultAsync(r => r.Id == id);
@@ -702,7 +726,7 @@ public class SalesConnectionService : ISalesConnectionService
         var connection = await _context.SalesConnectionRequests
             .Include(r => r.Customer)
             .Include(r => r.Company)
-            .Include(r => r.Product)
+            .Include(r => r.Product).ThenInclude(p => p.InventoryStocks).ThenInclude(s => s.Warehouse)
             .Include(r => r.SalesRepresentative)
             .Include(r => r.Quotation)
             .FirstOrDefaultAsync(r => r.Id == id);
@@ -799,6 +823,23 @@ public class SalesConnectionService : ISalesConnectionService
                     GrandTotal = existingQuote.GrandTotal,
                     CurrencyCode = existingQuote.CurrencyCode
                 };
+            }
+        }
+
+        // Warehouse Stock Sufficiency Governance Check: Physical goods require warehouse inventory
+        bool isPhysical = IsPhysicalProduct(connection.Product);
+        if (isPhysical)
+        {
+            var totalAvailableStock = await _context.InventoryStocks
+                .Where(s => s.ProductId == connection.ProductId && s.Warehouse.IsActive)
+                .SumAsync(s => (int?)(s.OnHand - s.Reserved)) ?? 0;
+
+            if (totalAvailableStock < connection.RequestedQuantity)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot generate quotation for inquiry #{connection.RequestNumber}. Insufficient inventory across warehouses: " +
+                    $"Customer requested {connection.RequestedQuantity} units of '{connection.Product?.Name ?? "product"}', " +
+                    $"but total available stock across all warehouses is only {totalAvailableStock} units.");
             }
         }
 
@@ -1119,6 +1160,20 @@ public class SalesConnectionService : ISalesConnectionService
     }
 
     // ─── Helpers ──────────────────────────────────────────────
+    private static bool IsPhysicalProduct(Product? p)
+    {
+        if (p == null) return false;
+        if (p.ProductType == ProductType.Subscription) return false;
+        if (p.SKU.StartsWith("SRV-", StringComparison.OrdinalIgnoreCase)) return false;
+        if (p.SKU.StartsWith("SVC-", StringComparison.OrdinalIgnoreCase)) return false;
+        if (p.SKU.StartsWith("SUB-", StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.Equals(p.Unit, "Service", StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.Equals(p.Unit, "Year", StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.Equals(p.Unit, "Month", StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.Equals(p.Unit, "Batch", StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
+
     private static SalesConnectionResponse MapToResponse(
         SalesConnectionRequest r,
         Customer customer,
@@ -1127,6 +1182,15 @@ public class SalesConnectionService : ISalesConnectionService
         string repName,
         string repEmail)
     {
+        var activeStocks = product?.InventoryStocks?
+            .Where(s => s.Warehouse == null || s.Warehouse.IsActive)
+            .ToList() ?? new List<InventoryStock>();
+
+        bool isPhysical = IsPhysicalProduct(product);
+        int totalAvailable = isPhysical ? activeStocks.Sum(s => s.OnHand - s.Reserved) : 9999;
+        int totalOnHand = isPhysical ? activeStocks.Sum(s => s.OnHand) : 9999;
+        bool isSufficient = !isPhysical || totalAvailable >= r.RequestedQuantity;
+
         return new SalesConnectionResponse
         {
             Id = r.Id,
@@ -1154,6 +1218,16 @@ public class SalesConnectionService : ISalesConnectionService
             QuotationNumber = r.Quotation != null ? r.Quotation.QuotationNumber : null,
             RepNotes = r.RepNotes,
             RejectionReason = r.RejectionReason,
+            TotalAvailableStock = totalAvailable,
+            TotalOnHandStock = totalOnHand,
+            IsStockSufficient = isSufficient,
+            WarehouseStocks = activeStocks.Select(s => new InquiryWarehouseStockDto
+            {
+                WarehouseId = s.WarehouseId,
+                WarehouseName = s.Warehouse != null ? s.Warehouse.Name : $"Warehouse #{s.WarehouseId}",
+                OnHand = s.OnHand,
+                Reserved = s.Reserved
+            }).ToList(),
             AcceptedAtUtc = r.AcceptedAtUtc,
             ContactedAtUtc = r.ContactedAtUtc,
             QualifiedAtUtc = r.QualifiedAtUtc,
@@ -1191,6 +1265,39 @@ public class SalesConnectionService : ISalesConnectionService
             QuotationNumber = r.Quotation != null ? r.Quotation.QuotationNumber : null,
             RepNotes = r.RepNotes,
             RejectionReason = r.RejectionReason,
+            TotalAvailableStock = (r.Product.ProductType == ProductType.Subscription ||
+                r.Product.SKU.StartsWith("SRV-") ||
+                r.Product.SKU.StartsWith("SVC-") ||
+                r.Product.SKU.StartsWith("SUB-") ||
+                r.Product.Unit == "Service" ||
+                r.Product.Unit == "Year" ||
+                r.Product.Unit == "Batch")
+                ? 9999
+                : (r.Product.InventoryStocks.Where(s => s.Warehouse.IsActive).Sum(s => (int?)(s.OnHand - s.Reserved)) ?? 0),
+            TotalOnHandStock = (r.Product.ProductType == ProductType.Subscription ||
+                r.Product.SKU.StartsWith("SRV-") ||
+                r.Product.SKU.StartsWith("SVC-") ||
+                r.Product.SKU.StartsWith("SUB-") ||
+                r.Product.Unit == "Service" ||
+                r.Product.Unit == "Year" ||
+                r.Product.Unit == "Batch")
+                ? 9999
+                : (r.Product.InventoryStocks.Where(s => s.Warehouse.IsActive).Sum(s => (int?)s.OnHand) ?? 0),
+            IsStockSufficient = (r.Product.ProductType == ProductType.Subscription ||
+                r.Product.SKU.StartsWith("SRV-") ||
+                r.Product.SKU.StartsWith("SVC-") ||
+                r.Product.SKU.StartsWith("SUB-") ||
+                r.Product.Unit == "Service" ||
+                r.Product.Unit == "Year" ||
+                r.Product.Unit == "Batch") ||
+                ((r.Product.InventoryStocks.Where(s => s.Warehouse.IsActive).Sum(s => (int?)(s.OnHand - s.Reserved)) ?? 0) >= r.RequestedQuantity),
+            WarehouseStocks = r.Product.InventoryStocks.Where(s => s.Warehouse.IsActive).Select(s => new InquiryWarehouseStockDto
+            {
+                WarehouseId = s.WarehouseId,
+                WarehouseName = s.Warehouse.Name,
+                OnHand = s.OnHand,
+                Reserved = s.Reserved
+            }).ToList(),
             AcceptedAtUtc = r.AcceptedAtUtc,
             ContactedAtUtc = r.ContactedAtUtc,
             QualifiedAtUtc = r.QualifiedAtUtc,

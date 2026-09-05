@@ -204,12 +204,25 @@ public class SalesConnectionResponse
     public string? QuotationNumber { get; set; }
     public string? RepNotes { get; set; }
     public string? RejectionReason { get; set; }
+    public int TotalAvailableStock { get; set; }
+    public int TotalOnHandStock { get; set; }
+    public bool IsStockSufficient { get; set; } = true;
+    public List<InquiryWarehouseStockDto> WarehouseStocks { get; set; } = new();
     public DateTime? AcceptedAtUtc { get; set; }
     public DateTime? ContactedAtUtc { get; set; }
     public DateTime? QualifiedAtUtc { get; set; }
     public DateTime? QuoteCreatedAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+}
+
+public class InquiryWarehouseStockDto
+{
+    public int WarehouseId { get; set; }
+    public string WarehouseName { get; set; } = string.Empty;
+    public int OnHand { get; set; }
+    public int Reserved { get; set; }
+    public int Available => OnHand - Reserved;
 }
 
 public class CreateQuoteFromConnectionResponse
