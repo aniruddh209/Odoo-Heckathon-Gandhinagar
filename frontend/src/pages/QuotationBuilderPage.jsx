@@ -534,23 +534,26 @@ export const QuotationBuilderPage = () => {
                               min="1"
                               value={line.quantity}
                               onChange={(e) => handleUpdateLine(idx, 'quantity', e.target.value)}
-                              className="w-full h-8 px-2 text-center text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                              className="w-16 h-9 px-2 text-center text-sm rounded-lg border border-slate-200 shadow-sm hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono transition-all bg-white"
                             />
                           </td>
 
                           <td className="py-2.5 px-3">
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={line.unitPrice}
-                              onChange={(e) => handleUpdateLine(idx, 'unitPrice', e.target.value)}
-                              className="w-full h-8 px-2 text-right text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                            />
+                            <div className="relative flex items-center">
+                              <span className="absolute left-2.5 text-slate-400 text-sm font-mono font-medium">{currencyCode === 'USD' ? '$' : '₹'}</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={line.unitPrice}
+                                onChange={(e) => handleUpdateLine(idx, 'unitPrice', e.target.value)}
+                                className="w-28 h-9 pl-6 pr-2.5 text-right text-sm rounded-lg border border-slate-200 shadow-sm hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono transition-all bg-white"
+                              />
+                            </div>
                           </td>
 
                           <td className="py-2.5 px-3">
-                            <div className="relative">
+                            <div className="relative flex items-center">
                               <input
                                 type="number"
                                 step="0.1"
@@ -558,12 +561,13 @@ export const QuotationBuilderPage = () => {
                                 max="100"
                                 value={line.discountPercent}
                                 onChange={(e) => handleUpdateLine(idx, 'discountPercent', e.target.value)}
-                                className={`w-full h-8 px-2 text-center text-xs rounded-lg border focus:outline-none focus:ring-1 font-mono ${
+                                className={`w-20 h-9 pl-2 pr-6 text-right text-sm rounded-lg border shadow-sm hover:border-slate-300 focus:outline-none focus:ring-2 font-mono transition-all bg-white ${
                                   isLineExceeding
-                                    ? 'border-amber-400 bg-amber-50 text-amber-900 focus:ring-amber-500'
-                                    : 'border-slate-300 focus:ring-blue-500'
+                                    ? 'border-amber-300 bg-amber-50/30 text-amber-900 focus:ring-amber-500/30 focus:border-amber-500'
+                                    : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
                                 }`}
                               />
+                              <span className="absolute right-2.5 text-slate-400 text-xs font-bold">%</span>
                             </div>
                           </td>
 
@@ -601,7 +605,7 @@ export const QuotationBuilderPage = () => {
                       Overall Proposal Discount
                     </label>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-sm">
-                      Apply a blanket manual commercial discount across all proposal deliverables, or utilize the automated Tier Advantage above.
+                      Automated blanket commercial discount applied from the customer's Tier Advantage limit. Individual line discounts can be adjusted above.
                     </p>
                   </div>
                 </div>
@@ -614,12 +618,12 @@ export const QuotationBuilderPage = () => {
                       min="0"
                       max="100"
                       value={orderDiscountPercent}
-                      onChange={(e) => setOrderDiscountPercent(e.target.value)}
+                      readOnly
                       placeholder="0.0"
-                      className={`w-28 h-10 pl-4 pr-7 text-right text-sm font-mono font-bold rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 ${
+                      className={`w-28 h-10 pl-4 pr-7 text-right text-sm font-mono font-bold rounded-lg border cursor-not-allowed transition-all duration-200 focus:outline-none ${
                         orderDiscPct > tierLimit
-                          ? 'border-amber-300 bg-amber-50/30 text-amber-900 focus:ring-amber-500/30 focus:border-amber-500'
-                          : 'border-slate-200 bg-slate-50/50 hover:bg-white text-slate-900 focus:ring-blue-500/20 focus:border-blue-500'
+                          ? 'border-amber-200 bg-amber-50/50 text-amber-800'
+                          : 'border-slate-100 bg-slate-50 text-slate-600'
                       }`}
                     />
                     <span className={`absolute right-3 text-xs font-bold ${orderDiscPct > tierLimit ? 'text-amber-600' : 'text-slate-400'}`}>%</span>

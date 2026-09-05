@@ -67,6 +67,7 @@ public class QuotationDetailResponse
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerTierName { get; set; } = string.Empty;
+    public decimal CustomerTierMaxDiscount { get; set; }
     public int SalesRepId { get; set; }
     public string SalesRepName { get; set; } = string.Empty;
     public int? PriceListId { get; set; }
@@ -169,4 +170,18 @@ public class RecommendationResponse
     public bool IsPromoted { get; set; }
     public string RuleType { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
+}
+
+public class NegotiatePriceRequest
+{
+    public decimal? TargetUnitPrice { get; set; }
+    public decimal? TargetDiscountPercent { get; set; }
+    public int? Quantity { get; set; }
+    public string? Reason { get; set; }
+}
+
+public class NegotiateDealRequest
+{
+    public decimal OverallDiscountPercent { get; set; }
+    public string? Reason { get; set; }
 }

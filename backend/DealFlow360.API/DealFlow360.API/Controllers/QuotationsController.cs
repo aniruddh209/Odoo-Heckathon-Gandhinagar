@@ -88,6 +88,24 @@ public class QuotationsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id}/lines/{lineId}/negotiate")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> NegotiateLinePrice(int id, int lineId, [FromBody] NegotiatePriceRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.NegotiateLinePriceAsync(id, lineId, request, userId);
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/negotiate")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> NegotiateDeal(int id, [FromBody] NegotiateDealRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.NegotiateDealAsync(id, request, userId);
+        return Ok(result);
+    }
+
     [HttpPost("{id}/recalculate")]
     public async Task<IActionResult> Recalculate(int id)
     {

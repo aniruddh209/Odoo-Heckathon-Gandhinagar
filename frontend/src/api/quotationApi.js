@@ -56,6 +56,14 @@ export const quotationApi = {
   convertToOrder: async (id) => {
     return apiClient.post(`quotations/${id}/convert-to-order`);
   },
+
+  negotiateLinePrice: async (quotationId, lineId, data) => {
+    return apiClient.post(`quotations/${quotationId}/lines/${lineId}/negotiate`, data);
+  },
+
+  negotiateDeal: async (quotationId, data) => {
+    return apiClient.post(`quotations/${quotationId}/negotiate`, data);
+  },
 };
 
 export default quotationApi;

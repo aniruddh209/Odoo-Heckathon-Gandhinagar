@@ -21,8 +21,10 @@ public interface IQuotationService
     Task<QuotationDetailResponse> SubmitForApprovalAsync(int id, int userId);
     Task<List<RecommendationResponse>> GetUpsellRecommendationsAsync(int id);
     Task<string> GeneratePortalLinkAsync(int quotationId);
-    Task<OrderDetailResponse> ConvertToOrderAsync(int quotationId, int userId);
     Task<QuotationDetailResponse> AddLineCommentAsync(int quotationId, int lineId, string comment, int userId);
+    Task<QuotationDetailResponse> NegotiateLinePriceAsync(int quotationId, int lineId, NegotiatePriceRequest request, int userId);
+    Task<QuotationDetailResponse> NegotiateDealAsync(int quotationId, NegotiateDealRequest request, int userId);
+    Task<OrderDetailResponse> ConvertToOrderAsync(int quotationId, int userId);
 }
 
 public class QuotationService : IQuotationService
@@ -355,6 +357,145 @@ public class QuotationService : IQuotationService
         return await GetQuotationByIdAsync(quotationId);
     }
 
+    public async Task<QuotationDetailResponse> NegotiateLinePriceAsync(int quotationId, int lineId, NegotiatePriceRequest request, int userId)
+    {
+        var quotation = await _context.Quotations
+            .Include(q => q.Lines)
+            .Include(q => q.Customer).ThenInclude(c => c.Tier)
+            .FirstOrDefaultAsync(q => q.Id == quotationId);
+
+        if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
+
+        if (quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Cannot negotiate terms on a quotation that has already converted to an order.");
+        }
+
+        var line = quotation.Lines.FirstOrDefault(l => l.Id == lineId);
+        if (line == null) throw new KeyNotFoundException($"Quotation line {lineId} not found.");
+
+        var product = await _context.Products.FindAsync(line.ProductId);
+        if (product == null) throw new KeyNotFoundException($"Product {line.ProductId} not found.");
+
+        decimal oldPrice = line.UnitPrice;
+        decimal oldDiscount = line.DiscountPercent;
+        decimal oldQty = line.Quantity;
+
+        if (request.Quantity.HasValue && request.Quantity.Value > 0)
+        {
+            line.Quantity = request.Quantity.Value;
+        }
+
+        if (request.TargetUnitPrice.HasValue && request.TargetUnitPrice.Value > 0)
+        {
+            line.UnitPrice = request.TargetUnitPrice.Value;
+        }
+
+        if (request.TargetDiscountPercent.HasValue && request.TargetDiscountPercent.Value >= 0)
+        {
+            line.DiscountPercent = request.TargetDiscountPercent.Value;
+        }
+
+        _marginEngine.CalculateLine(line, product);
+
+        // Record negotiation audit thread comment
+        var note = string.IsNullOrWhiteSpace(request.Reason) ? "Commercial counter-proposal applied." : request.Reason.Trim();
+        var commentText = $"[Sales Rep Counter-Offer] Price updated to {quotation.CurrencyCode} {line.UnitPrice:N2} with {line.DiscountPercent}% discount. Note: {note}";
+
+        var lineComment = new QuotationLineComment
+        {
+            QuotationLineId = lineId,
+            UserId = userId,
+            Comment = commentText,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        _context.QuotationLineComments.Add(lineComment);
+
+        _context.QuotationChanges.Add(new QuotationChange
+        {
+            QuotationId = quotationId,
+            ChangeType = "RepCounterOffer",
+            Description = $"Target unit price: {line.UnitPrice:N2}, Discount: {line.DiscountPercent}%. Note: {note}",
+            RequestedByUserId = userId,
+            OldValueJson = $"{{\"unitPrice\":{oldPrice},\"discount\":{oldDiscount},\"quantity\":{oldQty}}}",
+            NewValueJson = $"{{\"unitPrice\":{line.UnitPrice},\"discount\":{line.DiscountPercent},\"quantity\":{line.Quantity}}}",
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        // Set status to UnderNegotiation
+        quotation.Status = QuoteStatus.UnderNegotiation;
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+
+        // Check if discount triggers approval
+        decimal tierCeiling = quotation.Customer?.Tier?.MaxDiscountPercent ?? 15.0m;
+        if (line.DiscountPercent > tierCeiling)
+        {
+            quotation.ApprovalStatus = ApprovalStatus.Pending;
+        }
+        else
+        {
+            quotation.ApprovalStatus = ApprovalStatus.None;
+        }
+
+        await RecalculateAndSaveQuotationAsync(quotation);
+        return await GetQuotationByIdAsync(quotationId);
+    }
+
+    public async Task<QuotationDetailResponse> NegotiateDealAsync(int quotationId, NegotiateDealRequest request, int userId)
+    {
+        var quotation = await _context.Quotations
+            .Include(q => q.Lines)
+            .Include(q => q.Customer).ThenInclude(c => c.Tier)
+            .FirstOrDefaultAsync(q => q.Id == quotationId);
+
+        if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
+
+        if (quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Cannot negotiate terms on a quotation that has already converted to an order.");
+        }
+
+        decimal discount = Math.Max(0, Math.Min(100, request.OverallDiscountPercent));
+
+        foreach (var line in quotation.Lines)
+        {
+            line.DiscountPercent = discount;
+            var prod = await _context.Products.FindAsync(line.ProductId);
+            if (prod != null)
+            {
+                _marginEngine.CalculateLine(line, prod);
+            }
+        }
+
+        var note = string.IsNullOrWhiteSpace(request.Reason) ? "Overall deal discount revised." : request.Reason.Trim();
+        _context.QuotationChanges.Add(new QuotationChange
+        {
+            QuotationId = quotationId,
+            ChangeType = "RepDealCounterOffer",
+            Description = $"Deal-wide discount revised to {discount}%. Note: {note}",
+            RequestedByUserId = userId,
+            OldValueJson = $"{{\"dealDiscount\":0}}",
+            NewValueJson = $"{{\"dealDiscount\":{discount}}}",
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        quotation.Status = QuoteStatus.UnderNegotiation;
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+
+        decimal tierCeiling = quotation.Customer?.Tier?.MaxDiscountPercent ?? 15.0m;
+        if (discount > tierCeiling)
+        {
+            quotation.ApprovalStatus = ApprovalStatus.Pending;
+        }
+        else
+        {
+            quotation.ApprovalStatus = ApprovalStatus.None;
+        }
+
+        await RecalculateAndSaveQuotationAsync(quotation);
+        return await GetQuotationByIdAsync(quotationId);
+    }
+
     public async Task<QuotationDetailResponse> RecalculateQuotationAsync(int id)
     {
         var quotation = await _context.Quotations
@@ -588,6 +729,7 @@ public class QuotationService : IQuotationService
             CustomerId = q.CustomerId,
             CustomerName = q.Customer?.Name ?? string.Empty,
             CustomerTierName = q.Customer?.Tier?.Name ?? string.Empty,
+            CustomerTierMaxDiscount = q.Customer?.Tier?.MaxDiscountPercent ?? 15.0m,
             SalesRepId = q.SalesRepId,
             SalesRepName = q.SalesRep?.FullName ?? string.Empty,
             PriceListId = q.PriceListId,

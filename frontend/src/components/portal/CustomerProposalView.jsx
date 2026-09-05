@@ -319,11 +319,24 @@ export const CustomerProposalView = ({
         )}
 
         {quote.status === 'UnderNegotiation' && (
-          <div className="px-6 py-3 bg-purple-50 border-b border-purple-100 flex items-center gap-3 text-purple-800 text-xs">
-            <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
-            <span>
-              <strong>Active Negotiation:</strong> A revised counter-proposal is currently under review by your account executive.
-            </span>
+          <div className="px-6 py-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-purple-900 text-xs">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+              <span>
+                <strong>Counter-Offer Applied by Sales Representative:</strong> Commercial terms have been updated with revised unit pricing and discounts. Review the deliverables below. You can accept and confirm directly, or propose another adjustment.
+              </span>
+            </div>
+            {canConfirm && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={CheckCircle2}
+                onClick={() => setConfirmModalOpen(true)}
+                className="shrink-0 bg-purple-700 hover:bg-purple-800 text-white"
+              >
+                Accept Counter-Offer
+              </Button>
+            )}
           </div>
         )}
 
