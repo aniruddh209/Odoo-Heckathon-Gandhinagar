@@ -286,6 +286,9 @@ The API exposes **14 controller modules**:
 
 ```
 Odoo-Hecathon-Gandhinagar/
+├── docs/
+│   ├── DealFlow360_ASPNet_SQLServer_React_Complete_Implementation_Spec.pdf
+│   └── migration.sql
 ├── backend/
 │   └── DealFlow360.API/
 │       ├── DealFlow360.API.sln
