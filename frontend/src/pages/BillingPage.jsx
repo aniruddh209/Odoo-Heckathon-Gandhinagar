@@ -75,9 +75,9 @@ export const BillingPage = () => {
     try {
       const [invRes, schedRes, cnRes, planRes] = await Promise.all([
         billingApi.getInvoices(),
-        billingApi.getSchedules().catch(() => []),
-        billingApi.getCreditNotes().catch(() => []),
-        adminApi.getSubscriptionPlans().catch(() => []),
+        billingApi.getSchedules(),
+        billingApi.getCreditNotes(),
+        adminApi.getSubscriptionPlans(),
       ]);
 
       const invList = Array.isArray(invRes) ? invRes : invRes?.value || [];

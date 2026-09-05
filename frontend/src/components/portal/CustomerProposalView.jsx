@@ -6,6 +6,7 @@ import {
   Modal,
   Input,
   Textarea,
+  Select,
 } from '../ui';
 import {
   CheckCircle2,
@@ -929,34 +930,33 @@ export const CustomerProposalView = ({
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               Change Category
             </label>
-            <select
+            <Select
               value={changeType}
               onChange={(e) => setChangeType(e.target.value)}
-              className="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="QuantityChange">Quantity Adjustment</option>
-              <option value="ScopeChange">Product / Scope Modification</option>
-              <option value="Terms">Commercial / Payment Terms</option>
-              <option value="General">General Inquiries &amp; Other</option>
-            </select>
+              options={[
+                { value: 'QuantityChange', label: 'Quantity Adjustment' },
+                { value: 'ScopeChange', label: 'Product / Scope Modification' },
+                { value: 'Terms', label: 'Commercial / Payment Terms' },
+                { value: 'General', label: 'General Inquiries & Other' }
+              ]}
+            />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               Associated Deliverable Line (Optional)
             </label>
-            <select
+            <Select
               value={changeLineId}
               onChange={(e) => setChangeLineId(e.target.value)}
-              className="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">-- Applies to Overall Proposal --</option>
-              {lines.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.productName} ({l.quantity}x @ {formatMoney(l.unitPrice)})
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: '-- Applies to Overall Proposal --' },
+                ...lines.map((l) => ({
+                  value: l.id,
+                  label: `${l.productName} (${l.quantity}x @ ${formatMoney(l.unitPrice)})`
+                }))
+              ]}
+            />
           </div>
 
           {changeType === 'QuantityChange' && (

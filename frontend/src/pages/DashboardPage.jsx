@@ -59,58 +59,6 @@ export const DashboardPage = () => {
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminAuditLogs, setAdminAuditLogs] = useState([]);
 
-  const calculateLocalMetrics = (quotes) => {
-    const totalQuoted = quotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
-    const bookedRevenue = quotes
-      .filter((q) => q.status === 'ConvertedToOrder')
-      .reduce((sum, q) => sum + (q.grandTotal || 0), 0);
-    const avgMargin = quotes.length > 0
-      ? quotes.reduce((sum, q) => sum + (q.marginPercent || 0), 0) / quotes.length
-      : 0;
-    const avgRisk = quotes.length > 0
-      ? quotes.reduce((sum, q) => sum + (q.riskScore || 0), 0) / quotes.length
-      : 0;
-    const pendingCount = quotes.filter((q) => q.status === 'PendingApproval').length;
-    const activeOrders = quotes.filter((q) => q.status === 'ConvertedToOrder').length;
-
-    // Local pipeline breakdown
-    const stageMap = {
-      Draft: { count: 0, total: 0 },
-      Sent: { count: 0, total: 0 },
-      PendingApproval: { count: 0, total: 0 },
-      Approved: { count: 0, total: 0 },
-      ConvertedToOrder: { count: 0, total: 0 },
-      Rejected: { count: 0, total: 0 },
-    };
-
-    quotes.forEach((q) => {
-      const st = q.status || 'Draft';
-      if (!stageMap[st]) stageMap[st] = { count: 0, total: 0 };
-      stageMap[st].count += 1;
-      stageMap[st].total += (q.grandTotal || 0);
-    });
-
-    setPipelineOverview({
-      totalPipelineValue: totalQuoted,
-      totalDeals: quotes.length,
-      stages: Object.entries(stageMap).map(([stageName, data]) => ({
-        stageName,
-        count: data.count,
-        totalValue: data.total,
-      })),
-    });
-
-    setMetrics({
-      totalQuotedRevenue: totalQuoted,
-      totalBookedRevenue: bookedRevenue,
-      averageMarginPercent: parseFloat(avgMargin.toFixed(1)),
-      averageRiskScore: parseFloat(avgRisk.toFixed(1)),
-      pendingApprovalsCount: pendingCount,
-      activeOrdersCount: activeOrders,
-      totalQuotes: quotes.length,
-    });
-  };
-
   const loadDashboardData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
     else setIsLoading(true);
@@ -122,34 +70,27 @@ export const DashboardPage = () => {
       const quotesList = quotesRes.items || quotesRes.data || (Array.isArray(quotesRes) ? quotesRes : []);
       setRecentQuotes(quotesList.slice(0, 7));
 
-      // 2. Telemetry and Overview from Reports API
-      try {
-        const overviewRes = await reportApi.getPlatformOverview();
-        if (overviewRes) {
-          setMetrics((prev) => ({
-            ...prev,
-            totalQuotedRevenue: overviewRes.totalQuotedRevenue ?? prev.totalQuotedRevenue,
-            totalBookedRevenue: overviewRes.totalBookedRevenue ?? prev.totalBookedRevenue,
-            averageMarginPercent: overviewRes.averageGrossMarginPercent ?? prev.averageMarginPercent,
-            pendingApprovalsCount: overviewRes.pendingApprovalsCount ?? prev.pendingApprovalsCount,
-            activeOrdersCount: overviewRes.confirmedOrdersCount ?? prev.activeOrdersCount,
-            totalQuotes: overviewRes.totalQuotationsCount ?? quotesList.length,
-          }));
-        }
-      } catch {
-        calculateLocalMetrics(quotesList);
+      // 2. Authoritative Database Telemetry from Reports API
+      const [metricsRes, pipeRes] = await Promise.all([
+        reportApi.getDashboardMetrics(),
+        reportApi.getPipelineOverview(),
+      ]);
+
+      if (metricsRes) {
+        setMetrics({
+          totalQuotedRevenue: metricsRes.totalQuotedRevenue ?? 0,
+          totalBookedRevenue: metricsRes.totalBookedRevenue ?? 0,
+          averageMarginPercent: metricsRes.averageMarginPercent ?? 0,
+          averageRiskScore: metricsRes.averageRiskScore ?? 0,
+          pendingApprovalsCount: metricsRes.pendingApprovalsCount ?? 0,
+          activeOrdersCount: metricsRes.activeOrdersCount ?? 0,
+          totalQuotes: metricsRes.totalQuotationsCount ?? quotesList.length,
+        });
       }
 
       // 3. Pipeline Stages
-      try {
-        const pipeRes = await reportApi.getPipelineOverview();
-        if (pipeRes && pipeRes.stages) {
-          setPipelineOverview(pipeRes);
-        } else if (!pipelineOverview) {
-          calculateLocalMetrics(quotesList);
-        }
-      } catch {
-        if (!pipelineOverview) calculateLocalMetrics(quotesList);
+      if (pipeRes && pipeRes.stages) {
+        setPipelineOverview(pipeRes);
       }
 
       // 4. Deal Health Radar

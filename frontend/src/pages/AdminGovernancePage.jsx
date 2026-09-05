@@ -119,14 +119,14 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
     try {
       const [tRes, cRes, dRes, aRes, wRes, pRes, prodRes, repRes, upRes] = await Promise.all([
         adminApi.getCustomerTiers(),
-        adminApi.getCategories().catch(() => []),
+        adminApi.getCategories(),
         adminApi.getDiscountRules(),
         adminApi.getApprovalRules(),
         adminApi.getWarehouses(),
         adminApi.getSubscriptionPlans(),
-        adminApi.getProducts().catch(() => []),
-        adminApi.getReplenishmentRules().catch(() => []),
-        adminApi.getUpsellRules().catch(() => []),
+        adminApi.getProducts(),
+        adminApi.getReplenishmentRules(),
+        adminApi.getUpsellRules(),
       ]);
 
       const tList = Array.isArray(tRes) ? tRes : tRes?.value || [];
@@ -1238,18 +1238,14 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
             <form onSubmit={handleAdjustStock} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Select Product</label>
-                <select
-                  className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                <Select
                   value={adjustProductId}
                   onChange={(e) => setAdjustProductId(e.target.value)}
-                  required
-                >
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      [{p.sku}] {p.name}
-                    </option>
-                  ))}
-                </select>
+                  options={products.map((p) => ({
+                    value: p.id,
+                    label: `[${p.sku}] ${p.name}`
+                  }))}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">New On-Hand Level</label>
@@ -1308,34 +1304,26 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
         <form onSubmit={handleSaveReplenishRule} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Target Warehouse / Depot</label>
-            <select
-              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            <Select
               value={replenishWarehouseId}
               onChange={(e) => setReplenishWarehouseId(e.target.value)}
-              required
-            >
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
+              options={warehouses.map((w) => ({
+                value: w.id,
+                label: w.name
+              }))}
+            />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Target Product Line</label>
-            <select
-              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            <Select
               value={replenishProductId}
               onChange={(e) => setReplenishProductId(e.target.value)}
-              required
-            >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  [{p.sku}] {p.name}
-                </option>
-              ))}
-            </select>
+              options={products.map((p) => ({
+                value: p.id,
+                label: `[${p.sku}] ${p.name}`
+              }))}
+            />
           </div>
 
           <Input
@@ -1392,34 +1380,26 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
         <form onSubmit={handleSaveUpsellRule} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Trigger Product (In Quote)</label>
-            <select
-              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            <Select
               value={upsellTriggerProductId}
               onChange={(e) => setUpsellTriggerProductId(e.target.value)}
-              required
-            >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  [{p.sku}] {p.name}
-                </option>
-              ))}
-            </select>
+              options={products.map((p) => ({
+                value: p.id,
+                label: `[${p.sku}] ${p.name}`
+              }))}
+            />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Suggested Product (Recommendation)</label>
-            <select
-              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            <Select
               value={upsellSuggestedProductId}
               onChange={(e) => setUpsellSuggestedProductId(e.target.value)}
-              required
-            >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  [{p.sku}] {p.name}
-                </option>
-              ))}
-            </select>
+              options={products.map((p) => ({
+                value: p.id,
+                label: `[${p.sku}] ${p.name}`
+              }))}
+            />
           </div>
 
           <Select

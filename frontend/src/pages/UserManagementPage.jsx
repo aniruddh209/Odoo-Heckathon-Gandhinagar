@@ -64,7 +64,7 @@ export const UserManagementPage = () => {
     try {
       const [uRes, teamsRes] = await Promise.all([
         userApi.getUsers(),
-        isAdmin ? adminApi.getSalesTeams().catch(() => []) : Promise.resolve([]),
+        isAdmin ? adminApi.getSalesTeams() : Promise.resolve([]),
       ]);
 
       const uList = Array.isArray(uRes) ? uRes : uRes?.value || [];

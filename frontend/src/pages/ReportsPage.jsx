@@ -11,6 +11,7 @@ import {
   SkeletonDashboard,
   ErrorAlert,
   Badge,
+  Select,
 } from '../components/ui';
 import { Download, RefreshCw, Filter, Layers, IndianRupee, TrendingUp, ShieldAlert, CheckCircle2, FileText, Users } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters';
@@ -44,8 +45,8 @@ export const ReportsPage = () => {
       const [metricsRes, quotesRes, tiersRes, overviewRes] = await Promise.all([
         reportApi.getDashboardMetrics(),
         quotationApi.getQuotations(),
-        adminApi.getCustomerTiers().catch(() => []),
-        (isAdmin || isSalesManager) ? adminApi.getPlatformOverview().catch(() => null) : Promise.resolve(null),
+        adminApi.getCustomerTiers(),
+        (isAdmin || isSalesManager) ? adminApi.getPlatformOverview() : Promise.resolve(null),
       ]);
 
       setMetrics(metricsRes);
@@ -418,69 +419,61 @@ export const ReportsPage = () => {
           {/* Sales Rep Filter */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">Sales Rep</label>
-            <select
+            <Select
               value={selectedSalesRep}
               onChange={(e) => setSelectedSalesRep(e.target.value)}
-              className="w-full h-8 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">All Sales Representatives</option>
-              {salesRepsList.map((rep) => (
-                <option key={rep} value={rep}>
-                  {rep}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: 'All Sales Representatives' },
+                ...salesRepsList.map((rep) => ({ value: rep, label: rep })),
+              ]}
+            />
           </div>
 
           {/* Customer Tier Filter */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">Customer Tier</label>
-            <select
+            <Select
               value={selectedTier}
               onChange={(e) => setSelectedTier(e.target.value)}
-              className="w-full h-8 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">All Customer Tiers</option>
-              {tierOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t} Tier
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: 'All Customer Tiers' },
+                ...tierOptions.map((t) => ({ value: t, label: `${t} Tier` })),
+              ]}
+            />
           </div>
 
           {/* Status Filter */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">Lifecycle Status</label>
-            <select
+            <Select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full h-8 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">All Statuses</option>
-              <option value="Draft">Draft</option>
-              <option value="Sent">Sent</option>
-              <option value="UnderNegotiation">Under Negotiation</option>
-              <option value="PendingApproval">Pending Approval</option>
-              <option value="Approved">Approved</option>
-              <option value="ConvertedToOrder">Converted To Order</option>
-              <option value="Rejected">Rejected</option>
-            </select>
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'Draft', label: 'Draft' },
+                { value: 'Sent', label: 'Sent' },
+                { value: 'UnderNegotiation', label: 'Under Negotiation' },
+                { value: 'PendingApproval', label: 'Pending Approval' },
+                { value: 'Approved', label: 'Approved' },
+                { value: 'ConvertedToOrder', label: 'Converted To Order' },
+                { value: 'Rejected', label: 'Rejected' },
+              ]}
+            />
           </div>
 
           {/* Date Period Filter */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">Creation Period</label>
-            <select
+            <Select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="w-full h-8 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="all">All Time</option>
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
-            </select>
+              options={[
+                { value: 'all', label: 'All Time' },
+                { value: '7d', label: 'Last 7 Days' },
+                { value: '30d', label: 'Last 30 Days' },
+                { value: '90d', label: 'Last 90 Days' },
+              ]}
+            />
           </div>
         </div>
       </div>

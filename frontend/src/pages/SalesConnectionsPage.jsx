@@ -686,35 +686,33 @@ export const SalesConnectionsPage = () => {
               />
             </div>
 
-            <select
+            <Select
               value={companyFilter}
               onChange={(e) => {
                 setCompanyFilter(e.target.value);
                 setPage(1);
               }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-            >
-              <option value="ALL">All Vendor Brands</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              className="min-w-[180px]"
+              options={[
+                { value: 'ALL', label: 'All Vendor Brands' },
+                ...companies.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
 
-            <select
+            <Select
               value={sortBy}
               onChange={(e) => {
                 setSortBy(e.target.value);
                 setPage(1);
               }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-            >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="customer">Customer Name (A-Z)</option>
-              <option value="status">Status Order</option>
-            </select>
+              className="min-w-[180px]"
+              options={[
+                { value: 'newest', label: 'Newest First' },
+                { value: 'oldest', label: 'Oldest First' },
+                { value: 'customer', label: 'Customer Name (A-Z)' },
+                { value: 'status', label: 'Status Order' },
+              ]}
+            />
 
             <Button type="submit" variant="outline" size="sm" className="text-xs">
               Search
@@ -753,18 +751,19 @@ export const SalesConnectionsPage = () => {
         <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Items per page:</span>
-            <select
+            <Select
               value={pageSize}
               onChange={(e) => {
                 setPageSize(parseInt(e.target.value, 10));
                 setPage(1);
               }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
+              className="w-24"
+              options={[
+                { value: 10, label: '10' },
+                { value: 20, label: '20' },
+                { value: 50, label: '50' },
+              ]}
+            />
           </div>
 
           <div className="flex items-center gap-2">

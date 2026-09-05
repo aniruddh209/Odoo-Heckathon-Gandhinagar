@@ -126,9 +126,9 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
         adminApi.getCategories(),
         adminApi.getCustomerTiers(),
         adminApi.getPriceLists(),
-        salesConnectionApi.getAllCompaniesAdmin().catch(() => []),
-        salesConnectionApi.getSalesAssignments().catch(() => []),
-        adminApi.getUsers().catch(() => []),
+        salesConnectionApi.getAllCompaniesAdmin(),
+        salesConnectionApi.getSalesAssignments(),
+        adminApi.getUsers(),
       ]);
 
       const pList = Array.isArray(pRes) ? pRes : pRes?.value || [];
@@ -956,28 +956,24 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
               />
             </div>
 
-            <select
+            <Select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="py-1.5 px-3 text-xs bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: 'All Categories' },
+                ...categories.map((c) => ({ value: c.name, label: c.name }))
+              ]}
+            />
 
-            <select
+            <Select
               value={filterActive}
               onChange={(e) => setFilterActive(e.target.value)}
-              className="py-1.5 px-3 text-xs bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Deactivated Only</option>
-            </select>
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'active', label: 'Active Only' },
+                { value: 'inactive', label: 'Deactivated Only' }
+              ]}
+            />
 
             {(searchTerm || filterCategory || filterActive) && (
               <Button
@@ -1035,19 +1031,17 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
               <form onSubmit={handleUpsertOverride} className="flex flex-wrap items-end gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">Select Product</label>
-                  <select
+                  <Select
                     value={overrideProductId}
                     onChange={(e) => setOverrideProductId(e.target.value)}
-                    required
-                    className="w-full py-1.5 px-3 text-xs bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Choose a product...</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        [{p.sku}] {p.name} — Default: ${p.basePrice?.toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: 'Choose a product...' },
+                      ...products.map((p) => ({
+                        value: p.id,
+                        label: `[${p.sku}] ${p.name} — Default: $${p.basePrice?.toFixed(2)}`
+                      }))
+                    ]}
+                  />
                 </div>
 
                 <div className="w-40">

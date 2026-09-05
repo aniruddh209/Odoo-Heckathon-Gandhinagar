@@ -78,8 +78,8 @@ export const CustomerAccountPage = () => {
         customerApi.getMyQuotations(),
         customerApi.getMyOrders(),
         customerApi.getMyInvoices(),
-        salesConnectionApi.getMyRequests().catch(() => []),
-        customerApi.getMyProfile().catch(() => null),
+        salesConnectionApi.getMyRequests(),
+        customerApi.getMyProfile(),
       ]);
 
       const loadedQuotes = Array.isArray(qRes) ? qRes : qRes?.value || [];

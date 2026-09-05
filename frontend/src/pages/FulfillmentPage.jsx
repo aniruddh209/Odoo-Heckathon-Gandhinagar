@@ -62,37 +62,23 @@ export const FulfillmentPage = () => {
     setError(null);
     try {
       const [ordersRes, boRes, whRes] = await Promise.all([
-        fulfillmentApi.getOrders().catch(() => null),
+        fulfillmentApi.getOrders(),
         fulfillmentApi.getBackorders(),
         adminApi.getWarehouses(),
       ]);
 
       const bList = Array.isArray(boRes) ? boRes : boRes?.value || [];
       const wList = Array.isArray(whRes) ? whRes : whRes?.value || [];
+      const ordList = Array.isArray(ordersRes) ? ordersRes : ordersRes?.value || [];
 
-      let mappedOrders = [];
-      if (Array.isArray(ordersRes) && ordersRes.length > 0) {
-        mappedOrders = ordersRes.map((o) => ({
-          id: o.id,
-          orderNumber: o.orderNumber,
-          customerName: o.customerName,
-          total: o.total,
-          status: o.status,
-          hasAllocations: o.hasAllocations,
-        }));
-      } else {
-        const quotesRes = await quotationApi.getQuotations({ status: 'ConvertedToOrder' }).catch(() => []);
-        const qList = Array.isArray(quotesRes) ? quotesRes : quotesRes?.value || [];
-        mappedOrders = qList.map((q) => ({
-          id: q.orderId || q.id,
-          quotationId: q.id,
-          orderNumber: q.orderNumber || `ORD-${q.quotationNumber.replace('QT-', '')}`,
-          customerName: q.customerName,
-          total: q.grandTotal,
-          status: 'Confirmed',
-          hasAllocations: false,
-        }));
-      }
+      const mappedOrders = ordList.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        customerName: o.customerName,
+        total: o.total,
+        status: o.status,
+        hasAllocations: o.hasAllocations,
+      }));
 
       setOrders(mappedOrders);
       setBackorders(bList);
@@ -100,6 +86,9 @@ export const FulfillmentPage = () => {
 
       if (mappedOrders.length > 0 && !selectedOrderId) {
         setSelectedOrderId(mappedOrders[0].id.toString());
+      } else if (mappedOrders.length === 0) {
+        setSelectedOrderId('');
+        setPreview(null);
       }
     } catch (err) {
       setError(err.message || 'Failed to load fulfillment data.');
@@ -128,12 +117,18 @@ export const FulfillmentPage = () => {
       // Refresh backorders and orders
       const [bo, ords] = await Promise.all([
         fulfillmentApi.getBackorders(),
-        fulfillmentApi.getOrders().catch(() => null),
+        fulfillmentApi.getOrders(),
       ]);
       setBackorders(Array.isArray(bo) ? bo : bo?.value || []);
-      if (Array.isArray(ords)) {
-        setOrders(ords);
-      }
+      const refreshedOrders = Array.isArray(ords) ? ords : ords?.value || [];
+      setOrders(refreshedOrders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        customerName: o.customerName,
+        total: o.total,
+        status: o.status,
+        hasAllocations: o.hasAllocations,
+      })));
     } catch (err) {
       toast.error('Allocation Failed', err.message);
     } finally {
@@ -233,10 +228,18 @@ export const FulfillmentPage = () => {
       // Reload orders and backorders
       const [bo, ords] = await Promise.all([
         fulfillmentApi.getBackorders(),
-        fulfillmentApi.getOrders().catch(() => null),
+        fulfillmentApi.getOrders(),
       ]);
       setBackorders(Array.isArray(bo) ? bo : bo?.value || []);
-      if (Array.isArray(ords)) setOrders(ords);
+      const refreshedOrders = Array.isArray(ords) ? ords : ords?.value || [];
+      setOrders(refreshedOrders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        customerName: o.customerName,
+        total: o.total,
+        status: o.status,
+        hasAllocations: o.hasAllocations,
+      })));
     } catch (err) {
       toast.error('Override Failed', err.message);
     } finally {
@@ -492,18 +495,14 @@ export const FulfillmentPage = () => {
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                     Fulfillment Warehouse
                   </label>
-                  <select
-                    className="w-full h-8 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  <Select
                     value={row.warehouseId}
                     onChange={(e) => handleUpdateOverrideRow(idx, 'warehouseId', e.target.value)}
-                    required
-                  >
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={warehouses.map((w) => ({
+                      value: w.id,
+                      label: w.name,
+                    }))}
+                  />
                 </div>
 
                 <div className="sm:col-span-4">

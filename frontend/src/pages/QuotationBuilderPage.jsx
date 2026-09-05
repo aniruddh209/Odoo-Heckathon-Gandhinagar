@@ -275,6 +275,7 @@ export const QuotationBuilderPage = () => {
               <Select
                 label="Customer Account"
                 required
+                searchable
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
                 options={customers.map((c) => ({
@@ -379,32 +380,31 @@ export const QuotationBuilderPage = () => {
                       return (
                         <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                           <td className="py-2.5 px-3">
-                            <select
-                              className="w-full h-8 px-2 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                            <Select
+                              searchable
+                              placeholder="Select a product"
                               value={line.productId}
                               onChange={(e) => handleUpdateLine(idx, 'productId', e.target.value)}
-                            >
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  [{p.sku}] {p.name}
-                                </option>
-                              ))}
-                            </select>
+                              options={products.map((p) => ({
+                                value: p.id,
+                                label: `[${p.sku}] ${p.name}`,
+                              }))}
+                            />
                           </td>
 
                           <td className="py-2.5 px-3">
-                            <select
-                              className="w-full h-8 px-2 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700"
+                            <Select
+                              placeholder="Base / Standard"
                               value={line.variantId || ''}
                               onChange={(e) => handleUpdateLine(idx, 'variantId', e.target.value)}
-                            >
-                              <option value="">Base / Standard</option>
-                              {(variantsMap[line.productId] || []).map((v) => (
-                                <option key={v.id} value={v.id}>
-                                  {v.name} (+{formatCurrency(v.additionalPrice, currencyCode)})
-                                </option>
-                              ))}
-                            </select>
+                              options={[
+                                { value: '', label: 'Base / Standard' },
+                                ...(variantsMap[line.productId] || []).map((v) => ({
+                                  value: v.id,
+                                  label: `${v.name} (+${formatCurrency(v.additionalPrice, currencyCode)})`,
+                                }))
+                              ]}
+                            />
                           </td>
 
                           <td className="py-2.5 px-3">

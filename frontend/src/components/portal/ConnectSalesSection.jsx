@@ -16,7 +16,7 @@ import {
   Briefcase
 } from 'lucide-react';
 import { salesConnectionApi } from '../../api';
-import { Button, ErrorAlert } from '../ui';
+import { Button, ErrorAlert, Select } from '../ui';
 
 export const ConnectSalesSection = ({ onConnectionCreated, onNavigateToInquiries }) => {
   const [companies, setCompanies] = useState([]);
@@ -441,16 +441,16 @@ export const ConnectSalesSection = ({ onConnectionCreated, onNavigateToInquiries
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Preferred Contact Method
                 </label>
-                <select
+                <Select
                   value={preferredContact}
                   onChange={(e) => setPreferredContact(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Email">Email Communication</option>
-                  <option value="Phone">Direct Phone Call</option>
-                  <option value="VideoCall">Executive Video Consultation</option>
-                  <option value="Portal">Customer Portal Notifications</option>
-                </select>
+                  options={[
+                    { value: 'Email', label: 'Email Communication' },
+                    { value: 'Phone', label: 'Direct Phone Call' },
+                    { value: 'VideoCall', label: 'Executive Video Consultation' },
+                    { value: 'Portal', label: 'Customer Portal Notifications' }
+                  ]}
+                />
               </div>
 
               <div className="sm:col-span-3">
