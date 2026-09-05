@@ -1,60 +1,52 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { AppLayout } from './components/layout/AppLayout';
-import { PortalLayout } from './components/layout/PortalLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
-import { Role } from './types';
 
-// Pages
 import {
   LoginPage,
-  SignupPage,
-  CustomerLoginPage,
   DashboardPage,
   QuotationListPage,
-  PipelinePage,
   QuotationBuilderPage,
+  QuotationDetailPage,
   ApprovalDetailPage,
+  PipelinePage,
   FulfillmentPage,
   BillingPage,
-  CustomerQuotationsPage,
-  CustomerPortalDetailPage,
-  AdminProductsPage,
-  AdminPricingPage,
-  AdminDiscountsPage,
-  AdminApprovalsPage,
-  AdminWarehousesPage,
-  AdminSubscriptionsPage,
+  DealHealthPage,
   ReportsPage,
+  CustomerListPage,
+  CustomerAccountPage,
+  CustomerPortalDetailPage,
+  AdminCatalogPage,
+  AdminGovernancePage,
   NotFoundPage,
 } from './pages';
 
-export const App = () => {
+export function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <ToastProvider>
         <Routes>
-          {/* Public Auth Routes */}
+          {/* Public Authentication */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/portal/login" element={<CustomerLoginPage />} />
 
-          {/* Customer Portal Routes (Zero-Leak Surface) */}
+          {/* Customer Portal Magic Link (Cryptographically Isolated, No internal CRM frame) */}
+          <Route path="/portal/quote/:token" element={<CustomerPortalDetailPage />} />
+
+          {/* Authenticated Customer Account Portal */}
           <Route
-            path="/portal"
+            path="/portal/my-account"
             element={
-              <ProtectedRoute isPortalRoute>
-                <PortalLayout />
+              <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+                <CustomerAccountPage />
               </ProtectedRoute>
             }
-          >
-            <Route index element={<Navigate to="/portal/quotes" replace />} />
-            <Route path="quotes" element={<CustomerQuotationsPage />} />
-            <Route path="quotes/:id" element={<CustomerPortalDetailPage />} />
-          </Route>
+          />
 
-          {/* Internal Staff Routes */}
+          {/* Internal CRM & Sales Operations App Layout */}
           <Route
             path="/"
             element={
@@ -63,119 +55,111 @@ export const App = () => {
               </ProtectedRoute>
             }
           >
-            <Route index element={<DashboardPage />} />
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
 
-            {/* Sales Workspace */}
-            <Route path="quotations" element={<QuotationListPage />} />
-            <Route path="quotations/new" element={<QuotationBuilderPage />} />
-            <Route path="quotations/:id" element={<QuotationBuilderPage />} />
-            <Route path="pipeline" element={<PipelinePage />} />
+            {/* Core Sales Workspaces */}
+            <Route path="workspace/quotations" element={<QuotationListPage />} />
+            <Route path="workspace/quotations/new" element={<QuotationBuilderPage />} />
+            <Route path="workspace/quotations/:id" element={<QuotationDetailPage />} />
+            <Route path="workspace/pipeline" element={<PipelinePage />} />
+            <Route path="workspace/customers" element={<CustomerListPage />} />
 
-            {/* Governance & Approvals Desk */}
+            {/* Governance & Approvals */}
             <Route
-              path="approvals"
+              path="workspace/approvals"
               element={
-                <ProtectedRoute allowedRoles={[Role.SalesManager, Role.FinanceOperations, Role.Admin]}>
+                <ProtectedRoute allowedRoles={['SalesManager', 'FinanceOperations', 'Admin']}>
                   <ApprovalDetailPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="approvals/:id"
+              path="workspace/deal-health"
               element={
-                <ProtectedRoute allowedRoles={[Role.SalesManager, Role.FinanceOperations, Role.Admin]}>
-                  <ApprovalDetailPage />
+                <ProtectedRoute allowedRoles={['SalesManager', 'Admin']}>
+                  <DealHealthPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Multi-Warehouse Fulfillment */}
+            {/* Operations & Revenue */}
             <Route
-              path="fulfillment"
+              path="workspace/fulfillment"
               element={
-                <ProtectedRoute allowedRoles={[Role.FinanceOperations, Role.Admin, Role.SalesManager]}>
+                <ProtectedRoute allowedRoles={['FinanceOperations', 'Admin']}>
                   <FulfillmentPage />
                 </ProtectedRoute>
               }
             />
-
-            {/* Invoicing & Subscriptions */}
             <Route
-              path="billing"
+              path="workspace/billing"
               element={
-                <ProtectedRoute allowedRoles={[Role.FinanceOperations, Role.Admin]}>
+                <ProtectedRoute allowedRoles={['FinanceOperations', 'Admin']}>
                   <BillingPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Executive Reports & Analytics */}
+            {/* Analytics */}
             <Route
-              path="reports"
+              path="workspace/reports"
               element={
-                <ProtectedRoute allowedRoles={[Role.SalesManager, Role.FinanceOperations, Role.Admin]}>
+                <ProtectedRoute allowedRoles={['SalesManager', 'FinanceOperations', 'Admin']}>
                   <ReportsPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Master Configuration & Governance Administration */}
+            {/* Administration & Master Data */}
             <Route
               path="admin/products"
               element={
-                <ProtectedRoute allowedRoles={[Role.Admin]}>
-                  <AdminProductsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="admin/pricing"
-              element={
-                <ProtectedRoute allowedRoles={[Role.Admin]}>
-                  <AdminPricingPage />
+                <ProtectedRoute allowedRoles={['Admin']}>
+                  <AdminCatalogPage />
                 </ProtectedRoute>
               }
             />
             <Route
               path="admin/discounts"
               element={
-                <ProtectedRoute allowedRoles={[Role.Admin, Role.FinanceOperations]}>
-                  <AdminDiscountsPage />
+                <ProtectedRoute allowedRoles={['Admin']}>
+                  <AdminGovernancePage />
                 </ProtectedRoute>
               }
             />
             <Route
               path="admin/approvals"
               element={
-                <ProtectedRoute allowedRoles={[Role.Admin]}>
-                  <AdminApprovalsPage />
+                <ProtectedRoute allowedRoles={['Admin']}>
+                  <AdminGovernancePage />
                 </ProtectedRoute>
               }
             />
             <Route
               path="admin/warehouses"
               element={
-                <ProtectedRoute allowedRoles={[Role.Admin, Role.FinanceOperations]}>
-                  <AdminWarehousesPage />
+                <ProtectedRoute allowedRoles={['Admin']}>
+                  <AdminGovernancePage />
                 </ProtectedRoute>
               }
             />
             <Route
               path="admin/subscriptions"
               element={
-                <ProtectedRoute allowedRoles={[Role.Admin, Role.FinanceOperations]}>
-                  <AdminSubscriptionsPage />
+                <ProtectedRoute allowedRoles={['Admin']}>
+                  <AdminGovernancePage />
                 </ProtectedRoute>
               }
             />
           </Route>
 
-          {/* Catch-all 404 */}
+          {/* Fallback 404 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
-      </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
-};
+}
 
 export default App;

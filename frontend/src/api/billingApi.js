@@ -1,44 +1,29 @@
-import { apiClient } from './apiClient.js';
+import { apiClient } from './apiClient';
 
 export const billingApi = {
-  getSubscriptionPlans: () => apiClient.get('/admin/subscription-plans'),
-  createSubscriptionPlan: (data) =>
-    apiClient.post('/admin/subscription-plans', data),
+  generateOrderBilling: async (orderId) => {
+    return apiClient.post(`billing/generate-order-billing/${orderId}`);
+  },
 
-  getSubscriptions: () => apiClient.get('/admin/subscription-plans'),
+  getInvoices: async () => {
+    return apiClient.get('invoices');
+  },
 
-  getOrderBilling: (orderId) =>
-    apiClient.post(`/billing/generate-order-billing/${orderId}`),
+  getInvoiceById: async (id) => {
+    return apiClient.get(`invoices/${id}`);
+  },
 
-  generateOrderBilling: (orderId) =>
-    apiClient.post(`/billing/generate-order-billing/${orderId}`),
-  generateBilling: (orderId) =>
-    apiClient.post(`/billing/generate-order-billing/${orderId}`),
+  recordPayment: async (invoiceId, { amount, paymentMethod, reference }) => {
+    return apiClient.post(`invoices/${invoiceId}/pay`, { amount, paymentMethod, reference });
+  },
 
-  changeSubscription: (scheduleId, data) =>
-    apiClient.post(
-      `/billing/subscriptions/${scheduleId}/seat-change`,
-      {
-        newPlanId: data.NewPlanId ?? data.newPlanId ?? null,
-        newQuantity: data.NewQuantity ?? data.newQuantity ?? data.newSeatCount ?? 1,
-      }
-    ),
+  createCreditNote: async (invoiceId, { amount, reason, orderLineId }) => {
+    return apiClient.post(`invoices/${invoiceId}/credit-note`, { amount, reason, orderLineId });
+  },
 
-  getInvoices: () => apiClient.get('/invoices'),
-  getInvoiceById: (id) => apiClient.get(`/invoices/${id}`),
-
-  recordPayment: (invoiceId, data) =>
-    apiClient.post(`/invoices/${invoiceId}/pay`, {
-      amount: data.Amount ?? data.amount,
-      paymentMethod: data.PaymentMethod ?? data.paymentMethod ?? 'Wire',
-      reference: data.Reference ?? data.reference ?? '',
-    }),
-
-  createCreditNote: (invoiceId, data) =>
-    apiClient.post(`/invoices/${invoiceId}/credit-note`, {
-      amount: data.Amount ?? data.amount,
-      reason: data.Reason ?? data.reason ?? 'Customer adjustment',
-      orderLineId: data.OrderLineId ?? data.orderLineId ?? null,
-    }),
+  applySeatChange: async (scheduleId, { newPlanId, newQuantity }) => {
+    return apiClient.post(`billing/subscriptions/${scheduleId}/seat-change`, { newPlanId, newQuantity });
+  },
 };
 
+export default billingApi;

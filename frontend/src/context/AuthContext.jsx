@@ -1,37 +1,23 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authApi } from '../api/authApi.js';
-import { portalApi } from '../api/portalApi.js';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { authApi } from '../api/authApi';
+import { getStoredToken, getStoredUser, clearStoredAuth } from '../api/apiClient';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    try {
-      const cached = localStorage.getItem('dealflow_user');
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [token, setToken] = useState(() => localStorage.getItem('dealflow_jwt_token'));
-  const [portalToken, setPortalToken] = useState(() => localStorage.getItem('dealflow_portal_token'));
-  const [portalCustomerName, setPortalCustomerName] = useState(() =>
-    localStorage.getItem('dealflow_portal_customer_name')
-  );
+  const [token, setToken] = useState(() => getStoredToken());
+  const [user, setUser] = useState(() => getStoredUser());
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize and check current user if token exists
   useEffect(() => {
-    const initAuth = async () => {
-      if (token) {
+    const initializeAuth = async () => {
+      const storedToken = getStoredToken();
+      if (storedToken) {
         try {
-          const me = await authApi.me();
+          const me = await authApi.getMe();
           setUser(me);
-          localStorage.setItem('dealflow_user', JSON.stringify(me));
         } catch {
-          // If token verification fails, clear internal token
-          localStorage.removeItem('dealflow_jwt_token');
-          localStorage.removeItem('dealflow_user');
+          clearStoredAuth();
           setToken(null);
           setUser(null);
         }
@@ -39,98 +25,68 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false);
     };
 
-    initAuth();
+    initializeAuth();
 
-    // Listen for auth expired event dispatched by apiClient
-    const handleExpired = () => {
+    const handleUnauthorized = () => {
+      clearStoredAuth();
       setToken(null);
       setUser(null);
     };
-    window.addEventListener('dealflow_auth_expired', handleExpired);
-    return () => window.removeEventListener('dealflow_auth_expired', handleExpired);
-  }, [token]);
 
-  const login = async (data) => {
-    const res = await authApi.login(data);
-    const jwt = res.accessToken || res.token;
-    localStorage.setItem('dealflow_jwt_token', jwt);
-    localStorage.setItem('dealflow_user', JSON.stringify(res.user));
-    setToken(jwt);
+    window.addEventListener('dealflow:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('dealflow:unauthorized', handleUnauthorized);
+  }, []);
+
+  const login = async (credentials) => {
+    const res = await authApi.login(credentials);
+    setToken(res.accessToken);
     setUser(res.user);
-    return res.user;
+    return res;
   };
 
-  const signup = async (data) => {
-    const res = await authApi.signup(data);
-    const jwt = res.accessToken || res.token;
-    localStorage.setItem('dealflow_jwt_token', jwt);
-    localStorage.setItem('dealflow_user', JSON.stringify(res.user));
-    setToken(jwt);
+  const signup = async (userData) => {
+    const res = await authApi.signup(userData);
+    setToken(res.accessToken);
     setUser(res.user);
+    return res;
   };
 
-  const logout = async () => {
-    try {
-      if (token) {
-        await authApi.logout();
-      }
-    } catch {
-      // Ignore network errors on logout
-    } finally {
-      localStorage.removeItem('dealflow_jwt_token');
-      localStorage.removeItem('dealflow_user');
-      setToken(null);
-      setUser(null);
-    }
+  const logout = () => {
+    authApi.logout();
+    setToken(null);
+    setUser(null);
   };
 
-  const portalLogin = async (email, magicLinkToken) => {
-    const res = await portalApi.login({ email, magicLinkToken });
-    localStorage.setItem('dealflow_portal_token', res.token);
-    localStorage.setItem('dealflow_portal_customer_name', res.customerName);
-    setPortalToken(res.token);
-    setPortalCustomerName(res.customerName);
-  };
+  const role = user?.role || null;
 
-  const portalLogout = () => {
-    localStorage.removeItem('dealflow_portal_token');
-    localStorage.removeItem('dealflow_portal_customer_name');
-    setPortalToken(null);
-    setPortalCustomerName(null);
-  };
+  const roleFlags = useMemo(() => ({
+    isSalesRep: role === 'SalesRep' || role === 'Admin',
+    isSalesManager: role === 'SalesManager' || role === 'Admin',
+    isFinance: role === 'FinanceOperations' || role === 'Admin',
+    isAdmin: role === 'Admin',
+    isCustomer: role === 'Customer',
+  }), [role]);
 
   const hasRole = (roles) => {
-    if (!user) return false;
-    if (user.role === 'Admin') return true; // Admin has super-access
+    if (!role) return false;
+    if (role === 'Admin') return true;
     const allowed = Array.isArray(roles) ? roles : [roles];
-    return allowed.includes(user.role);
-  };
-
-  const refreshUser = async () => {
-    if (token) {
-      const me = await authApi.me();
-      setUser(me);
-      localStorage.setItem('dealflow_user', JSON.stringify(me));
-    }
+    return allowed.includes(role);
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
         token,
-        portalToken,
-        portalCustomerName,
+        user,
+        role,
+        ...roleFlags,
         isAuthenticated: !!token && !!user,
-        isPortalAuthenticated: !!portalToken || (!!token && user?.role === 'Customer'),
         isLoading,
         login,
         signup,
         logout,
-        portalLogin,
-        portalLogout,
         hasRole,
-        refreshUser,
       }}
     >
       {children}
@@ -145,3 +101,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthProvider;

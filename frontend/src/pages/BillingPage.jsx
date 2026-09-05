@@ -1,292 +1,439 @@
 import React, { useState, useEffect } from 'react';
-import { billingApi } from '../api';
+import { billingApi, adminApi } from '../api';
+import { useToast } from '../context/ToastContext';
 import {
-  OneTimeInvoiceCard,
-  SubscriptionSchedule,
-  ProrationModal,
-} from '../components/billing';
-import { Button } from '../components/common/Button';
-import { Modal } from '../components/common/Modal';
-import { Input } from '../components/common/Input';
-import { Select } from '../components/common/Select';
-import { Alert } from '../components/common/Alert';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { FileText, Repeat } from 'lucide-react';
+  Button,
+  StatusBadge,
+  DataTable,
+  Modal,
+  Input,
+  Select,
+  Textarea,
+  LoadingSpinner,
+  ErrorAlert,
+} from '../components/ui';
+import {
+  CreditCard,
+  DollarSign,
+  Calendar,
+  Layers,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Plus,
+} from 'lucide-react';
 
 export const BillingPage = () => {
-  const [activeTab, setActiveTab] = useState('invoices');
-  const [alertMessage, setAlertMessage] = useState(null);
+  const toast = useToast();
 
-  // Payment Recording Modal State
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('ACH / Wire');
-  const [transactionRef, setTransactionRef] = useState('');
-  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
-
-  // Proration Modal State
-  const [selectedSub, setSelectedSub] = useState(null);
-  const [isChangingSub, setIsChangingSub] = useState(false);
-
-  // Data states
   const [invoices, setInvoices] = useState([]);
-  const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
-
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [isLoadingSubs, setIsLoadingSubs] = useState(true);
-
   const [plans, setPlans] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchInvoices = async () => {
-    setIsLoadingInvoices(true);
-    try {
-      const data = await billingApi.getInvoices();
-      setInvoices(data || []);
-    } catch (err) {
-      console.error('Error fetching invoices:', err);
-    } finally {
-      setIsLoadingInvoices(false);
-    }
-  };
+  // Payment Modal
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('WireTransfer');
+  const [paymentRef, setPaymentRef] = useState('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  const fetchSubscriptions = async () => {
-    setIsLoadingSubs(true);
-    try {
-      const data = await billingApi.getSubscriptions();
-      setSubscriptions(data || []);
-    } catch (err) {
-      console.error('Error fetching subscriptions:', err);
-    } finally {
-      setIsLoadingSubs(false);
-    }
-  };
+  // Credit Note Modal
+  const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
+  const [isProcessingCredit, setIsProcessingCredit] = useState(false);
 
-  const fetchPlans = async () => {
-    try {
-      const data = await billingApi.getSubscriptionPlans();
-      setPlans(data || []);
-    } catch (err) {
-      console.error('Error fetching subscription plans:', err);
-    }
-  };
+  // Subscription Seat Change Modal
+  const [isSeatModalOpen, setIsSeatModalOpen] = useState(false);
+  const [newSeatQty, setNewSeatQty] = useState(10);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [isProcessingSeat, setIsProcessingSeat] = useState(false);
 
   useEffect(() => {
-    fetchInvoices();
-    fetchSubscriptions();
-    fetchPlans();
+    loadBillingData();
   }, []);
 
-  const handleOpenPayment = (invId) => {
-    const inv = invoices.find((i) => String(i.Id ?? i.id) === String(invId));
-    if (inv) {
-      setSelectedInvoiceId(invId);
-      setPaymentAmount(inv.TotalAmount ?? inv.totalAmount ?? 0);
-      setTransactionRef(`TX-${Date.now().toString().slice(-6)}`);
+  const loadBillingData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [invRes, planRes] = await Promise.all([
+        billingApi.getInvoices(),
+        adminApi.getSubscriptionPlans(),
+      ]);
+
+      const invList = Array.isArray(invRes) ? invRes : invRes?.value || [];
+      const pList = Array.isArray(planRes) ? planRes : planRes?.value || [];
+
+      setInvoices(invList);
+      setPlans(pList);
+    } catch (err) {
+      setError(err.message || 'Failed to load invoices and billing schedules.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleConfirmPayment = async (e) => {
+  const handleOpenPayment = (inv) => {
+    setSelectedInvoice(inv);
+    setPaymentAmount(inv.outstanding?.toString() || inv.total?.toString() || '0');
+    setPaymentRef(`TXN-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleOpenCredit = (inv) => {
+    setSelectedInvoice(inv);
+    setCreditAmount('100.00');
+    setCreditReason('');
+    setIsCreditModalOpen(true);
+  };
+
+  const handleRecordPayment = async (e) => {
     e.preventDefault();
-    if (!selectedInvoiceId) return;
-    setIsRecordingPayment(true);
+    if (!selectedInvoice) return;
+
+    setIsProcessingPayment(true);
     try {
-      await billingApi.recordPayment(selectedInvoiceId, {
-        Amount: paymentAmount,
-        PaymentMethod: paymentMethod,
-        TransactionReference: transactionRef,
+      await billingApi.recordPayment(selectedInvoice.id, {
+        amount: parseFloat(paymentAmount) || 0,
+        paymentMethod,
+        reference: paymentRef,
       });
-      setSelectedInvoiceId(null);
-      setAlertMessage({ type: 'success', text: 'Payment recorded and invoice marked as Paid!' });
-      fetchInvoices();
+
+      toast.success('Payment Recorded', `Successfully reconciled $${paymentAmount} against ${selectedInvoice.invoiceNumber}.`);
+      setIsPaymentModalOpen(false);
+      await loadBillingData();
     } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to record payment.' });
+      toast.error('Payment Error', err.message);
     } finally {
-      setIsRecordingPayment(false);
+      setIsProcessingPayment(false);
     }
   };
 
-  const handleChangeSubscription = async (req) => {
-    if (!selectedSub) return;
-    const subId = selectedSub.Id ?? selectedSub.id;
-    setIsChangingSub(true);
+  const handleCreateCreditNote = async (e) => {
+    e.preventDefault();
+    if (!selectedInvoice) return;
+
+    setIsProcessingCredit(true);
     try {
-      await billingApi.changeSubscription(String(subId), req);
-      setSelectedSub(null);
-      setAlertMessage({ type: 'success', text: 'Subscription modified. Prorated invoice generated!' });
-      fetchSubscriptions();
+      await billingApi.createCreditNote(selectedInvoice.id, {
+        amount: parseFloat(creditAmount) || 0,
+        reason: creditReason || 'Customer satisfaction credit adjustment',
+      });
+
+      toast.success('Credit Note Issued', `Reconciliation credit applied.`);
+      setIsCreditModalOpen(false);
+      await loadBillingData();
     } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to update subscription.' });
+      toast.error('Credit Note Error', err.message);
     } finally {
-      setIsChangingSub(false);
+      setIsProcessingCredit(false);
     }
   };
 
-  const handleCancelSubscription = async (subId) => {
-    if (!confirm('Cancel this subscription?')) return;
+  const handleApplySeatChange = async (e) => {
+    e.preventDefault();
+    setIsProcessingSeat(true);
     try {
-      await billingApi.cancelSubscription(subId, { CancellationReason: 'Client requested termination' });
-      setAlertMessage({ type: 'success', text: 'Subscription cancelled.' });
-      fetchSubscriptions();
+      await billingApi.applySeatChange(1, {
+        newQuantity: parseInt(newSeatQty, 10),
+        newPlanId: selectedPlanId ? parseInt(selectedPlanId, 10) : null,
+      });
+
+      toast.success('Subscription Prorated', `Seat adjustment calculated and next invoice adjusted.`);
+      setIsSeatModalOpen(false);
     } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to cancel subscription.' });
+      toast.error('Proration Failed', err.message);
+    } finally {
+      setIsProcessingSeat(false);
     }
   };
+
+  if (isLoading) {
+    return <LoadingSpinner message="Querying hybrid invoices and recurring contracts..." size="lg" />;
+  }
+
+  const columns = [
+    {
+      header: 'Invoice #',
+      accessor: 'invoiceNumber',
+      render: (inv) => (
+        <span className="font-mono font-bold text-xs text-blue-600">{inv.invoiceNumber}</span>
+      ),
+    },
+    {
+      header: 'Customer',
+      accessor: 'customerName',
+      render: (inv) => <span className="font-semibold text-slate-900">{inv.customerName}</span>,
+    },
+    {
+      header: 'Billing Type',
+      accessor: 'type',
+      render: (inv) => (
+        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+          {inv.type || 'Commercial'}
+        </span>
+      ),
+    },
+    {
+      header: 'Total Due',
+      accessor: 'total',
+      render: (inv) => (
+        <span className="font-bold text-slate-900 font-mono">
+          ${(inv.total || 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      header: 'Outstanding',
+      accessor: 'outstanding',
+      render: (inv) => (
+        <span className={`font-mono font-semibold ${inv.outstanding > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+          ${(inv.outstanding || 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      render: (inv) => <StatusBadge status={inv.status} />,
+    },
+    {
+      header: 'Actions',
+      render: (inv) => (
+        <div className="flex items-center gap-2">
+          {inv.status !== 'Paid' && (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => handleOpenPayment(inv)}
+            >
+              Record Payment
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => handleOpenCredit(inv)}
+          >
+            Credit Note
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6 animate-in fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Billing & Subscriptions</h1>
-          <p className="text-xs text-slate-500">
-            One-time hardware invoicing, recurring SLA contracts & server-authoritative proration
+          <h1 className="text-xl font-bold text-slate-900">Hybrid Billing & Subscription Operations</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Unified management for immediate one-time equipment invoices and recurring subscription contracts.
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button
-            onClick={() => setActiveTab('invoices')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'invoices' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            onClick={loadBillingData}
           >
-            <span className="flex items-center space-x-1.5">
-              <FileText className="w-4 h-4" />
-              <span>One-Time Invoices</span>
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('subscriptions')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'subscriptions' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
+            Refresh
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Calendar}
+            onClick={() => setIsSeatModalOpen(true)}
           >
-            <span className="flex items-center space-x-1.5">
-              <Repeat className="w-4 h-4" />
-              <span>Recurring Subscriptions</span>
-            </span>
-          </button>
+            Test Mid-Cycle Proration
+          </Button>
         </div>
       </div>
 
-      {alertMessage && (
-        <Alert
-          variant={alertMessage.type}
-          message={alertMessage.text}
-          onClose={() => setAlertMessage(null)}
+      {error && <ErrorAlert message={error} onRetry={loadBillingData} />}
+
+      {/* Distinction Callout Banner */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/40">
+          <div className="flex items-center gap-2 text-blue-900 font-semibold text-xs mb-1">
+            <DollarSign className="w-4 h-4 text-blue-600" />
+            Commercial Capital Goods (One-Time)
+          </div>
+          <p className="text-xs text-blue-700 leading-relaxed">
+            Invoiced immediately upon sale order confirmation with standard net-30 settlement terms and tax collection.
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/40">
+          <div className="flex items-center gap-2 text-purple-900 font-semibold text-xs mb-1">
+            <Calendar className="w-4 h-4 text-purple-600" />
+            Recurring Cloud Subscriptions (SaaS Schedules)
+          </div>
+          <p className="text-xs text-purple-700 leading-relaxed">
+            Automated calendar billing schedules (Monthly/Quarterly/Annual) with exact day-rate proration on seat adjustments.
+          </p>
+        </div>
+      </div>
+
+      {/* Commercial Invoices Table */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">Customer Commercial Invoices</h2>
+          <span className="text-xs text-slate-500">{invoices.length} total records</span>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={invoices}
+          emptyMessage="No commercial invoices issued"
+          emptyDescription="Confirm a sale order from the quotations workspace to generate commercial billing records."
         />
-      )}
-
-      {/* Invoices Tab */}
-      {activeTab === 'invoices' && (
-        <div className="space-y-4">
-          {isLoadingInvoices ? (
-            <div className="py-20 flex justify-center">
-              <LoadingSpinner size="lg" />
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400 text-xs">
-              No invoices generated yet. Invoices are automatically spawned when orders are fulfilled or subscriptions billed.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {invoices.map((inv) => (
-                <OneTimeInvoiceCard
-                  key={inv.Id || inv.id}
-                  invoice={inv}
-                  onRecordPayment={(id) => handleOpenPayment(id)}
-                  onDownloadPdf={() => setAlertMessage({ type: 'success', text: `Downloading PDF invoice...` })}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Subscriptions Tab */}
-      {activeTab === 'subscriptions' && (
-        <div className="space-y-5">
-          {isLoadingSubs ? (
-            <div className="py-20 flex justify-center">
-              <LoadingSpinner size="lg" />
-            </div>
-          ) : subscriptions.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400 text-xs">
-              No recurring subscription contracts found.
-            </div>
-          ) : (
-            subscriptions.map((sub) => (
-              <SubscriptionSchedule
-                key={sub.Id || sub.id}
-                subscription={sub}
-                schedules={sub.BillingSchedules || sub.billingSchedules}
-                onChangePlan={() => setSelectedSub(sub)}
-                onCancel={(subId) => handleCancelSubscription(subId)}
-              />
-            ))
-          )}
-        </div>
-      )}
+      </div>
 
       {/* Record Payment Modal */}
       <Modal
-        isOpen={!!selectedInvoiceId}
-        onClose={() => setSelectedInvoiceId(null)}
-        title="Record Commercial Payment"
-        size="md"
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title="Reconcile Payment"
+        description={`Registering transaction against ${selectedInvoice?.invoiceNumber}`}
       >
-        <form onSubmit={handleConfirmPayment} className="space-y-4">
+        <form onSubmit={handleRecordPayment} className="space-y-4">
           <Input
             label="Payment Amount ($)"
             type="number"
-            min="0.01"
             step="0.01"
-            value={paymentAmount}
-            onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
             required
+            value={paymentAmount}
+            onChange={(e) => setPaymentAmount(e.target.value)}
           />
 
           <Select
-            label="Payment Channel"
+            label="Settlement Method"
+            required
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
             options={[
-              { value: 'ACH / Wire', label: 'ACH / Corporate Wire Transfer' },
-              { value: 'Credit Card', label: 'Commercial Credit Card' },
-              { value: 'Net-30 Terms', label: 'Direct Bank Settlement (Net-30)' },
+              { value: 'WireTransfer', label: 'Wire Transfer / ACH' },
+              { value: 'CreditCard', label: 'Corporate Credit Card' },
               { value: 'Cheque', label: 'Cashier Cheque' },
             ]}
           />
 
           <Input
-            label="Transaction / Wire Reference #"
-            value={transactionRef}
-            onChange={(e) => setTransactionRef(e.target.value)}
-            required
+            label="Bank Reference / Transaction ID"
+            value={paymentRef}
+            onChange={(e) => setPaymentRef(e.target.value)}
           />
 
-          <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200">
-            <Button type="button" variant="outline" onClick={() => setSelectedInvoiceId(null)}>
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsPaymentModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" isLoading={isRecordingPayment}>
-              Confirm Payment
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isProcessingPayment}
+            >
+              Post Payment
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Proration Adjustment Modal */}
-      {selectedSub && (
-        <ProrationModal
-          isOpen={!!selectedSub}
-          onClose={() => setSelectedSub(null)}
-          subscription={selectedSub}
-          plans={plans}
-          isSubmitting={isChangingSub}
-          onConfirm={handleChangeSubscription}
-        />
-      )}
+      {/* Credit Note Modal */}
+      <Modal
+        isOpen={isCreditModalOpen}
+        onClose={() => setIsCreditModalOpen(false)}
+        title="Issue Credit Adjustment"
+        description={`Credit memo adjustment on invoice ${selectedInvoice?.invoiceNumber}`}
+      >
+        <form onSubmit={handleCreateCreditNote} className="space-y-4">
+          <Input
+            label="Credit Amount ($)"
+            type="number"
+            step="0.01"
+            required
+            value={creditAmount}
+            onChange={(e) => setCreditAmount(e.target.value)}
+          />
+
+          <Textarea
+            label="Business Justification"
+            required
+            placeholder="Enter reason for concession or SLA credit..."
+            value={creditReason}
+            onChange={(e) => setCreditReason(e.target.value)}
+          />
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsCreditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="danger"
+              size="sm"
+              isLoading={isProcessingCredit}
+            >
+              Authorize Credit Note
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Mid-Cycle Seat Proration Modal */}
+      <Modal
+        isOpen={isSeatModalOpen}
+        onClose={() => setIsSeatModalOpen(false)}
+        title="Simulate Mid-Cycle Subscription Adjustment"
+        description="Calendar proration calculated automatically using exact daily billing rates."
+      >
+        <form onSubmit={handleApplySeatChange} className="space-y-4">
+          <Input
+            label="Adjusted User Seat Count"
+            type="number"
+            min="1"
+            required
+            value={newSeatQty}
+            onChange={(e) => setNewSeatQty(e.target.value)}
+            helperText="Increasing or decreasing seats computes prorated credit or debit for remaining cycle days."
+          />
+
+          <Select
+            label="Subscription Plan Tier"
+            value={selectedPlanId}
+            onChange={(e) => setSelectedPlanId(e.target.value)}
+            options={plans.map((p) => ({
+              value: p.id,
+              label: `${p.name} (${p.billingFrequency})`,
+            }))}
+          />
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsSeatModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isProcessingSeat}
+            >
+              Execute Proration
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
+
+export default BillingPage;

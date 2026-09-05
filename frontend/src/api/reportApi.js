@@ -1,19 +1,14 @@
-import { apiClient } from './apiClient.js';
+import { apiClient } from './apiClient';
 
 export const reportApi = {
-  getDashboardMetrics: (salesRepId) => {
+  getDashboardMetrics: async (salesRepId = null) => {
     const query = salesRepId ? `?salesRepId=${encodeURIComponent(salesRepId)}` : '';
-    return apiClient.get(`/reports/dashboard${query}`);
+    return apiClient.get(`reports/dashboard${query}`);
   },
 
-  getPipelineOverview: () => apiClient.get('/reports/pipeline'),
-
-  // Aliases for dashboard and analytics views
-  getSalesSummary: (salesRepId) => {
-    const query = salesRepId ? `?salesRepId=${encodeURIComponent(salesRepId)}` : '';
-    return apiClient.get(`/reports/dashboard${query}`);
+  getPipelineOverview: async () => {
+    return apiClient.get('reports/pipeline');
   },
-  getRevenueAnalytics: () => apiClient.get('/reports/dashboard'),
-  getPipelineVelocity: () => apiClient.get('/reports/pipeline'),
 };
 
+export default reportApi;

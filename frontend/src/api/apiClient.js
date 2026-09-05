@@ -1,144 +1,139 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
 /**
- * Custom Error class for API network and HTTP failures
+ * DealFlow360 Centralized API Client
+ * Authoritative HTTP communications handler with automatic JWT Bearer injection,
+ * RFC 7807 problem details parsing, and error normalization.
  */
-export class ApiClientError extends Error {
-  constructor(status, message, code, errors, traceId) {
+
+const TOKEN_KEY = 'dealflow_token';
+const USER_KEY = 'dealflow_user';
+
+export const getStoredToken = () => {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredAuth = (token, user) => {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    else localStorage.removeItem(USER_KEY);
+  } catch (err) {
+    console.warn('Storage write error:', err);
+  }
+};
+
+export const clearStoredAuth = () => {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch (err) {
+    console.warn('Storage clear error:', err);
+  }
+};
+
+export const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export class ApiError extends Error {
+  constructor(message, status = 500, details = null) {
     super(message);
-    this.name = 'ApiClientError';
+    this.name = 'ApiError';
     this.status = status;
-    this.code = code;
-    this.errors = errors;
-    this.traceId = traceId;
+    this.details = details;
   }
 }
 
-/**
- * Centralized HTTP client built using native browser fetch()
- */
-class HttpClient {
-  getAuthToken() {
-    return localStorage.getItem('dealflow_jwt_token');
-  }
+async function handleResponse(response) {
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
 
-  getPortalToken() {
-    return localStorage.getItem('dealflow_portal_token');
-  }
-
-  async request(endpoint, options = {}) {
-    const url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-
-    const headers = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(options.headers || {}),
-    };
-
-    const isPortalEndpoint = endpoint.includes('/portal/');
-    const portalToken = this.getPortalToken();
-    const authToken = this.getAuthToken();
-
-    // Attach proper bearer token based on context
-    if (isPortalEndpoint && portalToken && !headers['Authorization']) {
-      headers['Authorization'] = `Bearer ${portalToken}`;
-    } else if (authToken && !headers['Authorization']) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-
-    let response;
+  let data = null;
+  if (isJson) {
     try {
-      response = await fetch(url, {
-        ...options,
-        headers,
-      });
-    } catch (err) {
-      throw new ApiClientError(
-        0,
-        'Network error. Unable to communicate with the DealFlow360 server.',
-        'NETWORK_ERROR'
-      );
-    }
-
-    // Handle 204 No Content
-    if (response.status === 204) {
-      return {};
-    }
-
-    // Check if response is a binary blob (e.g. PDF download)
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/pdf')) {
-      if (!response.ok) {
-        throw new ApiClientError(response.status, 'Failed to download PDF document.');
-      }
-      return await response.blob();
-    }
-
-    let json = null;
-    try {
-      json = await response.json();
+      data = await response.json();
     } catch {
-      // Response body might be empty or non-JSON
+      data = null;
+    }
+  } else {
+    data = await response.text();
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent('dealflow:unauthorized'));
     }
 
-    if (!response.ok) {
-      // 401 Unauthorized handling
-      if (response.status === 401) {
-        if (!endpoint.includes('/auth/login') && !endpoint.includes('/portal/auth')) {
-          localStorage.removeItem('dealflow_jwt_token');
-          localStorage.removeItem('dealflow_user');
-          window.dispatchEvent(new Event('dealflow_auth_expired'));
-        }
+    let errorMessage = `Request failed with status ${response.status}`;
+    if (data) {
+      if (typeof data === 'string' && data.length > 0) {
+        errorMessage = data;
+      } else if (typeof data === 'object') {
+        errorMessage = data.detail || data.message || data.title || JSON.stringify(data);
       }
-
-      const errorMessage = json?.message || `Request failed with status ${response.status}`;
-      const code = json?.code;
-      const errors = json?.errors;
-      const traceId = json?.traceId;
-
-      throw new ApiClientError(response.status, errorMessage, code, errors, traceId);
     }
 
-    // If backend returns standard envelope { success: true, data: ... }
-    if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
-      return json.data;
-    }
-
-    return json;
+    throw new ApiError(errorMessage, response.status, data);
   }
 
-  get(endpoint, headers) {
-    return this.request(endpoint, { method: 'GET', headers });
-  }
-
-  post(endpoint, body, headers) {
-    return this.request(endpoint, {
-      method: 'POST',
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  }
-
-  put(endpoint, body, headers) {
-    return this.request(endpoint, {
-      method: 'PUT',
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  }
-
-  delete(endpoint, headers) {
-    return this.request(endpoint, { method: 'DELETE', headers });
-  }
-
-  patch(endpoint, body, headers) {
-    return this.request(endpoint, {
-      method: 'PATCH',
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  }
+  return data;
 }
 
-export const apiClient = new HttpClient();
+export async function apiRequest(endpoint, options = {}) {
+  const {
+    method = 'GET',
+    body,
+    headers = {},
+    token: overrideToken,
+    ...restOptions
+  } = options;
+
+  const token = overrideToken !== undefined ? overrideToken : getStoredToken();
+
+  const reqHeaders = {
+    Accept: 'application/json',
+    ...headers,
+  };
+
+  if (body !== undefined && !(body instanceof FormData)) {
+    reqHeaders['Content-Type'] = 'application/json';
+  }
+
+  if (token) {
+    reqHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
+  const config = {
+    method,
+    headers: reqHeaders,
+    ...restOptions,
+  };
+
+  if (body !== undefined) {
+    config.body = typeof body === 'string' || body instanceof FormData ? body : JSON.stringify(body);
+  }
+
+  const url = endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`;
+
+  const response = await fetch(url, config);
+  return handleResponse(response);
+}
+
+export const apiClient = {
+  get: (url, options) => apiRequest(url, { method: 'GET', ...options }),
+  post: (url, body, options) => apiRequest(url, { method: 'POST', body, ...options }),
+  put: (url, body, options) => apiRequest(url, { method: 'PUT', body, ...options }),
+  delete: (url, options) => apiRequest(url, { method: 'DELETE', ...options }),
+};
+
 export default apiClient;

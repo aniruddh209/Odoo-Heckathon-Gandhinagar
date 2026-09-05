@@ -1,34 +1,21 @@
-import { apiClient } from './apiClient.js';
+import { apiClient } from './apiClient';
 
 export const fulfillmentApi = {
-  getWarehouses: () => apiClient.get('/admin/warehouses'),
-  getWarehouseStocks: (warehouseId) =>
-    apiClient.get(`/admin/warehouses/${warehouseId}/stock`),
+  previewAllocation: async (orderId) => {
+    return apiClient.get(`fulfillment/preview/${orderId}`);
+  },
 
-  getFulfillmentOrders: () => apiClient.get('/fulfillment/backorders'),
+  executeAllocation: async (orderId) => {
+    return apiClient.post(`fulfillment/allocate/${orderId}`);
+  },
 
-  getFulfillmentPreview: (orderId) =>
-    apiClient.get(`/fulfillment/preview/${orderId}`),
-  getSplitRecommendation: (orderId) =>
-    apiClient.get(`/fulfillment/preview/${orderId}`),
+  getBackorders: async () => {
+    return apiClient.get('fulfillment/backorders');
+  },
 
-  executeAllocation: (orderId) =>
-    apiClient.post(`/fulfillment/allocate/${orderId}`),
-  acceptFulfillment: (orderId) =>
-    apiClient.post(`/fulfillment/allocate/${orderId}`),
-  applySplitAllocation: (orderId) =>
-    apiClient.post(`/fulfillment/allocate/${orderId}`),
-
-  getBackorders: () =>
-    apiClient.get('/fulfillment/backorders'),
-
-  replenishStock: (warehouseId, productId) =>
-    apiClient.post(`/fulfillment/replenish?warehouseId=${warehouseId}&productId=${productId}`),
-
-  adjustStock: (warehouseId, productId, onHand) =>
-    apiClient.post(`/admin/warehouses/${warehouseId}/adjust-stock`, {
-      productId: Number(productId),
-      onHand: Number(onHand),
-    }),
+  replenishStock: async (warehouseId, productId) => {
+    return apiClient.post(`fulfillment/replenish?warehouseId=${warehouseId}&productId=${productId}`);
+  },
 };
 
+export default fulfillmentApi;

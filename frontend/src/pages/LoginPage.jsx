@@ -1,61 +1,111 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { Button } from '../components/common/Button';
-import { Input } from '../components/common/Input';
-import { Alert } from '../components/common/Alert';
-import { Layers, ArrowRight } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { Button, Input, ErrorAlert } from '../components/ui';
+import { Zap, Shield, KeyRound, Mail, UserCheck, ArrowRight } from 'lucide-react';
 
 export const LoginPage = () => {
+  const { login, isCustomer } = useAuth();
   const navigate = useNavigate();
-  const { login, isLoading } = useAuth();
+  const location = useLocation();
+  const toast = useToast();
 
   const [email, setEmail] = useState('rep@dealflow360.io');
   const [password, setPassword] = useState('Rep@123');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const demoAccounts = [
+    {
+      role: 'Sales Representative',
+      email: 'rep@dealflow360.io',
+      pass: 'Rep@123',
+      badge: 'Core Rep',
+      desc: 'Builds quotes, triggers margin rules & upsells',
+    },
+    {
+      role: 'Sales Manager',
+      email: 'manager@dealflow360.io',
+      pass: 'Manager@123',
+      badge: 'Approver',
+      desc: 'Reviews discount violations & deal health radar',
+    },
+    {
+      role: 'Finance & Operations',
+      email: 'finance@dealflow360.io',
+      pass: 'Finance@123',
+      badge: 'Fulfillment',
+      desc: 'Manages warehouse split, billing & invoices',
+    },
+    {
+      role: 'Administrator',
+      email: 'admin@dealflow360.io',
+      pass: 'Admin@123',
+      badge: 'Full Access',
+      desc: 'Catalog, pricing rules, approval matrices',
+    },
+    {
+      role: 'Customer Portal',
+      email: 'customer@dealflow360.io',
+      pass: 'Customer@123',
+      badge: 'Client Portal',
+      desc: 'Zero-leak customer negotiation & confirmations',
+    },
+  ];
+
+  const handleSelectDemo = (account) => {
+    setEmail(account.email);
+    setPassword(account.pass);
+    setError(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setIsLoading(true);
+
     try {
-      const loggedUser = await login({ Email: email, Password: password });
-      if (loggedUser?.role === 'Customer') {
-        navigate('/portal/quotes');
+      const res = await login({ email, password });
+      toast.success('Welcome Back', `Authenticated as ${res.user.fullName} (${res.user.role})`);
+
+      const from = location.state?.from?.pathname;
+      if (from) {
+        navigate(from, { replace: true });
+      } else if (res.user.role === 'Customer') {
+        navigate('/portal/my-account', { replace: true });
       } else {
-        navigate('/');
+        navigate('/dashboard', { replace: true });
       }
     } catch (err) {
-      setError(err?.message || 'Login failed. Please verify credentials.');
+      setError(err.message || 'Failed to authenticate. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleQuickFill = (roleEmail, rolePassword) => {
-    setEmail(roleEmail);
-    setPassword(rolePassword);
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center items-center space-x-2.5">
-          <div className="h-11 w-11 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-            <Layers className="h-6 w-6" />
-          </div>
-          <span className="text-2xl font-black tracking-tight text-slate-900">
-            DealFlow<span className="text-blue-600">360</span>
-          </span>
+    <div className="min-h-screen flex flex-col justify-center bg-slate-950 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Subtle Background Pattern */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center mb-6">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/30 mb-3">
+          <Zap className="w-6 h-6 fill-white text-white" />
         </div>
-        <h2 className="mt-6 text-center text-2xl font-bold text-slate-900">Sign in to your account</h2>
-        <p className="mt-1 text-center text-xs text-slate-500">
-          Commercial Quoting, Margin Governance & Multi-Warehouse Fulfillment
+        <h1 className="text-2xl font-bold tracking-tight text-white">
+          DealFlow<span className="text-blue-400">360</span>
+        </h1>
+        <p className="mt-1 text-xs text-slate-400">
+          Intelligent, Self-Governing Sales Operations Platform
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200/80 rounded-2xl sm:px-10">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="bg-white py-8 px-6 shadow-2xl rounded-2xl border border-slate-200/80 sm:px-10">
           {error && (
-            <div className="mb-4">
-              <Alert variant="danger" message={error} onClose={() => setError(null)} />
+            <div className="mb-5">
+              <ErrorAlert message={error} />
             </div>
           )}
 
@@ -63,111 +113,86 @@ export const LoginPage = () => {
             <Input
               label="Work Email"
               type="email"
+              required
+              icon={Mail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.com"
-              required
+              placeholder="rep@dealflow360.io"
+              autoComplete="email"
             />
 
             <Input
               label="Password"
               type="password"
+              required
+              icon={KeyRound}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              required
+              autoComplete="current-password"
             />
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  defaultChecked
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-xs text-slate-700">
-                  Remember session
-                </label>
-              </div>
-
-              <div className="text-xs">
-                <a href="#forgot" className="font-medium text-blue-600 hover:text-blue-500">
-                  Forgot password?
-                </a>
-              </div>
+            <div className="pt-2">
+              <Button
+                type="submit"
+                fullWidth
+                size="md"
+                isLoading={isLoading}
+                icon={ArrowRight}
+              >
+                Sign In to Platform
+              </Button>
             </div>
-
-            <Button type="submit" className="w-full justify-center" size="lg" isLoading={isLoading}>
-              Sign In
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
           </form>
 
-          {/* Persona Demo Switcher */}
+          {/* Quick Demo Credentials Panel */}
           <div className="mt-6 pt-6 border-t border-slate-100">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2 text-center">
-              Quick Switch Persona (Development)
-            </span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('rep@dealflow360.io', 'Rep@123')}
-                className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800">Sales Rep</div>
-                <div className="text-[10px] text-slate-400">rep@dealflow360.io</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('manager@dealflow360.io', 'Manager@123')}
-                className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800">Sales Manager</div>
-                <div className="text-[10px] text-slate-400">manager@dealflow360.io</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('finance@dealflow360.io', 'Finance@123')}
-                className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800">Finance & Ops</div>
-                <div className="text-[10px] text-slate-400">finance@dealflow360.io</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin@dealflow360.io', 'Admin@123')}
-                className="p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800">System Admin</div>
-                <div className="text-[10px] text-slate-400">admin@dealflow360.io</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('customer@dealflow360.io', 'Customer@123')}
-                className="col-span-2 p-2 border border-slate-200 rounded-lg text-left hover:bg-slate-50 text-slate-700 cursor-pointer bg-slate-50/50"
-              >
-                <div className="font-semibold text-slate-800">Customer Client (Acme Global)</div>
-                <div className="text-[10px] text-slate-400">customer@dealflow360.io (Redirects to Customer Portal)</div>
-              </button>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Quick Demo Personas
+              </span>
+              <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                1-Click Select
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {demoAccounts.map((account) => {
+                const isSelected = email === account.email;
+                return (
+                  <button
+                    key={account.role}
+                    type="button"
+                    onClick={() => handleSelectDemo(account)}
+                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between text-xs ${
+                      isSelected
+                        ? 'border-blue-600 bg-blue-50/50 shadow-2xs'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-900">{account.role}</span>
+                        <span className="text-[10px] font-medium px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                          {account.badge}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{account.desc}</p>
+                    </div>
+                    <UserCheck className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-slate-300'}`} />
+                  </button>
+                );
+              })}
             </div>
           </div>
-
-          <div className="mt-6 text-center text-xs text-slate-500">
-            Need an account?{' '}
-            <Link to="/signup" className="font-semibold text-blue-600 hover:text-blue-500">
-              Create staff account
-            </Link>
-          </div>
-
-          <div className="mt-3 text-center text-xs">
-            <Link to="/portal/login" className="text-slate-400 hover:text-slate-600">
-              Are you a client? Access Customer Portal →
-            </Link>
-          </div>
         </div>
+
+        <p className="text-center text-xs text-slate-500 mt-6">
+          Powered by real ASP.NET Core Web API & Microsoft SQL Server.
+        </p>
       </div>
     </div>
   );
 };
+
+export default LoginPage;

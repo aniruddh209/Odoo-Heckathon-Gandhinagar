@@ -1,77 +1,57 @@
-import { apiClient } from './apiClient.js';
+import { apiClient } from './apiClient';
 
 export const quotationApi = {
-  getQuotations: async (paramsOrStatus, ownerId, customerId) => {
+  getQuotations: async ({ salesRepId, status } = {}) => {
     const params = new URLSearchParams();
-    if (typeof paramsOrStatus === 'string') {
-      if (paramsOrStatus) params.append('status', paramsOrStatus);
-      if (ownerId) params.append('salesRepId', ownerId.toString());
-      if (customerId) params.append('customerId', customerId.toString());
-    } else if (paramsOrStatus && typeof paramsOrStatus === 'object') {
-      if (paramsOrStatus.Status) params.append('status', paramsOrStatus.Status);
-      if (paramsOrStatus.status) params.append('status', paramsOrStatus.status);
-      if (paramsOrStatus.salesRepId) params.append('salesRepId', paramsOrStatus.salesRepId.toString());
-      if (paramsOrStatus.ownerId) params.append('salesRepId', paramsOrStatus.ownerId.toString());
-      if (paramsOrStatus.customerId) params.append('customerId', paramsOrStatus.customerId.toString());
-    }
-    const query = params.toString();
-    const result = await apiClient.get(`/quotations${query ? `?${query}` : ''}`);
-    if (Array.isArray(result)) {
-      return {
-        Items: result,
-        TotalCount: result.length,
-        PageNumber: 1,
-        PageSize: result.length,
-        TotalPages: 1,
-      };
-    }
-    if (result && result.items) {
-      return {
-        Items: result.items,
-        TotalCount: result.totalCount ?? result.items.length,
-        PageNumber: result.pageNumber ?? 1,
-        PageSize: result.pageSize ?? 10,
-        TotalPages: result.totalPages ?? 1,
-      };
-    }
-    return result;
+    if (salesRepId !== undefined && salesRepId !== null) params.append('salesRepId', salesRepId);
+    if (status) params.append('status', status);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return apiClient.get(`quotations${queryString}`);
   },
 
-  getPipeline: () => apiClient.get('/reports/pipeline'),
-  createQuotation: (data) => apiClient.post('/quotations', data),
-  getQuotation: (id) => apiClient.get(`/quotations/${id}`),
-  getQuotationById: (id) => apiClient.get(`/quotations/${id}`),
-  updateQuotation: (id, data) => apiClient.put(`/quotations/${id}`, data),
+  getQuotationById: async (id) => {
+    return apiClient.get(`quotations/${id}`);
+  },
 
-  addQuotationLine: (quotationId, data) => apiClient.post(`/quotations/${quotationId}/lines`, data),
-  addLine: (quotationId, data) => apiClient.post(`/quotations/${quotationId}/lines`, data),
+  createQuotation: async (data) => {
+    return apiClient.post('quotations', data);
+  },
 
-  updateQuotationLine: (quotationId, lineId, data) =>
-    apiClient.put(`/quotations/${quotationId}/lines/${lineId}`, data),
-  updateLine: (quotationId, lineId, data) =>
-    apiClient.put(`/quotations/${quotationId}/lines/${lineId}`, data),
+  updateQuotation: async (id, data) => {
+    return apiClient.put(`quotations/${id}`, data);
+  },
 
-  deleteQuotationLine: (quotationId, lineId) =>
-    apiClient.delete(`/quotations/${quotationId}/lines/${lineId}`),
-  deleteLine: (quotationId, lineId) =>
-    apiClient.delete(`/quotations/${quotationId}/lines/${lineId}`),
+  addLineItem: async (quotationId, lineData) => {
+    return apiClient.post(`quotations/${quotationId}/lines`, lineData);
+  },
 
-  recalculatePricing: (id) => apiClient.post(`/quotations/${id}/recalculate`),
-  recalculate: (id) => apiClient.post(`/quotations/${id}/recalculate`),
+  updateLineItem: async (quotationId, lineId, lineData) => {
+    return apiClient.put(`quotations/${quotationId}/lines/${lineId}`, lineData);
+  },
 
-  getUpsellRecommendations: (id) => apiClient.get(`/quotations/${id}/recommendations`),
-  getRecommendations: (id) => apiClient.get(`/quotations/${id}/recommendations`),
+  removeLineItem: async (quotationId, lineId) => {
+    return apiClient.delete(`quotations/${quotationId}/lines/${lineId}`);
+  },
 
-  submitForApproval: (id) => apiClient.post(`/quotations/${id}/submit-approval`),
-  submitQuotation: (id) => apiClient.post(`/quotations/${id}/submit-approval`),
+  recalculate: async (id) => {
+    return apiClient.post(`quotations/${id}/recalculate`);
+  },
 
-  sendToCustomer: (id) => apiClient.post(`/quotations/${id}/generate-portal-link`),
-  sendToPortal: (id) => apiClient.post(`/quotations/${id}/generate-portal-link`),
-  generatePortalLink: (id) => apiClient.post(`/quotations/${id}/generate-portal-link`),
+  submitForApproval: async (id) => {
+    return apiClient.post(`quotations/${id}/submit-approval`);
+  },
 
-  convertToOrder: (id) => apiClient.post(`/quotations/${id}/convert-to-order`),
-  confirmOrder: (id) => apiClient.post(`/quotations/${id}/convert-to-order`),
+  getRecommendations: async (id) => {
+    return apiClient.get(`quotations/${id}/recommendations`);
+  },
 
-  deleteQuotation: (id) => apiClient.delete(`/quotations/${id}`),
+  generatePortalLink: async (id) => {
+    return apiClient.post(`quotations/${id}/generate-portal-link`);
+  },
+
+  convertToOrder: async (id) => {
+    return apiClient.post(`quotations/${id}/convert-to-order`);
+  },
 };
 
+export default quotationApi;

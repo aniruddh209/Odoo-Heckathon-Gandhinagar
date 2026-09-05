@@ -1,279 +1,221 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { quotationApi } from '../api';
-import { Button } from '../components/common/Button';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import {
-  Plus,
-  Search,
-  Eye,
-  Copy,
-  Trash2,
-} from 'lucide-react';
-import { QuotationStatus } from '../types';
+  Button,
+  Input,
+  Select,
+  StatusBadge,
+  DataTable,
+  LoadingSpinner,
+  ErrorAlert,
+} from '../components/ui';
+import { Plus, Search, Filter, RefreshCw, FileText } from 'lucide-react';
 
 export const QuotationListPage = () => {
+  const { user, isSalesRep, isSalesManager, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState(null);
+  const [quotes, setQuotes] = useState([]);
+  const [filteredQuotes, setFilteredQuotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchQuotations = async () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
+  useEffect(() => {
+    loadQuotations();
+  }, [user]);
+
+  const loadQuotations = async () => {
     setIsLoading(true);
+    setError(null);
+
     try {
-      const res = await quotationApi.getQuotations({
-        PageNumber: page,
-        PageSize: 10,
-        SearchTerm: searchTerm || undefined,
-        Status: statusFilter || undefined,
-      });
-      setData(res);
+      const filterParams = {};
+      if (isSalesRep && !isAdmin && !isSalesManager) {
+        filterParams.salesRepId = user?.id;
+      }
+      if (statusFilter) {
+        filterParams.status = statusFilter;
+      }
+
+      const res = await quotationApi.getQuotations(filterParams);
+      const list = Array.isArray(res) ? res : res?.value || [];
+      setQuotes(list);
+      setFilteredQuotes(list);
     } catch (err) {
-      console.error('Error fetching quotations:', err);
+      setError(err.message || 'Failed to retrieve quotations.');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchQuotations();
-  }, [page, searchTerm, statusFilter]);
+    let result = [...quotes];
 
-  const handleClone = async (id) => {
-    try {
-      const newQuote = await quotationApi.cloneQuotation(id);
-      navigate(`/quotations/${newQuote.Id}`);
-    } catch (err) {
-      alert(err?.message || 'Failed to clone quotation');
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.quotationNumber?.toLowerCase().includes(q) ||
+          item.customerName?.toLowerCase().includes(q) ||
+          item.salesRepName?.toLowerCase().includes(q)
+      );
     }
-  };
 
-  const handleDelete = async (id, quoteNumber) => {
-    if (!confirm(`Delete draft quotation ${quoteNumber}?`)) return;
-    try {
-      await quotationApi.deleteQuotation(id);
-      fetchQuotations();
-    } catch (err) {
-      alert(err?.message || 'Failed to delete quotation');
+    if (statusFilter) {
+      result = result.filter((item) => item.status === statusFilter);
     }
-  };
 
-  const quotes = data?.Items || [];
-  const totalPages = data?.TotalPages || 1;
+    setFilteredQuotes(result);
+  }, [searchQuery, statusFilter, quotes]);
+
+  const columns = [
+    {
+      header: 'Quote #',
+      accessor: 'quotationNumber',
+      render: (q) => (
+        <span className="font-semibold text-blue-600 hover:text-blue-800 font-mono text-xs">
+          {q.quotationNumber}
+        </span>
+      ),
+    },
+    {
+      header: 'Customer',
+      accessor: 'customerName',
+      render: (q) => (
+        <div>
+          <span className="font-semibold text-slate-900 block">{q.customerName}</span>
+          <span className="text-[11px] text-slate-500">Rep: {q.salesRepName}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Deal Value',
+      accessor: 'grandTotal',
+      render: (q) => (
+        <span className="font-bold text-slate-900">
+          ${(q.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        </span>
+      ),
+    },
+    {
+      header: 'Gross Margin',
+      accessor: 'marginPercent',
+      render: (q) => <StatusBadge type="margin" value={q.marginPercent} />,
+    },
+    {
+      header: 'Risk Score',
+      accessor: 'riskScore',
+      render: (q) => <StatusBadge type="risk" value={q.riskScore} />,
+    },
+    {
+      header: 'Lifecycle State',
+      accessor: 'status',
+      render: (q) => <StatusBadge status={q.status} />,
+    },
+    {
+      header: 'Approval State',
+      accessor: 'approvalStatus',
+      render: (q) => (
+        <span className={`text-xs font-semibold ${
+          q.approvalStatus === 'Approved' ? 'text-emerald-700' :
+          q.approvalStatus === 'Pending' ? 'text-amber-700' : 'text-slate-500'
+        }`}>
+          {q.approvalStatus || 'None'}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6 animate-in fade-in">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Quotation Workspace</h1>
-          <p className="text-xs text-slate-500">
-            Create, price, and govern dynamic commercial offers and contracts
+          <h1 className="text-xl font-bold text-slate-900">Quotations & Deal Workspace</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Active sales proposals, pricing governance, and approval compliance tracking.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <Button variant="outline" onClick={() => navigate('/pipeline')}>
-            Kanban View
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            onClick={loadQuotations}
+          >
+            Refresh
           </Button>
-          <Button onClick={() => navigate('/quotations/new')}>
-            <Plus className="w-4 h-4 mr-1.5" />
-            New Quotation
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Plus}
+            onClick={() => navigate('/workspace/quotations/new')}
+          >
+            Create Quotation
           </Button>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center gap-4">
-        <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-          <input
-            type="text"
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Search by quote #, customer name, contact..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setPage(1);
-            }}
+      {/* Filter and Search Bar */}
+      <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex-1 w-full">
+          <Input
+            icon={Search}
+            placeholder="Search by quotation #, customer, or rep..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        <div className="w-full md:w-56">
-          <select
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="w-full sm:w-56">
+          <Select
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            placeholder="All Statuses"
+            options={[
+              { value: '', label: 'All Lifecycle Statuses' },
+              { value: 'Draft', label: 'Draft' },
+              { value: 'PendingApproval', label: 'Pending Approval' },
+              { value: 'Approved', label: 'Approved' },
+              { value: 'Sent', label: 'Sent to Customer' },
+              { value: 'UnderNegotiation', label: 'Under Negotiation' },
+              { value: 'ConvertedToOrder', label: 'Converted to Order' },
+            ]}
+          />
+        </div>
+      </div>
+
+      {error && (
+        <ErrorAlert message={error} onRetry={loadQuotations} />
+      )}
+
+      {/* Data Table */}
+      <DataTable
+        columns={columns}
+        data={filteredQuotes}
+        isLoading={isLoading}
+        onRowClick={(q) => navigate(`/workspace/quotations/${q.id}`)}
+        emptyMessage="No quotations matching criteria"
+        emptyDescription="Create a quote or adjust search filters to locate deal proposals."
+        emptyAction={
+          <Button
+            variant="primary"
+            size="xs"
+            icon={Plus}
+            onClick={() => navigate('/workspace/quotations/new')}
           >
-            <option value="">All Workflow Statuses</option>
-            <option value={QuotationStatus.Draft}>Draft</option>
-            <option value={QuotationStatus.InReview}>In Review (Approvals)</option>
-            <option value={QuotationStatus.Approved}>Approved</option>
-            <option value={QuotationStatus.SentToCustomer}>Sent to Customer</option>
-            <option value={QuotationStatus.Accepted}>Accepted / Bound</option>
-            <option value={QuotationStatus.Ordered}>Converted to Order</option>
-            <option value={QuotationStatus.Rejected}>Rejected</option>
-            <option value={QuotationStatus.Expired}>Expired</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="py-3.5 px-4">Quote #</th>
-                <th className="py-3.5 px-4">Customer</th>
-                <th className="py-3.5 px-4">Expires</th>
-                <th className="py-3.5 px-4 text-right">Discount</th>
-                <th className="py-3.5 px-4 text-right">Margin %</th>
-                <th className="py-3.5 px-4 text-right">Net Total</th>
-                <th className="py-3.5 px-4 text-center">Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center">
-                    <LoadingSpinner size="md" />
-                  </td>
-                </tr>
-              ) : quotes.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
-                    No quotations match your criteria.
-                  </td>
-                </tr>
-              ) : (
-                quotes.map((q) => {
-                  const isDraft = q.Status === QuotationStatus.Draft;
-                  return (
-                    <tr key={q.Id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4">
-                        <span
-                          onClick={() => navigate(`/quotations/${q.Id}`)}
-                          className="font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
-                        >
-                          {q.QuotationNumber}
-                        </span>
-                        <div className="text-xs text-slate-400">v{q.VersionNumber}</div>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-800">{q.CustomerName}</div>
-                      </td>
-                      <td className="py-3.5 px-4 text-xs text-slate-500">
-                        {q.ExpirationDate ? new Date(q.ExpirationDate).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-amber-600">
-                        {(q.TotalDiscountAmount ?? q.totalDiscountAmount ?? 0) > 0 ? `-$${(q.TotalDiscountAmount ?? q.totalDiscountAmount ?? 0).toLocaleString()}` : '-'}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        {q.OrderGrossMarginPercent !== undefined ? (
-                          <span
-                            className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full ${
-                              q.OrderGrossMarginPercent < 15
-                                ? 'bg-rose-50 text-rose-700'
-                                : 'bg-emerald-50 text-emerald-700'
-                            }`}
-                          >
-                            {q.OrderGrossMarginPercent.toFixed(1)}%
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
-                        ${(q.TotalAmount ?? q.totalNetAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span
-                          className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
-                            q.Status === QuotationStatus.Accepted || q.Status === QuotationStatus.Ordered
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : q.Status === QuotationStatus.InReview
-                              ? 'bg-amber-100 text-amber-800'
-                              : q.Status === QuotationStatus.SentToCustomer
-                              ? 'bg-indigo-100 text-indigo-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {q.Status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end space-x-1.5">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/quotations/${q.Id}`)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
-                            title="Inspect quotation"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleClone(q.Id)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer"
-                            title="Clone quotation"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
-                          {isDraft && (
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(q.Id, q.QuotationNumber)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                              title="Delete draft"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Bar */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-slate-50/50 text-xs text-slate-500">
-            <span>
-              Page {page} of {totalPages} ({data?.TotalCount || 0} total quotations)
-            </span>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+            New Quotation
+          </Button>
+        }
+      />
     </div>
   );
 };
+
+export default QuotationListPage;

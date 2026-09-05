@@ -1,66 +1,53 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth.js';
-import { LoadingSpinner } from '../common/LoadingSpinner.jsx';
-import { AlertCircle } from 'lucide-react';
-import { Button } from '../common/Button.jsx';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { LoadingSpinner, ErrorAlert } from '../ui';
+import { ShieldAlert } from 'lucide-react';
 
-export const ProtectedRoute = ({
-  children,
-  allowedRoles,
-  forPortal = false,
-  isPortalRoute = false,
-}) => {
-  const { isAuthenticated, isPortalAuthenticated, isLoading, user, hasRole } = useAuth();
-  const isPortal = forPortal || isPortalRoute;
+export const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, isAuthenticated, isLoading, hasRole, isCustomer } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <LoadingSpinner size="lg" text="Authenticating DealFlow360 session..." />
+        <LoadingSpinner message="Authenticating session..." size="lg" />
       </div>
     );
   }
 
-  // Customer Portal Route Protection
-  if (isPortal) {
-    if (!isPortalAuthenticated) {
-      return <Navigate to="/portal/login" replace />;
-    }
-    return <>{children}</>;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Internal Staff Route Protection
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+  // Customer users should be routed to customer portal area
+  if (isCustomer && !location.pathname.startsWith('/portal') && !location.pathname.startsWith('/client')) {
+    return <Navigate to="/portal/my-account" replace />;
   }
 
-  // Redirect Customer role accounts to customer portal
-  if (user?.role === 'Customer') {
-    return <Navigate to="/portal/quotes" replace />;
-  }
-
-  // Check Role Permissions
-  if (allowedRoles && allowedRoles.length > 0) {
-    const isAllowed = allowedRoles.some((r) => hasRole(r));
-    if (!isAllowed) {
-      return (
-        <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-8">
-          <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 mb-4">
-            <AlertCircle className="w-6 h-6" />
+  if (allowedRoles && !hasRole(allowedRoles)) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center p-8 bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto mb-4">
+            <ShieldAlert className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h2>
-          <p className="text-sm text-slate-500 max-w-md mb-6">
-            Your current role (<span className="font-semibold text-slate-800">{user.role}</span>) does not
-            have permission to view this operational area. Contact your system administrator.
+          <h2 className="text-base font-semibold text-slate-900 mb-1">Access Restricted</h2>
+          <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+            Your role (<strong className="font-semibold text-slate-700">{user?.role}</strong>) does not have authorization to view this workspace. Please contact your administrator or switch to an authorized role.
           </p>
-          <Button variant="outline" onClick={() => window.history.back()}>
-            Go Back
-          </Button>
+          <a
+            href="/dashboard"
+            className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
+          >
+            Return to Dashboard
+          </a>
         </div>
-      );
-    }
+      </div>
+    );
   }
 
-  return <>{children}</>;
+  return children;
 };
+
+export default ProtectedRoute;

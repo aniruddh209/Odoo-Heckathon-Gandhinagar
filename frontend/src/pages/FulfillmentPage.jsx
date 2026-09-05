@@ -1,265 +1,298 @@
 import React, { useState, useEffect } from 'react';
-import { fulfillmentApi } from '../api';
+import { useSearchParams } from 'react-router-dom';
+import { fulfillmentApi, quotationApi, adminApi } from '../api';
+import { useToast } from '../context/ToastContext';
 import {
-  SplitRecommendation,
-  AllocationOverrideModal,
-  BackorderBanner,
-} from '../components/fulfillment';
-import { Alert } from '../components/common/Alert';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { Building2, Package } from 'lucide-react';
+  Button,
+  Select,
+  StatusBadge,
+  DataTable,
+  LoadingSpinner,
+  ErrorAlert,
+} from '../components/ui';
+import {
+  Truck,
+  CheckCircle2,
+  RefreshCw,
+} from 'lucide-react';
 
 export const FulfillmentPage = () => {
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
-  const [alertMessage, setAlertMessage] = useState(null);
-
-  const [warehouses, setWarehouses] = useState([]);
-  const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(true);
-
-  const [backorders, setBackorders] = useState([]);
+  const [searchParams] = useSearchParams();
+  const initialOrderId = searchParams.get('orderId');
+  const toast = useToast();
 
   const [orders, setOrders] = useState([]);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
-
-  const [splitPreview, setSplitPreview] = useState(null);
-  const [isLoadingSplit, setIsLoadingSplit] = useState(false);
-
-  const [isApplyingSplit, setIsApplyingSplit] = useState(false);
-  const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
-
-  const fetchWarehousesAndBackorders = async () => {
-    setIsLoadingWarehouses(true);
-    try {
-      const w = await fulfillmentApi.getWarehouses();
-      setWarehouses(w || []);
-    } catch (err) {
-      console.error('Error fetching warehouses:', err);
-    } finally {
-      setIsLoadingWarehouses(false);
-    }
-
-    try {
-      const b = await fulfillmentApi.getBackorders();
-      setBackorders(b || []);
-    } catch (err) {
-      console.error('Error fetching backorders:', err);
-    }
-  };
-
-  const fetchOrders = async () => {
-    setIsLoadingOrders(true);
-    try {
-      const o = await fulfillmentApi.getFulfillmentOrders();
-      setOrders(o || []);
-      if (!selectedOrderId && o && o.length > 0) {
-        setSelectedOrderId(o[0].Id);
-      }
-    } catch (err) {
-      console.error('Error fetching fulfillment orders:', err);
-    } finally {
-      setIsLoadingOrders(false);
-    }
-  };
+  const [selectedOrderId, setSelectedOrderId] = useState(initialOrderId || '');
+  const [preview, setPreview] = useState(null);
+  const [backorders, setBackorders] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAllocating, setIsAllocating] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchWarehousesAndBackorders();
-    fetchOrders();
+    loadInitialData();
   }, []);
 
-  const activeOrder = orders.find((o) => o.Id === selectedOrderId) || (orders.length > 0 ? orders[0] : null);
-
-  // Fetch split preview when activeOrder changes
-  const fetchSplitPreview = async (orderId) => {
-    if (!orderId) {
-      setSplitPreview(null);
-      return;
-    }
-    setIsLoadingSplit(true);
-    try {
-      const sp = await fulfillmentApi.getSplitRecommendation(orderId);
-      setSplitPreview(sp);
-    } catch (err) {
-      console.error('Error fetching split recommendation:', err);
-    } finally {
-      setIsLoadingSplit(false);
-    }
-  };
-
   useEffect(() => {
-    if (activeOrder?.Id) {
-      fetchSplitPreview(activeOrder.Id);
+    if (selectedOrderId) {
+      loadAllocationPreview(selectedOrderId);
     }
-  }, [activeOrder?.Id]);
+  }, [selectedOrderId]);
 
-  const handleApplySplit = async (orderId) => {
-    setIsApplyingSplit(true);
+  const loadInitialData = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      await fulfillmentApi.applySplitAllocation(orderId);
-      setAlertMessage({ type: 'success', text: 'Multi-warehouse stock allocations confirmed and pick lists created!' });
-      fetchOrders();
-      fetchWarehousesAndBackorders();
-      if (activeOrder?.Id) fetchSplitPreview(activeOrder.Id);
+      const [quotesRes, boRes, whRes] = await Promise.all([
+        quotationApi.getQuotations({ status: 'ConvertedToOrder' }),
+        fulfillmentApi.getBackorders(),
+        adminApi.getWarehouses(),
+      ]);
+
+      const qList = Array.isArray(quotesRes) ? quotesRes : quotesRes?.value || [];
+      const bList = Array.isArray(boRes) ? boRes : boRes?.value || [];
+      const wList = Array.isArray(whRes) ? whRes : whRes?.value || [];
+
+      // Generate order list from converted quotes
+      const mappedOrders = qList.map((q) => ({
+        id: q.id, // For demo convenience or converted order id
+        orderNumber: `ORD-${q.quotationNumber.replace('QT-', '')}`,
+        customerName: q.customerName,
+        total: q.grandTotal,
+      }));
+
+      setOrders(mappedOrders);
+      setBackorders(bList);
+      setWarehouses(wList);
+
+      if (mappedOrders.length > 0 && !selectedOrderId) {
+        setSelectedOrderId(mappedOrders[0].id.toString());
+      }
     } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to apply split allocation.' });
+      setError(err.message || 'Failed to load fulfillment data.');
     } finally {
-      setIsApplyingSplit(false);
+      setIsLoading(false);
     }
   };
 
-  const handleOverride = async (req) => {
-    setIsSubmittingOverride(true);
+  const loadAllocationPreview = async (orderId) => {
     try {
-      await fulfillmentApi.manualAllocationOverride(req);
-      setIsOverrideModalOpen(false);
-      setAlertMessage({ type: 'success', text: 'Manual warehouse allocation override applied.' });
-      if (activeOrder?.Id) fetchSplitPreview(activeOrder.Id);
+      const res = await fulfillmentApi.previewAllocation(orderId);
+      setPreview(res);
     } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to apply allocation override.' });
-    } finally {
-      setIsSubmittingOverride(false);
+      console.warn('Preview allocation error:', err);
+      setPreview(null);
     }
   };
+
+  const handleExecuteAllocation = async () => {
+    if (!selectedOrderId) return;
+    setIsAllocating(true);
+    try {
+      const res = await fulfillmentApi.executeAllocation(selectedOrderId);
+      setPreview(res);
+      toast.success('Allocation Executed', 'Warehouse delivery splits committed to inventory.');
+      // Refresh backorders
+      const bo = await fulfillmentApi.getBackorders();
+      setBackorders(Array.isArray(bo) ? bo : bo?.value || []);
+    } catch (err) {
+      toast.error('Allocation Failed', err.message);
+    } finally {
+      setIsAllocating(false);
+    }
+  };
+
+  const handleReplenish = async (warehouseId, productId) => {
+    try {
+      await fulfillmentApi.replenishStock(warehouseId, productId);
+      toast.success('Stock Replenished', 'Backorders consolidated automatically.');
+      const bo = await fulfillmentApi.getBackorders();
+      setBackorders(Array.isArray(bo) ? bo : bo?.value || []);
+      if (selectedOrderId) {
+        await loadAllocationPreview(selectedOrderId);
+      }
+    } catch (err) {
+      toast.error('Replenish Failed', err.message);
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner message="Querying multi-warehouse inventory depots..." size="lg" />;
+  }
+
+  const backorderColumns = [
+    { header: 'Backorder #', accessor: 'id', render: (b) => <span className="font-mono font-bold text-slate-700">BO-{b.id}</span> },
+    { header: 'Product Item', accessor: 'productName', render: (b) => <span className="font-semibold text-slate-900">{b.productName}</span> },
+    { header: 'Deficit Quantity', accessor: 'quantity', render: (b) => <span className="font-bold text-rose-600">{b.quantity} Units</span> },
+    { header: 'Status', accessor: 'status', render: (b) => <StatusBadge status={b.status || 'Processing'} /> },
+    {
+      header: 'Action',
+      render: (b) => (
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => handleReplenish(warehouses[0]?.id || 1, b.productId)}
+        >
+          Replenish & Consolidate
+        </Button>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6 animate-in fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Multi-Warehouse Fulfillment</h1>
-          <p className="text-xs text-slate-500">
-            Intelligent inventory split routing, delivery SLA optimization & manual override control
+          <h1 className="text-xl font-bold text-slate-900">Multi-Warehouse Fulfillment Split</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Greedy cost-weighted stock distribution, shipment optimization, and backorder consolidation.
           </p>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          icon={RefreshCw}
+          onClick={loadInitialData}
+        >
+          Refresh Stock
+        </Button>
       </div>
 
-      {alertMessage && (
-        <Alert
-          variant={alertMessage.type}
-          message={alertMessage.text}
-          onClose={() => setAlertMessage(null)}
-        />
-      )}
+      {error && <ErrorAlert message={error} onRetry={loadInitialData} />}
 
-      {/* Backorder shortage warning banner */}
-      <BackorderBanner
-        backorders={backorders}
-        onPartialShip={() => setAlertMessage({ type: 'success', text: 'Partial shipments queued for in-stock lines.' })}
-        onHoldForConsolidation={() => setAlertMessage({ type: 'success', text: 'Order held for complete replenishment consolidation.' })}
-      />
-
-      {/* Warehouse Hubs Summary Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {isLoadingWarehouses ? (
-          <div className="col-span-3 py-6 flex justify-center">
-            <LoadingSpinner size="md" />
+      {/* Order Selector */}
+      <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <Truck className="w-5 h-5 text-blue-600 shrink-0" />
+          <div className="w-full sm:w-80">
+            <Select
+              label="Select Confirmed Sale Order"
+              value={selectedOrderId}
+              onChange={(e) => setSelectedOrderId(e.target.value)}
+              options={orders.map((o) => ({
+                value: o.id,
+                label: `${o.orderNumber} - ${o.customerName} ($${o.total?.toFixed(2)})`,
+              }))}
+            />
           </div>
-        ) : (
-          warehouses.map((w) => (
-            <div key={w.Id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm">{w.Name}</h4>
-                  <p className="text-xs text-slate-400 font-mono">Code: {w.Code} | {w.City || 'Central Hub'}</p>
-                </div>
-              </div>
-              <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full">
-                Active Node
-              </span>
-            </div>
-          ))
+        </div>
+
+        {preview && (
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={CheckCircle2}
+              isLoading={isAllocating}
+              onClick={handleExecuteAllocation}
+            >
+              Commit Warehouse Allocation
+            </Button>
+          </div>
         )}
       </div>
 
-      {/* Main Execution Split View */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Orders Queue */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Package className="w-4 h-4 text-blue-600" />
-              <h3 className="font-bold text-slate-800 text-sm">Orders Ready for Allocation</h3>
+      {/* Allocation Preview View */}
+      {preview ? (
+        <div className="space-y-6">
+          {/* Metrics summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+              <span className="text-[10px] font-bold uppercase text-slate-400 block">Fulfillment Strategy</span>
+              <span className="text-base font-bold text-slate-900 mt-1 block">
+                {preview.isFullyAllocated ? 'Single Delivery Route' : 'Split Multi-Depot Delivery'}
+              </span>
+              <span className={`text-xs font-semibold mt-1 inline-block ${preview.isFullyAllocated ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {preview.isFullyAllocated ? '100% Stock Available' : 'Partial Stock / Backorder Triggered'}
+              </span>
             </div>
-            <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
-              {orders.length}
-            </span>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+              <span className="text-[10px] font-bold uppercase text-slate-400 block">Estimated Shipments</span>
+              <span className="text-base font-bold text-slate-900 mt-1 block font-mono">
+                {preview.totalShipments || 1} Separate Dispatches
+              </span>
+              <span className="text-xs text-slate-500 mt-1 block">
+                Logistics Surcharge: ${(preview.totalShipmentCost || 0).toFixed(2)}
+              </span>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+              <span className="text-[10px] font-bold uppercase text-slate-400 block">Backorder Deficit</span>
+              <span className="text-base font-bold text-slate-900 mt-1 block font-mono">
+                {preview.backorders?.length || 0} Line Items
+              </span>
+              <span className="text-xs text-slate-500 mt-1 block">
+                Auto-consolidates upon vendor delivery receipt
+              </span>
+            </div>
           </div>
 
-          <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
-            {isLoadingOrders ? (
-              <div className="py-12 flex justify-center">
-                <LoadingSpinner size="md" />
-              </div>
-            ) : orders.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                No orders pending fulfillment allocation.
-              </div>
-            ) : (
-              orders.map((order) => {
-                const isSelected = (activeOrder?.Id || orders[0]?.Id) === order.Id;
-                return (
-                  <div
-                    key={order.Id}
-                    onClick={() => setSelectedOrderId(order.Id)}
-                    className={`p-4 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-blue-50/70 border-l-4 border-blue-600' : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-slate-900 text-sm">{order.OrderNumber}</span>
-                      <span className="text-xs font-mono font-bold text-slate-900">${(order.TotalAmount || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-slate-600 font-medium">{order.CustomerName}</div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2">
-                      <span>Destination: {order.ShippingCity || 'Direct Consign'}</span>
-                      <span className="capitalize text-slate-500 font-semibold">{order.FulfillmentStatus || 'Unassigned'}</span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          {/* Allocation Breakdown Table */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-slate-200">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Warehouse Distribution Breakdown
+              </h3>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase">
+                    <th className="py-3 px-4">Allocated Warehouse</th>
+                    <th className="py-3 px-4">Assigned Product</th>
+                    <th className="py-3 px-4 text-right">Units Allocated</th>
+                    <th className="py-3 px-4 text-right">Delivery Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {preview.allocations?.map((al, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/60">
+                      <td className="py-3.5 px-4 font-semibold text-slate-900">
+                        {al.warehouseName || `Warehouse #${al.warehouseId}`}
+                      </td>
+                      <td className="py-3.5 px-4">{al.productName || 'Order Product Line'}</td>
+                      <td className="py-3.5 px-4 text-right font-bold text-slate-900">
+                        {al.quantity} Units
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono">
+                        ${(al.shipmentCost || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-
-        {/* Right: Multi-Warehouse Split Recommendation */}
-        <div className="lg:col-span-2">
-          {isLoadingSplit ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-16 flex justify-center">
-              <LoadingSpinner size="lg" />
-            </div>
-          ) : splitPreview && activeOrder ? (
-            <SplitRecommendation
-              split={splitPreview}
-              onApplySplit={() => handleApplySplit(activeOrder.Id)}
-              onManualOverride={() => setIsOverrideModalOpen(true)}
-              isApplying={isApplyingSplit}
-            />
-          ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
-              <Package className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-              <h3 className="font-bold text-slate-700">Select an Order</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Select an order from the list on the left to compute and preview multi-warehouse split allocations.
-              </p>
-            </div>
-          )}
+      ) : (
+        <div className="p-12 text-center text-slate-400 border border-dashed rounded-xl border-slate-200 bg-white text-xs">
+          Select a confirmed sale order to preview warehouse stock allocation splits.
         </div>
-      </div>
-
-      {/* Manual Override Modal */}
-      {activeOrder && (
-        <AllocationOverrideModal
-          isOpen={isOverrideModalOpen}
-          onClose={() => setIsOverrideModalOpen(false)}
-          orderId={activeOrder.Id}
-          orderNumber={activeOrder.OrderNumber}
-          warehouses={warehouses}
-          isSubmitting={isSubmittingOverride}
-          onConfirm={handleOverride}
-        />
       )}
+
+      {/* Active Backorders Desk */}
+      <div className="space-y-3 pt-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Active Operational Backorders</h2>
+            <p className="text-xs text-slate-500">Unfulfilled line quantities awaiting replenishment receipts.</p>
+          </div>
+        </div>
+
+        <DataTable
+          columns={backorderColumns}
+          data={backorders}
+          emptyMessage="Zero Active Backorders"
+          emptyDescription="All confirmed order quantities have been fulfilled across designated warehouses."
+        />
+      </div>
     </div>
   );
 };
+
+export default FulfillmentPage;

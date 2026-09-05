@@ -1,176 +1,151 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quotationApi } from '../api';
-import { Button } from '../components/common/Button';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { Plus } from 'lucide-react';
-import { QuotationStatus } from '../types';
-
-const COLUMNS = [
-  {
-    id: 'draft',
-    title: 'Draft & Pricing',
-    statuses: [QuotationStatus.Draft],
-    color: 'border-slate-300',
-    badgeBg: 'bg-slate-100 text-slate-700',
-  },
-  {
-    id: 'in_review',
-    title: 'Governance Review',
-    statuses: [QuotationStatus.InReview],
-    color: 'border-amber-400',
-    badgeBg: 'bg-amber-100 text-amber-800',
-  },
-  {
-    id: 'sent',
-    title: 'Customer Negotiation',
-    statuses: [QuotationStatus.SentToCustomer, QuotationStatus.Approved],
-    color: 'border-blue-400',
-    badgeBg: 'bg-blue-100 text-blue-800',
-  },
-  {
-    id: 'accepted',
-    title: 'Accepted / Bound',
-    statuses: [QuotationStatus.Accepted],
-    color: 'border-emerald-400',
-    badgeBg: 'bg-emerald-100 text-emerald-800',
-  },
-  {
-    id: 'ordered',
-    title: 'Converted to Order',
-    statuses: [QuotationStatus.Ordered],
-    color: 'border-purple-400',
-    badgeBg: 'bg-purple-100 text-purple-800',
-  },
-];
+import { Button, StatusBadge, LoadingSpinner, ErrorAlert } from '../components/ui';
+import { RefreshCw } from 'lucide-react';
 
 export const PipelinePage = () => {
   const navigate = useNavigate();
   const [quotes, setQuotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
-    quotationApi.getQuotations({ PageNumber: 1, PageSize: 100 })
-      .then((data) => {
-        if (isMounted) {
-          setQuotes(data?.Items || []);
-        }
-      })
-      .catch((err) => console.error('Error fetching pipeline deals:', err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+    loadPipeline();
   }, []);
 
+  const loadPipeline = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await quotationApi.getQuotations();
+      const list = Array.isArray(res) ? res : res?.value || [];
+      setQuotes(list);
+    } catch (err) {
+      setError(err.message || 'Failed to load pipeline.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const stages = [
+    { key: 'Draft', title: 'Draft Proposals', border: 'border-slate-300' },
+    { key: 'PendingApproval', title: 'Pending Approval', border: 'border-amber-400' },
+    { key: 'Approved', title: 'Approved / Ready', border: 'border-emerald-500' },
+    { key: 'UnderNegotiation', title: 'Client Negotiation', border: 'border-purple-400' },
+    { key: 'ConvertedToOrder', title: 'Confirmed Orders', border: 'border-indigo-500' },
+  ];
+
+  const totalPipeline = quotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
+
+  if (isLoading) {
+    return <LoadingSpinner message="Aggregating sales pipeline stages..." size="lg" />;
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Commercial Deal Pipeline</h1>
-          <p className="text-xs text-slate-500">
-            Real-time stage velocity across quotation life cycle
+          <h1 className="text-xl font-bold text-slate-900">CRM Deal Pipeline</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Stage-by-stage deal velocity, margin preservation, and conversion tracking.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <Button variant="outline" onClick={() => navigate('/quotations')}>
-            Table View
-          </Button>
-          <Button onClick={() => navigate('/quotations/new')}>
-            <Plus className="w-4 h-4 mr-1.5" />
-            New Quotation
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total Pipeline</span>
+            <span className="text-base font-extrabold text-blue-700 font-mono block">
+              ${totalPipeline.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            onClick={loadPipeline}
+          >
+            Refresh
           </Button>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="py-24 flex justify-center">
-          <LoadingSpinner size="lg" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
-          {COLUMNS.map((col) => {
-            const columnQuotes = quotes.filter((q) => {
-              const st = q.Status || q.status;
-              return st ? col.statuses.includes(st) : false;
-            });
-            const columnTotal = columnQuotes.reduce((sum, q) => sum + (q.TotalAmount ?? q.totalNetAmount ?? 0), 0);
+      {error && <ErrorAlert message={error} onRetry={loadPipeline} />}
 
-            return (
-              <div key={col.id} className="flex flex-col bg-slate-100/70 rounded-xl p-3 border border-slate-200 min-w-[260px]">
-                {/* Column Header */}
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                      {col.title}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${col.badgeBg}`}>
-                      {columnQuotes.length}
-                    </span>
-                  </div>
+      {/* Kanban Board Columns */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start overflow-x-auto pb-6">
+        {stages.map((stage) => {
+          const stageQuotes = quotes.filter((q) => q.status === stage.key);
+          const stageTotal = stageQuotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
+
+          return (
+            <div
+              key={stage.key}
+              className="bg-slate-100/70 rounded-xl p-3 border border-slate-200/80 min-w-[240px] flex flex-col max-h-[75vh]"
+            >
+              {/* Column Header */}
+              <div className="pb-3 mb-3 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 truncate">{stage.title}</span>
+                  <span className="text-xs font-semibold px-2 py-0.2 rounded-full bg-white text-slate-600 border border-slate-200">
+                    {stageQuotes.length}
+                  </span>
                 </div>
-
-                <div className="text-[11px] text-slate-500 font-mono py-1.5 font-semibold">
-                  Total: ${columnTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </div>
-
-                {/* Cards */}
-                <div className="space-y-3 mt-2 flex-1">
-                  {columnQuotes.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-lg">
-                      No deals
-                    </div>
-                  ) : (
-                    columnQuotes.map((q) => (
-                      <div
-                        key={q.Id}
-                        onClick={() => navigate(`/quotations/${q.Id}`)}
-                        className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs hover:shadow-xs hover:border-blue-400 cursor-pointer transition-all space-y-2"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="font-bold text-blue-600 text-xs">{q.QuotationNumber}</span>
-                            <h4 className="font-semibold text-slate-800 text-sm line-clamp-1">{q.CustomerName}</h4>
-                          </div>
-                          {q.BlendedDiscountRiskScore !== undefined && (
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                q.BlendedDiscountRiskScore >= 61
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : q.BlendedDiscountRiskScore >= 31
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                              }`}
-                              title={`Blended Risk Score: ${q.BlendedDiscountRiskScore}`}
-                            >
-                              Risk: {q.BlendedDiscountRiskScore}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
-                          <span className="font-mono font-black text-slate-900">
-                            ${(q.TotalAmount ?? q.totalNetAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            Exp: {q.ExpirationDate ? new Date(q.ExpirationDate).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                <div className="mt-1 text-[11px] font-mono text-slate-500 font-medium">
+                  ${stageTotal.toLocaleString('en-US', { minimumFractionDigits: 0 })}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              {/* Cards Scrollable Area */}
+              <div className="space-y-2.5 overflow-y-auto pr-1">
+                {stageQuotes.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs italic">
+                    No deals in this stage
+                  </div>
+                ) : (
+                  stageQuotes.map((q) => (
+                    <div
+                      key={q.id}
+                      onClick={() => navigate(`/workspace/quotations/${q.id}`)}
+                      className="p-3 bg-white rounded-lg border border-slate-200/80 hover:border-blue-400 hover:shadow-sm transition-all cursor-pointer space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[11px] font-bold text-blue-600 truncate">
+                          {q.quotationNumber}
+                        </span>
+                        <StatusBadge type="margin" value={q.marginPercent} />
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-semibold text-slate-900 truncate">
+                          {q.customerName}
+                        </h4>
+                        <span className="text-[11px] text-slate-500 block truncate">
+                          Rep: {q.salesRepName}
+                        </span>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-900 font-mono">
+                          ${(q.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                        </span>
+                        {q.riskScore > 0 ? (
+                          <StatusBadge type="risk" value={q.riskScore} size="sm" />
+                        ) : (
+                          <span className="text-[10px] text-emerald-600 font-semibold">Low Risk</span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
+
+export default PipelinePage;

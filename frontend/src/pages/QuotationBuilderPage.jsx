@@ -1,449 +1,377 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { quotationApi, customerApi, productApi } from '../api';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
+import { quotationApi, customerApi, adminApi } from '../api';
 import {
-  QuotationHeader,
-  LineItemsTable,
-  AddProductModal,
-  QuoteSummaryBar,
-  RiskScoreCard,
-  RecommendationPanel,
-  QuoteActionToolbar,
-} from '../components/quote-builder';
-import { Button } from '../components/common/Button';
-import { Select } from '../components/common/Select';
-import { Input } from '../components/common/Input';
-import { Alert } from '../components/common/Alert';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { QuotationStatus } from '../types';
-import { FilePlus2, AlertCircle, ArrowLeft } from 'lucide-react';
+  Button,
+  Input,
+  Select,
+  Textarea,
+  LoadingSpinner,
+  ErrorAlert,
+} from '../components/ui';
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Sparkles,
+  CheckCircle2,
+} from 'lucide-react';
 
 export const QuotationBuilderPage = () => {
-  const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
 
-  const isNew = !id || id === 'new';
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [alertMessage, setAlertMessage] = useState(null);
-
-  // New quote draft form state
-  const [newCustomerId, setNewCustomerId] = useState('');
-  const [newPriceListId, setNewPriceListId] = useState('');
-  const [newExpirationDate, setNewExpirationDate] = useState(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  );
-  const [newNotes, setNewNotes] = useState('');
-
-  // Dropdown options
   const [customers, setCustomers] = useState([]);
-  const [priceLists, setPriceLists] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Active quotation state
-  const [quotation, setQuotation] = useState(null);
-  const [isLoadingQuote, setIsLoadingQuote] = useState(!isNew);
-  const [isError, setIsError] = useState(false);
+  // Form State
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [currencyCode, setCurrencyCode] = useState('USD');
+  const [expectedCloseDate, setExpectedCloseDate] = useState('');
+  const [notes, setNotes] = useState('');
 
-  // Upsell recommendations
-  const [recommendations, setRecommendations] = useState([]);
-  const [isLoadingRecs, setIsLoadingRecs] = useState(false);
+  // Cart Lines
+  const [lines, setLines] = useState([]);
 
-  // Button loading states
-  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
-  const [isSendingCustomer, setIsSendingCustomer] = useState(false);
-  const [isConvertingOrder, setIsConvertingOrder] = useState(false);
-  const [isRecalculating, setIsRecalculating] = useState(false);
-  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
-  const [isAddingRecId, setIsAddingRecId] = useState(null);
-
-  // Load Customers & Price Lists
   useEffect(() => {
-    customerApi.getCustomers({ PageNumber: 1, PageSize: 100 })
-      .then((data) => setCustomers(data?.Items || []))
-      .catch((err) => console.error(err));
-
-    productApi.getPriceLists()
-      .then((data) => setPriceLists(data || []))
-      .catch((err) => console.error(err));
+    loadPrerequisites();
   }, []);
 
-  // Fetch Quotation and Recs
-  const fetchQuotation = async () => {
-    if (isNew || !id) return;
-    setIsLoadingQuote(true);
-    setIsError(false);
+  const loadPrerequisites = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const q = await quotationApi.getQuotation(id);
-      setQuotation(q);
-      loadRecommendations(id);
+      const [custRes, prodRes] = await Promise.all([
+        customerApi.getCustomers(),
+        adminApi.getProducts(),
+      ]);
+
+      const custList = Array.isArray(custRes) ? custRes : custRes?.value || [];
+      const prodList = Array.isArray(prodRes) ? prodRes : prodRes?.value || [];
+
+      setCustomers(custList);
+      setProducts(prodList);
+
+      if (custList.length > 0) {
+        setSelectedCustomerId(custList[0].id.toString());
+      }
     } catch (err) {
-      console.error(err);
-      setIsError(true);
+      setError(err.message || 'Failed to load catalog data.');
     } finally {
-      setIsLoadingQuote(false);
+      setIsLoading(false);
     }
   };
 
-  const loadRecommendations = async (quoteId) => {
-    setIsLoadingRecs(true);
-    try {
-      const recs = await quotationApi.getUpsellRecommendations(quoteId);
-      setRecommendations(recs || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoadingRecs(false);
-    }
+  const selectedCustomer = customers.find(
+    (c) => c.id === parseInt(selectedCustomerId, 10)
+  );
+
+  const handleAddBlankLine = () => {
+    if (products.length === 0) return;
+    const defaultProduct = products[0];
+    setLines((prev) => [
+      ...prev,
+      {
+        productId: defaultProduct.id,
+        quantity: 1,
+        unitPrice: defaultProduct.basePrice || 0,
+        discountPercent: 0,
+      },
+    ]);
   };
 
-  useEffect(() => {
-    fetchQuotation();
-  }, [id, isNew]);
+  const handleUpdateLine = (index, field, value) => {
+    setLines((prev) => {
+      const updated = [...prev];
+      const item = { ...updated[index], [field]: value };
 
-  const handleCreateDraft = async (e) => {
+      if (field === 'productId') {
+        const prod = products.find((p) => p.id === parseInt(value, 10));
+        if (prod) {
+          item.unitPrice = prod.basePrice || 0;
+        }
+      }
+
+      updated[index] = item;
+      return updated;
+    });
+  };
+
+  const handleRemoveLine = (index) => {
+    setLines((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  // Optimistic calculation for immediate UI responsiveness
+  const subTotal = lines.reduce(
+    (sum, l) => sum + (l.quantity || 0) * (l.unitPrice || 0),
+    0
+  );
+  const discountTotal = lines.reduce(
+    (sum, l) =>
+      sum + (l.quantity || 0) * (l.unitPrice || 0) * ((l.discountPercent || 0) / 100),
+    0
+  );
+  const grandTotal = (subTotal - discountTotal) * 1.18; // 18% Tax
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!newCustomerId) {
-      setAlertMessage({ type: 'danger', text: 'Please select an authorized customer account.' });
+    if (!selectedCustomerId) {
+      toast.error('Validation Error', 'Please select an active customer.');
       return;
     }
 
-    setIsCreatingDraft(true);
+    if (lines.length === 0) {
+      toast.error('Validation Error', 'Please add at least one line item to the quotation.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      const created = await quotationApi.createQuotation({
-        CustomerId: newCustomerId,
-        PriceListId: newPriceListId || undefined,
-        ExpirationDate: new Date(newExpirationDate).toISOString(),
-        Notes: newNotes || undefined,
-      });
-      navigate(`/quotations/${created.Id}`);
+      const requestPayload = {
+        customerId: parseInt(selectedCustomerId, 10),
+        currencyCode,
+        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate).toISOString() : null,
+        notes,
+        lines: lines.map((l) => ({
+          productId: parseInt(l.productId, 10),
+          quantity: parseInt(l.quantity, 10) || 1,
+          unitPrice: parseFloat(l.unitPrice) || 0,
+          discountPercent: parseFloat(l.discountPercent) || 0,
+        })),
+      };
+
+      const created = await quotationApi.createQuotation(requestPayload);
+      toast.success('Quotation Created', `Proposal ${created.quotationNumber} initialized.`);
+      navigate(`/workspace/quotations/${created.id}`);
     } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to create quotation.' });
+      toast.error('Creation Failed', err.message);
     } finally {
-      setIsCreatingDraft(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleRecalculate = async () => {
-    setIsRecalculating(true);
-    try {
-      const updated = await quotationApi.recalculatePricing(id);
-      setQuotation(updated);
-      setAlertMessage({ type: 'success', text: 'Pricing, discount rules, and gross margin recalculated by server.' });
-      loadRecommendations(id);
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Recalculation failed.' });
-    } finally {
-      setIsRecalculating(false);
-    }
-  };
+  if (isLoading) {
+    return <LoadingSpinner message="Initializing quotation builder..." size="lg" />;
+  }
 
-  const handleAddProduct = async (req) => {
-    try {
-      await quotationApi.addQuotationLine(id, req);
-      setAlertMessage({ type: 'success', text: 'Line item added successfully.' });
-      fetchQuotation();
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to add line item.' });
-    }
-  };
-
-  const handleUpdateLine = async (lineId, data) => {
-    try {
-      await quotationApi.updateQuotationLine(id, lineId, data);
-      fetchQuotation();
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to update line item.' });
-    }
-  };
-
-  const handleDeleteLine = async (lineId) => {
-    try {
-      await quotationApi.deleteQuotationLine(id, lineId);
-      setAlertMessage({ type: 'success', text: 'Line item deleted.' });
-      fetchQuotation();
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Failed to delete line item.' });
-    }
-  };
-
-  const handleSubmitForApproval = async () => {
-    setIsSubmittingApproval(true);
-    try {
-      await quotationApi.submitForApproval(id);
-      setAlertMessage({ type: 'success', text: 'Quotation submitted for governance approval review.' });
-      fetchQuotation();
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Approval submission failed.' });
-    } finally {
-      setIsSubmittingApproval(false);
-    }
-  };
-
-  const handleSendToCustomer = async () => {
-    setIsSendingCustomer(true);
-    try {
-      await quotationApi.sendToCustomer(id);
-      setAlertMessage({ type: 'success', text: 'Quotation dispatched to customer portal successfully.' });
-      fetchQuotation();
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Customer dispatch failed.' });
-    } finally {
-      setIsSendingCustomer(false);
-    }
-  };
-
-  const handleConvertToOrder = async () => {
-    setIsConvertingOrder(true);
-    try {
-      const order = await quotationApi.convertToOrder(id);
-      setAlertMessage({ type: 'success', text: `Quotation converted to Order #${order?.OrderNumber || ''}!` });
-      setTimeout(() => navigate('/fulfillment'), 1500);
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Order conversion failed.' });
-    } finally {
-      setIsConvertingOrder(false);
-    }
-  };
-
-  const handleClone = async () => {
-    try {
-      const newQuote = await quotationApi.cloneQuotation(id);
-      navigate(`/quotations/${newQuote.Id}`);
-    } catch (err) {
-      setAlertMessage({ type: 'danger', text: err?.message || 'Clone failed.' });
-    }
-  };
-
-  const handleCopyPortalLink = () => {
-    const url = `${window.location.origin}/portal/quotes/${id}`;
-    navigator.clipboard.writeText(url);
-    setAlertMessage({ type: 'success', text: 'Customer negotiation portal link copied to clipboard!' });
-  };
-
-  const handleAddRecommendation = async (rec) => {
-    if (!id) return;
-    setIsAddingRecId(rec.ProductId);
-    try {
-      await quotationApi.addQuotationLine(id, {
-        ProductId: rec.ProductId,
-        Quantity: rec.SuggestedQuantity,
-        DiscountPercentage: 0,
-      });
-      fetchQuotation();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAddingRecId(null);
-    }
-  };
-
-  // NEW QUOTATION FORM
-  if (isNew) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6 py-6 animate-in fade-in">
-        <button
-          onClick={() => navigate('/quotations')}
-          className="inline-flex items-center text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back to Quotations
-        </button>
-
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-          <div className="flex items-center space-x-3 pb-4 border-b border-slate-100">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <FilePlus2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Initiate New Quotation</h2>
-              <p className="text-xs text-slate-500">
-                Select customer account, contracted price list tier, and initial validity window.
-              </p>
-            </div>
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/workspace/quotations')}
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">New Deal Quotation</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Structured proposal with automated tier discount ceilings and gross margin rules.
+            </p>
           </div>
+        </div>
+      </div>
 
-          {alertMessage && (
-            <Alert
-              variant={alertMessage.type}
-              message={alertMessage.text}
-              onClose={() => setAlertMessage(null)}
-            />
-          )}
+      {error && <ErrorAlert message={error} />}
 
-          <form onSubmit={handleCreateDraft} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Customer & Agreement Terms Card */}
+        <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-xs space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-blue-600" />
+            1. Customer Account & Agreement Terms
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Select
               label="Customer Account"
-              value={newCustomerId}
-              onChange={(e) => setNewCustomerId(e.target.value)}
-              options={customers.map((c) => ({
-                value: c.Id,
-                label: `${c.CompanyName} (${c.TierName || 'Standard Tier'})`,
-              }))}
               required
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              options={customers.map((c) => ({
+                value: c.id,
+                label: `${c.name} (${c.tierName || 'Standard'})`,
+              }))}
             />
 
             <Select
-              label="Contracted Price List"
-              value={newPriceListId}
-              onChange={(e) => setNewPriceListId(e.target.value)}
-              options={priceLists.map((pl) => ({
-                value: pl.Id,
-                label: `${pl.Name} (${pl.Currency})`,
-              }))}
+              label="Currency"
+              value={currencyCode}
+              onChange={(e) => setCurrencyCode(e.target.value)}
+              options={[
+                { value: 'USD', label: 'USD ($) - US Dollar' },
+                { value: 'EUR', label: 'EUR (€) - Euro' },
+                { value: 'GBP', label: 'GBP (£) - British Pound' },
+                { value: 'INR', label: 'INR (₹) - Indian Rupee' },
+              ]}
             />
 
             <Input
-              label="Offer Expiration Date"
+              label="Target Close Date"
               type="date"
-              value={newExpirationDate}
-              onChange={(e) => setNewExpirationDate(e.target.value)}
-              required
+              value={expectedCloseDate}
+              onChange={(e) => setExpectedCloseDate(e.target.value)}
             />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Internal Commercial Notes
-              </label>
-              <textarea
-                rows={3}
-                className="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Key customer requirements, special terms, project scope notes..."
-                value={newNotes}
-                onChange={(e) => setNewNotes(e.target.value)}
-              />
+          {selectedCustomer && (
+            <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200 flex items-center justify-between text-xs">
+              <div>
+                <span className="font-semibold text-blue-950">Active Tier: {selectedCustomer.tierName}</span>
+                <p className="text-blue-800 text-[11px] mt-0.5">
+                  Standard tier discount ceiling: {selectedCustomer.tierName === 'Gold' ? '15%' : selectedCustomer.tierName === 'Silver' ? '10%' : '5%'}. Exceeding this triggers automated approval routing.
+                </p>
+              </div>
+              <span className="font-semibold text-blue-900 bg-white px-2.5 py-1 rounded-md border border-blue-200">
+                Tier Ceiling Enforced
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Product Line Items */}
+        <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-600" />
+              2. Products & Commercial Pricing
+            </h2>
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              icon={Plus}
+              onClick={handleAddBlankLine}
+            >
+              Add Item
+            </Button>
+          </div>
+
+          {lines.length === 0 ? (
+            <div className="text-center py-8 border border-dashed rounded-xl border-slate-200 text-slate-500 text-xs">
+              No products added yet. Click &quot;Add Item&quot; to begin building proposal lines.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {lines.map((line, idx) => (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+                >
+                  <div className="sm:col-span-5">
+                    <Select
+                      label={`Product Item #${idx + 1}`}
+                      value={line.productId}
+                      onChange={(e) => handleUpdateLine(idx, 'productId', e.target.value)}
+                      options={products.map((p) => ({
+                        value: p.id,
+                        label: `${p.name} ($${p.basePrice?.toFixed(2)})`,
+                      }))}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Quantity"
+                      type="number"
+                      min="1"
+                      value={line.quantity}
+                      onChange={(e) => handleUpdateLine(idx, 'quantity', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Unit Price ($)"
+                      type="number"
+                      step="0.01"
+                      value={line.unitPrice}
+                      onChange={(e) => handleUpdateLine(idx, 'unitPrice', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Discount (%)"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={line.discountPercent}
+                      onChange={(e) => handleUpdateLine(idx, 'discountPercent', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1 flex justify-center pb-1">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLine(idx)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-200 transition-colors"
+                      title="Delete line"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Notes & Summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="sm:col-span-2">
+            <Textarea
+              label="Commercial Terms & Notes"
+              placeholder="Enter special payment terms, delivery expectations, or remarks..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+            />
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between text-slate-500">
+                <span>Subtotal:</span>
+                <span className="font-mono text-slate-900">${subTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-rose-600">
+                <span>Discounts:</span>
+                <span className="font-mono">-${discountTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Estimated Tax (18%):</span>
+                <span className="font-mono text-slate-900">${((subTotal - discountTotal) * 0.18).toFixed(2)}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-sm text-slate-900">
+                <span>Estimated Grand Total:</span>
+                <span className="text-blue-600 font-mono">${grandTotal.toFixed(2)}</span>
+              </div>
             </div>
 
-            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
-              <Button type="button" variant="outline" onClick={() => navigate('/quotations')}>
-                Cancel
-              </Button>
-              <Button type="submit" isLoading={isCreatingDraft}>
-                Create Draft Quotation
+            <div className="pt-4 mt-4 border-t border-slate-100">
+              <Button
+                type="submit"
+                variant="primary"
+                fullWidth
+                size="md"
+                isLoading={isSubmitting}
+              >
+                Create & Calculate Proposal
               </Button>
             </div>
-          </form>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  // LOADING OR ERROR
-  if (isLoadingQuote) {
-    return (
-      <div className="py-32 flex justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (isError || !quotation) {
-    return (
-      <div className="max-w-md mx-auto text-center py-20 space-y-4">
-        <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
-        <h3 className="text-lg font-bold text-slate-900">Quotation Not Found</h3>
-        <p className="text-xs text-slate-500">
-          The requested quotation could not be located or you lack permissions to view it.
-        </p>
-        <Button onClick={() => navigate('/quotations')}>Return to Quotation List</Button>
-      </div>
-    );
-  }
-
-  const isReadOnly =
-    quotation.Status !== QuotationStatus.Draft &&
-    quotation.Status !== QuotationStatus.InReview;
-
-  return (
-    <div className="space-y-6 pb-12 animate-in fade-in">
-      <button
-        onClick={() => navigate('/quotations')}
-        className="inline-flex items-center text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4 mr-1" />
-        Back to Quotation Workspace
-      </button>
-
-      {alertMessage && (
-        <Alert
-          variant={alertMessage.type}
-          message={alertMessage.text}
-          onClose={() => setAlertMessage(null)}
-        />
-      )}
-
-      {/* Quotation Header Card */}
-      <QuotationHeader
-        quotation={quotation}
-        onUpdateHeader={(data) => {
-          quotationApi.updateQuotation(quotation.Id, data).then(() => {
-            fetchQuotation();
-            setAlertMessage({ type: 'success', text: 'Quotation header updated.' });
-          });
-        }}
-      />
-
-      {/* State-Driven Action Toolbar */}
-      <QuoteActionToolbar
-        quotation={quotation}
-        onSubmitForApproval={handleSubmitForApproval}
-        onSendToCustomer={handleSendToCustomer}
-        onConvertToOrder={handleConvertToOrder}
-        onRevise={handleClone}
-        onCopyPortalLink={handleCopyPortalLink}
-        isSubmitting={isSubmittingApproval}
-        isSending={isSendingCustomer}
-        isConverting={isConvertingOrder}
-      />
-
-      {/* Main Quotation Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <LineItemsTable
-            lines={quotation.Lines || []}
-            currency={quotation.Currency}
-            isReadOnly={isReadOnly}
-            onUpdateLine={handleUpdateLine}
-            onDeleteLine={handleDeleteLine}
-            onAddProductClick={() => setIsAddModalOpen(true)}
-          />
-
-          <QuoteSummaryBar
-            quotation={quotation}
-            onRecalculate={handleRecalculate}
-            isRecalculating={isRecalculating}
-          />
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="space-y-6">
-          <RiskScoreCard
-            score={quotation.BlendedDiscountRiskScore ?? 0}
-            discountPercentage={
-              (quotation.SubtotalAmount ?? quotation.totalGrossAmount ?? 0) > 0
-                ? ((quotation.TotalDiscountAmount ?? quotation.totalDiscountAmount ?? 0) /
-                    (quotation.SubtotalAmount ?? quotation.totalGrossAmount ?? 1)) * 100
-                : 0
-            }
-            marginPercentage={quotation.OrderGrossMarginPercent ?? 0}
-            totalAmount={quotation.TotalAmount ?? quotation.totalNetAmount}
-            isApprovalRequired={quotation.ApprovalRequired}
-          />
-
-          <RecommendationPanel
-            recommendations={recommendations}
-            isLoading={isLoadingRecs}
-            onAddRecommendation={handleAddRecommendation}
-            isAddingId={isAddingRecId}
-          />
-        </div>
-      </div>
-
-      {/* Add Product Modal */}
-      <AddProductModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        priceListId={quotation.PriceListId}
-        onAddProduct={handleAddProduct}
-      />
+      </form>
     </div>
   );
 };
+
+export default QuotationBuilderPage;

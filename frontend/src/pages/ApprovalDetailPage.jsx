@@ -1,228 +1,329 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { approvalApi, quotationApi } from '../api';
-import { useAuth } from '../hooks/useAuth';
-import { ApprovalStepper, RiskDetailBreakdown, ApprovalDecisionModal } from '../components/approvals';
-import { Button } from '../components/common/Button';
-import { Alert } from '../components/common/Alert';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { ShieldAlert, CheckCircle2, Clock, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { approvalApi } from '../api';
+import {
+  Button,
+  StatusBadge,
+  DataTable,
+  Drawer,
+  Textarea,
+  Select,
+  LoadingSpinner,
+  ErrorAlert,
+} from '../components/ui';
+import {
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  ShieldAlert,
+  AlertTriangle,
+  FileText,
+  Clock,
+  User,
+  DollarSign,
+  RefreshCw,
+} from 'lucide-react';
 
 export const ApprovalDetailPage = () => {
-  const { id } = useParams();
+  const { user, isSalesManager, isFinance, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
+  const toast = useToast();
 
-  const [requests, setRequests] = useState([]);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
-  const [selectedRequestId, setSelectedRequestId] = useState(id || null);
-  const [quotation, setQuotation] = useState(null);
-  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
-  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
-  const [alertMessage, setAlertMessage] = useState(null);
+  const [approvals, setApprovals] = useState([]);
+  const [filteredApprovals, setFilteredApprovals] = useState([]);
+  const [levelFilter, setLevelFilter] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchRequests = async () => {
-    setIsLoadingRequests(true);
-    try {
-      const data = await approvalApi.getPendingApprovals();
-      setRequests(data || []);
-      if (!selectedRequestId && data && data.length > 0) {
-        setSelectedRequestId(String(data[0].Id ?? data[0].id));
-      }
-    } catch (err) {
-      console.error('Error fetching pending approvals:', err);
-    } finally {
-      setIsLoadingRequests(false);
-    }
-  };
+  // Selected for Action
+  const [selectedApproval, setSelectedApproval] = useState(null);
+  const [actionReason, setActionReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchRequests();
+    loadApprovals();
   }, []);
 
-  // Pick active request
-  const activeRequest =
-    requests.find((r) => String(r.Id ?? r.id) === String(selectedRequestId || id)) ||
-    (requests.length > 0 ? requests[0] : null);
-
-  const reqQuoteId = activeRequest?.QuotationId ?? activeRequest?.quotationId;
-
-  // When active request changes, load quotation
-  useEffect(() => {
-    if (!reqQuoteId) {
-      setQuotation(null);
-      return;
-    }
-    let isMounted = true;
-    quotationApi.getQuotation(reqQuoteId)
-      .then((q) => {
-        if (isMounted) setQuotation(q);
-      })
-      .catch((err) => console.error('Error loading quotation for approval:', err));
-
-    return () => {
-      isMounted = false;
-    };
-  }, [reqQuoteId]);
-
-  const handleDecision = async (action, comments) => {
-    if (!activeRequest) return;
-    const reqId = activeRequest.Id ?? activeRequest.id;
-    setIsSubmittingDecision(true);
+  const loadApprovals = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      await approvalApi.recordDecision(String(reqId), { Action: action, Comments: comments });
-      setIsDecisionModalOpen(false);
-      setAlertMessage({
-        type: 'success',
-        text: `Quotation has been successfully ${action.toLowerCase()}d.`,
-      });
-      fetchRequests();
+      const res = await approvalApi.getPendingApprovals(levelFilter || null);
+      const list = Array.isArray(res) ? res : res?.value || [];
+      setApprovals(list);
+      setFilteredApprovals(list);
     } catch (err) {
-      setAlertMessage({
-        type: 'danger',
-        text: err?.message || 'Failed to submit governance decision.',
-      });
+      setError(err.message || 'Failed to load pending approvals.');
     } finally {
-      setIsSubmittingDecision(false);
+      setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (!levelFilter) {
+      setFilteredApprovals(approvals);
+    } else {
+      setFilteredApprovals(approvals.filter((a) => a.level === levelFilter));
+    }
+  }, [levelFilter, approvals]);
+
+  const handleAction = async (actionType) => {
+    if (!selectedApproval) return;
+
+    if ((actionType === 'Rejected' || actionType === 'Returned') && !actionReason.trim()) {
+      toast.error('Reason Required', `Please provide an explanation for why this deal was ${actionType.toLowerCase()}.`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await approvalApi.actionApproval(selectedApproval.id, {
+        action: actionType,
+        reason: actionReason || `Approved under standard authority by ${user?.fullName}.`,
+      });
+
+      toast.success(
+        'Action Processed',
+        `Quote ${selectedApproval.quotationNumber} marked as ${actionType}.`
+      );
+
+      setSelectedApproval(null);
+      setActionReason('');
+      await loadApprovals();
+    } catch (err) {
+      toast.error('Approval Action Failed', err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const columns = [
+    {
+      header: 'Quote #',
+      accessor: 'quotationNumber',
+      render: (a) => (
+        <span className="font-mono font-semibold text-blue-600 text-xs">
+          {a.quotationNumber}
+        </span>
+      ),
+    },
+    {
+      header: 'Customer',
+      accessor: 'customerName',
+      render: (a) => <span className="font-semibold text-slate-900">{a.customerName}</span>,
+    },
+    {
+      header: 'Sales Rep',
+      accessor: 'salesRepName',
+      render: (a) => <span className="text-slate-600">{a.salesRepName}</span>,
+    },
+    {
+      header: 'Required Authority',
+      accessor: 'level',
+      render: (a) => (
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+          Level: {a.level}
+        </span>
+      ),
+    },
+    {
+      header: 'Deal Value',
+      accessor: 'grandTotal',
+      render: (a) => (
+        <span className="font-bold text-slate-900">
+          ${(a.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        </span>
+      ),
+    },
+    {
+      header: 'Blended Risk',
+      accessor: 'riskScore',
+      render: (a) => <StatusBadge type="risk" value={a.riskScore} />,
+    },
+    {
+      header: 'Action',
+      render: (a) => (
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedApproval(a);
+            setActionReason('');
+          }}
+        >
+          Review & Decide
+        </Button>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-6 animate-in fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Governance & Approval Desk</h1>
-          <p className="text-xs text-slate-500">
-            Tier 1 & Tier 2 policy evaluations for high-discount & low-margin quotations
+          <h1 className="text-xl font-bold text-slate-900">Governance & Approval Desk</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Evaluate deep discounts, margin anomalies, and high-risk commercial proposals.
           </p>
         </div>
 
-        {activeRequest && (
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/quotations/${reqQuoteId}`)}
-            >
-              <Eye className="w-4 h-4 mr-1.5" />
-              View Quotation
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setIsDecisionModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <ShieldAlert className="w-4 h-4 mr-1.5" />
-              Make Governance Decision
-            </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            onClick={loadApprovals}
+          >
+            Refresh Queue
+          </Button>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-700">Filter Level:</span>
+          <Select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="w-48"
+            options={[
+              { value: '', label: 'All Review Levels' },
+              { value: 'Manager', label: 'Sales Manager (Level 1)' },
+              { value: 'Finance', label: 'Finance Director (Level 2)' },
+            ]}
+          />
+        </div>
+
+        <span className="text-xs font-semibold text-slate-500">
+          Pending Decisions: <strong className="text-slate-900">{filteredApprovals.length}</strong>
+        </span>
+      </div>
+
+      {error && <ErrorAlert message={error} onRetry={loadApprovals} />}
+
+      <DataTable
+        columns={columns}
+        data={filteredApprovals}
+        isLoading={isLoading}
+        onRowClick={(a) => {
+          setSelectedApproval(a);
+          setActionReason('');
+        }}
+        emptyMessage="No pending approvals in queue"
+        emptyDescription="All discount requests are currently compliant or already authorized."
+      />
+
+      {/* Triage Decision Drawer */}
+      <Drawer
+        isOpen={!!selectedApproval}
+        onClose={() => setSelectedApproval(null)}
+        title="Discount Approval Decision"
+        subtitle={`Evaluation for ${selectedApproval?.quotationNumber} • ${selectedApproval?.customerName}`}
+        width="md"
+      >
+        {selectedApproval && (
+          <div className="space-y-6">
+            {/* Risk & Terms Callout */}
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                  Blended Risk Assessment
+                </span>
+                <StatusBadge type="risk" value={selectedApproval.riskScore} />
+              </div>
+
+              <div className="text-xs text-amber-950 leading-relaxed">
+                {selectedApproval.reason ||
+                  'The requested proposal discount exceeds established customer tier or product category limits.'}
+              </div>
+
+              <div className="pt-2 border-t border-amber-200/80 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-amber-800 text-[11px] block">Deal Grand Total</span>
+                  <strong className="text-sm font-bold text-amber-950">
+                    ${(selectedApproval.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-amber-800 text-[11px] block">Submitted Rep</span>
+                  <strong className="text-sm font-bold text-amber-950">
+                    {selectedApproval.salesRepName}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick link to view full quote */}
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="xs"
+                icon={FileText}
+                onClick={() => navigate(`/workspace/quotations/${selectedApproval.quotationId}`)}
+              >
+                Inspect Line-by-Line Quote
+              </Button>
+            </div>
+
+            {/* Decision Remarks */}
+            <div className="space-y-2">
+              <Textarea
+                label="Audit Remarks / Explanation"
+                required
+                placeholder="Enter justification or specific instructions for revision..."
+                value={actionReason}
+                onChange={(e) => setActionReason(e.target.value)}
+                rows={4}
+                helperText="Required when rejecting or returning proposals for amendment."
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-4 border-t border-slate-200 space-y-2">
+              <Button
+                variant="success"
+                fullWidth
+                size="md"
+                icon={CheckCircle2}
+                isLoading={isSubmitting}
+                onClick={() => handleAction('Approved')}
+              >
+                Approve Quotation
+              </Button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={RotateCcw}
+                  isLoading={isSubmitting}
+                  className="border-amber-300 text-amber-800 hover:bg-amber-50"
+                  onClick={() => handleAction('Returned')}
+                >
+                  Return for Edit
+                </Button>
+
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon={XCircle}
+                  isLoading={isSubmitting}
+                  onClick={() => handleAction('Rejected')}
+                >
+                  Reject Proposal
+                </Button>
+              </div>
+            </div>
           </div>
         )}
-      </div>
-
-      {alertMessage && (
-        <Alert
-          variant={alertMessage.type}
-          message={alertMessage.text}
-          onClose={() => setAlertMessage(null)}
-        />
-      )}
-
-      {/* Main Layout: Master-Detail */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Inbox List */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-4 h-4 text-amber-600" />
-              <h3 className="font-bold text-slate-800 text-sm">Pending Review Queue</h3>
-            </div>
-            <span className="text-xs font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
-              {requests.length}
-            </span>
-          </div>
-
-          <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
-            {isLoadingRequests ? (
-              <div className="py-12 flex justify-center">
-                <LoadingSpinner size="md" />
-              </div>
-            ) : requests.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
-                All approval queues are clear. No pending policy exceptions.
-              </div>
-            ) : (
-              requests.map((req) => {
-                const reqId = req.Id ?? req.id;
-                const isSelected = (activeRequest?.Id ?? activeRequest?.id) === reqId;
-                const quoteNum = req.QuotationNumber || req.quotationNumber;
-                const custName = req.CustomerName || req.customerName;
-                const riskScore = req.BlendedRiskScore ?? req.blendedRiskScore ?? 0;
-                const netTotal = req.TotalAmount ?? req.totalNetAmount ?? 0;
-                const created = req.CreatedAt || req.submittedAt;
-
-                return (
-                  <div
-                    key={reqId}
-                    onClick={() => setSelectedRequestId(String(reqId))}
-                    className={`p-4 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-blue-50/70 border-l-4 border-blue-600' : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-slate-900 text-sm">{quoteNum}</span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          riskScore >= 61
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        Risk: {riskScore}
-                      </span>
-                    </div>
-
-                    <div className="text-xs font-semibold text-slate-700">{custName}</div>
-                    <div className="flex items-center justify-between text-xs text-slate-400 mt-2">
-                      <span className="font-mono text-slate-900 font-bold">${netTotal.toLocaleString()}</span>
-                      <span>{created ? new Date(created).toLocaleDateString() : 'Today'}</span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Active Approval Detail */}
-        <div className="lg:col-span-2 space-y-6">
-          {activeRequest ? (
-            <>
-              <RiskDetailBreakdown request={activeRequest} quotation={quotation} />
-              <ApprovalStepper request={activeRequest} />
-            </>
-          ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
-              <ShieldAlert className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-              <h3 className="font-bold text-slate-700">No Request Selected</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Select an approval request from the queue on the left to inspect risk breakdown and record a decision.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Decision Modal */}
-      {activeRequest && (
-        <ApprovalDecisionModal
-          isOpen={isDecisionModalOpen}
-          onClose={() => setIsDecisionModalOpen(false)}
-          quotationNumber={activeRequest.QuotationNumber || activeRequest.quotationNumber || ''}
-          isSubmitting={isSubmittingDecision}
-          onConfirm={handleDecision}
-        />
-      )}
+      </Drawer>
     </div>
   );
 };
+
+export default ApprovalDetailPage;
