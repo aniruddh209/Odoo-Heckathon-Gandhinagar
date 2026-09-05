@@ -10,7 +10,7 @@ import {
   Drawer,
   Textarea,
   Select,
-  LoadingSpinner,
+  PageHeader,
   ErrorAlert,
 } from '../components/ui';
 import {
@@ -164,15 +164,11 @@ export const ApprovalDetailPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Governance & Approval Desk</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Evaluate deep discounts, margin anomalies, and high-risk commercial proposals.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
+      <PageHeader
+        title="Governance & Approval Desk"
+        subtitle="Evaluate deep discounts, margin anomalies, and high-risk commercial proposals."
+        badge={`${filteredApprovals.length} Pending`}
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -181,8 +177,8 @@ export const ApprovalDetailPage = () => {
           >
             Refresh Queue
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Filter Bar */}
       <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-4">

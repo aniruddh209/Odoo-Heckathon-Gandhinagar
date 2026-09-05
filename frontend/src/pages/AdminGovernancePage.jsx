@@ -7,7 +7,8 @@ import {
   Modal,
   Input,
   Select,
-  LoadingSpinner,
+  PageHeader,
+  SkeletonDashboard,
   ErrorAlert,
   Badge,
 } from '../components/ui';
@@ -434,7 +435,7 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Querying governance matrices and approval engines..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   const tierCols = [
@@ -655,40 +656,39 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Governance Matrices &amp; Business Rules</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Configure automated discount ceilings, approval routing chains, warehouses, and subscription plans.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadGovernanceData}>
-            Refresh
-          </Button>
-          {activeTab === 'discounts' && (
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateDiscountRule}>
-              Add Discount Rule
+      <PageHeader
+        title="Governance Matrices & Business Rules"
+        subtitle="Configure automated discount ceilings, approval routing chains, warehouses, and subscription plans."
+        badge="Governance Engine"
+        badgeVariant="indigo"
+        actions={
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadGovernanceData}>
+              Refresh
             </Button>
-          )}
-          {activeTab === 'approvals' && (
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateApprovalRule}>
-              Add Approval Rule
-            </Button>
-          )}
-          {activeTab === 'warehouses' && (
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateWarehouse}>
-              Add Warehouse
-            </Button>
-          )}
-          {activeTab === 'plans' && (
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreatePlan}>
-              Add Subscription Plan
-            </Button>
-          )}
-        </div>
-      </div>
+            {activeTab === 'discounts' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateDiscountRule}>
+                Add Discount Rule
+              </Button>
+            )}
+            {activeTab === 'approvals' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateApprovalRule}>
+                Add Approval Rule
+              </Button>
+            )}
+            {activeTab === 'warehouses' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateWarehouse}>
+                Add Warehouse
+              </Button>
+            )}
+            {activeTab === 'plans' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreatePlan}>
+                Add Subscription Plan
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadGovernanceData} />}
 

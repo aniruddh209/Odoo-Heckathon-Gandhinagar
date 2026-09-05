@@ -8,7 +8,7 @@ import {
   Modal,
   Input,
   Select,
-  LoadingSpinner,
+  PageHeader,
   ErrorAlert,
 } from '../components/ui';
 import {
@@ -116,10 +116,6 @@ export const CustomerListPage = () => {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  if (isLoading) {
-    return <LoadingSpinner message="Querying customer enterprise accounts..." size="lg" />;
-  }
-
   const columns = [
     {
       header: 'Account Name',
@@ -190,39 +186,38 @@ export const CustomerListPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Customer Accounts</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Enterprise customer registry, commercial tiers, and Customer 360 workspaces.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            icon={RefreshCw}
-            onClick={loadCustomers}
-          >
-            Refresh
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Plus}
-            onClick={() => setIsModalOpen(true)}
-          >
-            New Customer
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Customer Accounts"
+        subtitle="Enterprise customer registry, commercial tiers, and Customer 360 workspaces."
+        badge={`${customers.length} Accounts`}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={RefreshCw}
+              onClick={loadCustomers}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => setIsModalOpen(true)}
+            >
+              New Customer
+            </Button>
+          </div>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadCustomers} />}
 
       <DataTable
         columns={columns}
         data={customers}
+        isLoading={isLoading}
         emptyMessage="No customer accounts registered"
         emptyDescription="Create a customer account to begin generating proposals."
         onRowClick={(c) => navigate(`/workspace/customers/${c.id}`)}

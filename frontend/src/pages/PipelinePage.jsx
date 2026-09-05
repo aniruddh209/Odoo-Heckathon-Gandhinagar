@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quotationApi } from '../api';
-import { Button, StatusBadge, LoadingSpinner, ErrorAlert } from '../components/ui';
+import { Button, StatusBadge, PageHeader, SkeletonDashboard, ErrorAlert } from '../components/ui';
 import { RefreshCw } from 'lucide-react';
 
 export const PipelinePage = () => {
@@ -39,27 +39,18 @@ export const PipelinePage = () => {
   const totalPipeline = quotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
 
   if (isLoading) {
-    return <LoadingSpinner message="Aggregating sales pipeline stages..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">CRM Deal Pipeline</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Stage-by-stage deal velocity, margin preservation, and conversion tracking.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total Pipeline</span>
-            <span className="text-base font-extrabold text-blue-700 font-mono block">
-              ${totalPipeline.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
+      <PageHeader
+        title="CRM Deal Pipeline"
+        subtitle="Stage-by-stage deal velocity, margin preservation, and conversion tracking."
+        badge={`Total: $${totalPipeline.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+        badgeVariant="indigo"
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -68,8 +59,8 @@ export const PipelinePage = () => {
           >
             Refresh
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadPipeline} />}
 

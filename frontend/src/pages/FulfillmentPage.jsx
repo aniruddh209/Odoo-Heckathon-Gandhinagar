@@ -8,7 +8,8 @@ import {
   Select,
   StatusBadge,
   DataTable,
-  LoadingSpinner,
+  PageHeader,
+  SkeletonDashboard,
   ErrorAlert,
 } from '../components/ui';
 import {
@@ -156,7 +157,7 @@ export const FulfillmentPage = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Querying multi-warehouse inventory depots..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   const selectedOrder = orders.find((o) => o.id.toString() === selectedOrderId.toString());
@@ -197,23 +198,21 @@ export const FulfillmentPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Multi-Warehouse Fulfillment Split</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Greedy cost-weighted stock distribution, shipment optimization, and backorder consolidation.
-          </p>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          icon={RefreshCw}
-          onClick={loadInitialData}
-        >
-          Refresh Stock
-        </Button>
-      </div>
+      <PageHeader
+        title="Multi-Warehouse Fulfillment Split"
+        subtitle="Greedy cost-weighted stock distribution, shipment optimization, and backorder consolidation."
+        badge={`${orders.length} Orders`}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            onClick={loadInitialData}
+          >
+            Refresh Stock
+          </Button>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadInitialData} />}
 

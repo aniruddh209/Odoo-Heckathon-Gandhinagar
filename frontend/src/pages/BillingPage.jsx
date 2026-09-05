@@ -10,7 +10,9 @@ import {
   Input,
   Select,
   Textarea,
-  LoadingSpinner,
+  PageHeader,
+  MetricCard,
+  SkeletonDashboard,
   ErrorAlert,
 } from '../components/ui';
 import {
@@ -238,7 +240,7 @@ export const BillingPage = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Querying hybrid invoices and recurring contracts..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   const invoiceColumns = [
@@ -476,77 +478,62 @@ export const BillingPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Billing, Invoicing & Subscription Operations</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Manage one-time commercial equipment invoices, recurring cloud subscriptions, payments, and credit adjustments.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            icon={RefreshCw}
-            onClick={loadBillingData}
-          >
-            Refresh
-          </Button>
-          {(isFinance || isAdmin) && (
+      <PageHeader
+        title="Billing, Invoicing & Subscription Operations"
+        subtitle="Manage one-time commercial equipment invoices, recurring cloud subscriptions, payments, and credit adjustments."
+        badge={`${invoices.length} Invoices`}
+        actions={
+          <div className="flex items-center gap-2.5">
             <Button
-              variant="primary"
+              variant="outline"
               size="sm"
-              icon={Calendar}
-              onClick={() => {
-                setSelectedSchedule(schedules[0] || null);
-                setIsSeatModalOpen(true);
-              }}
+              icon={RefreshCw}
+              onClick={loadBillingData}
             >
-              Seat Proration Engine
+              Refresh
             </Button>
-          )}
-        </div>
-      </div>
+            {(isFinance || isAdmin) && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Calendar}
+                onClick={() => {
+                  setSelectedSchedule(schedules[0] || null);
+                  setIsSeatModalOpen(true);
+                }}
+              >
+                Seat Proration Engine
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadBillingData} />}
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Commercial Invoices</span>
-            <Receipt className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">{invoices.length}</div>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            Outstanding balance: ${invoices.reduce((acc, i) => acc + (i.outstanding || 0), 0).toFixed(2)}
-          </span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Active Subscriptions</span>
-            <Calendar className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">
-            {schedules.filter((s) => s.status === 'Active').length}
-          </div>
-          <span className="text-[11px] text-purple-600 mt-1 block">
-            Automated recurring schedules
-          </span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Issued Credit Notes</span>
-            <DollarSign className="w-4 h-4 text-rose-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">{creditNotes.length}</div>
-          <span className="text-[11px] text-rose-600 mt-1 block">
-            Total adjustments: -${creditNotes.reduce((acc, c) => acc + (c.amount || 0), 0).toFixed(2)}
-          </span>
-        </div>
+        <MetricCard
+          label="Commercial Invoices"
+          value={invoices.length}
+          icon={Receipt}
+          variant="indigo"
+          description={`Outstanding balance: $${invoices.reduce((acc, i) => acc + (i.outstanding || 0), 0).toFixed(2)}`}
+        />
+        <MetricCard
+          label="Active Subscriptions"
+          value={schedules.filter((s) => s.status === 'Active').length}
+          icon={Calendar}
+          variant="purple"
+          description="Automated recurring schedules"
+        />
+        <MetricCard
+          label="Issued Credit Notes"
+          value={creditNotes.length}
+          icon={DollarSign}
+          variant="rose"
+          description={`Total adjustments: -$${creditNotes.reduce((acc, c) => acc + (c.amount || 0), 0).toFixed(2)}`}
+        />
       </div>
 
       {/* Tabs */}

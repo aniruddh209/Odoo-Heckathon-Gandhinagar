@@ -1,13 +1,28 @@
 import React from 'react';
+import {
+  Clock,
+  CheckCircle2,
+  Send,
+  MessageSquare,
+  PackageCheck,
+  XCircle,
+  RotateCcw,
+  AlertTriangle,
+  FileText,
+  Truck,
+  Receipt,
+  ShieldCheck,
+  ShieldAlert,
+} from 'lucide-react';
 
 export const StatusBadge = ({
   status,
-  type = 'quote', // 'quote', 'approval', 'order', 'invoice', 'margin', 'risk'
+  type = 'quote', // 'quote', 'approval', 'order', 'invoice', 'margin', 'risk', 'general'
   value, // for margin or risk
   size = 'md',
   className = '',
 }) => {
-  // Margin & Risk numeric badges
+  // Margin numeric badges
   if (type === 'margin' && typeof value === 'number') {
     let variant = 'bg-emerald-50 text-emerald-700 border-emerald-200';
     let dotColor = 'bg-emerald-500';
@@ -24,11 +39,12 @@ export const StatusBadge = ({
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${variant} ${className}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-        {label} Margin
+        <span className="font-mono">{label}</span> Margin
       </span>
     );
   }
 
+  // Risk numeric badges
   if (type === 'risk' && typeof value === 'number') {
     let variant = 'bg-emerald-50 text-emerald-700 border-emerald-200';
     let dotColor = 'bg-emerald-500';
@@ -47,116 +63,191 @@ export const StatusBadge = ({
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${variant} ${className}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-        {label} ({value.toFixed(0)})
+        <span>{label}</span>
+        <span className="font-mono text-[11px] opacity-80">({value.toFixed(0)})</span>
       </span>
     );
   }
 
   const normalized = String(status || '').trim();
 
-  // Status mappings
+  // Status mapping database
   const statusStyles = {
-    // Quotations
+    // Quotation States
     Draft: {
       bg: 'bg-slate-100 text-slate-700 border-slate-200',
-      dot: 'bg-slate-400',
+      icon: FileText,
+      iconColor: 'text-slate-500',
       label: 'Draft',
     },
     PendingApproval: {
       bg: 'bg-amber-50 text-amber-800 border-amber-200',
-      dot: 'bg-amber-500 animate-pulse',
+      icon: Clock,
+      iconColor: 'text-amber-600',
       label: 'Pending Approval',
     },
     Approved: {
       bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      dot: 'bg-emerald-500',
+      icon: CheckCircle2,
+      iconColor: 'text-emerald-600',
       label: 'Approved',
     },
     Sent: {
       bg: 'bg-blue-50 text-blue-700 border-blue-200',
-      dot: 'bg-blue-500',
+      icon: Send,
+      iconColor: 'text-blue-600',
       label: 'Sent to Client',
     },
     UnderNegotiation: {
       bg: 'bg-purple-50 text-purple-700 border-purple-200',
-      dot: 'bg-purple-500 animate-pulse',
+      icon: MessageSquare,
+      iconColor: 'text-purple-600',
       label: 'Negotiation',
+    },
+    Confirmed: {
+      bg: 'bg-teal-50 text-teal-700 border-teal-200',
+      icon: CheckCircle2,
+      iconColor: 'text-teal-600',
+      label: 'Client Confirmed',
     },
     ConvertedToOrder: {
       bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      dot: 'bg-indigo-600',
+      icon: PackageCheck,
+      iconColor: 'text-indigo-600',
       label: 'Order Confirmed',
     },
     Rejected: {
       bg: 'bg-rose-50 text-rose-700 border-rose-200',
-      dot: 'bg-rose-500',
+      icon: XCircle,
+      iconColor: 'text-rose-600',
       label: 'Rejected',
     },
     Returned: {
       bg: 'bg-orange-50 text-orange-700 border-orange-200',
-      dot: 'bg-orange-500',
-      label: 'Returned for Edit',
+      icon: RotateCcw,
+      iconColor: 'text-orange-600',
+      label: 'Returned for Revision',
+    },
+    RevisionRequired: {
+      bg: 'bg-orange-50 text-orange-700 border-orange-200',
+      icon: RotateCcw,
+      iconColor: 'text-orange-600',
+      label: 'Revision Required',
+    },
+    ManagerApproved: {
+      bg: 'bg-blue-50 text-blue-700 border-blue-200',
+      icon: ShieldCheck,
+      iconColor: 'text-blue-600',
+      label: 'Manager Approved',
+    },
+    FinanceApproved: {
+      bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      icon: ShieldCheck,
+      iconColor: 'text-emerald-600',
+      label: 'Finance Approved',
     },
 
-    // Orders & Fulfillment
-    Confirmed: {
-      bg: 'bg-blue-50 text-blue-700 border-blue-200',
-      dot: 'bg-blue-500',
-      label: 'Confirmed',
-    },
+    // Order & Fulfillment States
     Processing: {
       bg: 'bg-amber-50 text-amber-700 border-amber-200',
-      dot: 'bg-amber-500',
+      icon: Clock,
+      iconColor: 'text-amber-600',
       label: 'Processing',
+    },
+    PartiallyAllocated: {
+      bg: 'bg-yellow-50 text-yellow-800 border-yellow-200',
+      icon: Truck,
+      iconColor: 'text-yellow-600',
+      label: 'Partially Allocated',
+    },
+    Allocated: {
+      bg: 'bg-blue-50 text-blue-700 border-blue-200',
+      icon: Truck,
+      iconColor: 'text-blue-600',
+      label: 'Allocated',
     },
     PartiallyFulfilled: {
       bg: 'bg-yellow-50 text-yellow-800 border-yellow-200',
-      dot: 'bg-yellow-500',
+      icon: Truck,
+      iconColor: 'text-yellow-600',
       label: 'Partial Split',
     },
     Fulfilled: {
       bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      dot: 'bg-emerald-500',
+      icon: CheckCircle2,
+      iconColor: 'text-emerald-600',
       label: 'Fulfilled',
     },
+    Backorder: {
+      bg: 'bg-rose-50 text-rose-700 border-rose-200',
+      icon: AlertTriangle,
+      iconColor: 'text-rose-600',
+      label: 'Open Backorder',
+    },
+    Cancelled: {
+      bg: 'bg-slate-100 text-slate-500 border-slate-200',
+      icon: XCircle,
+      iconColor: 'text-slate-400',
+      label: 'Cancelled',
+    },
 
-    // Invoices
+    // Invoices & Billing
     Issued: {
       bg: 'bg-blue-50 text-blue-700 border-blue-200',
-      dot: 'bg-blue-500',
+      icon: Receipt,
+      iconColor: 'text-blue-600',
       label: 'Issued',
     },
     PartiallyPaid: {
       bg: 'bg-amber-50 text-amber-700 border-amber-200',
-      dot: 'bg-amber-500',
-      label: 'Partial Payment',
+      icon: Clock,
+      iconColor: 'text-amber-600',
+      label: 'Partially Paid',
     },
     Paid: {
       bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      dot: 'bg-emerald-500',
-      label: 'Paid',
+      icon: CheckCircle2,
+      iconColor: 'text-emerald-600',
+      label: 'Paid in Full',
     },
     Overdue: {
       bg: 'bg-rose-50 text-rose-700 border-rose-200',
-      dot: 'bg-rose-500 animate-pulse',
+      icon: AlertTriangle,
+      iconColor: 'text-rose-600',
       label: 'Overdue',
+    },
+
+    // General States
+    Active: {
+      bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      icon: CheckCircle2,
+      iconColor: 'text-emerald-600',
+      label: 'Active',
+    },
+    Inactive: {
+      bg: 'bg-slate-100 text-slate-600 border-slate-200',
+      icon: XCircle,
+      iconColor: 'text-slate-400',
+      label: 'Inactive',
     },
   };
 
   const current = statusStyles[normalized] || {
     bg: 'bg-slate-100 text-slate-700 border-slate-200',
-    dot: 'bg-slate-400',
+    icon: FileText,
+    iconColor: 'text-slate-400',
     label: normalized || 'Unknown',
   };
 
+  const Icon = current.icon;
   const sizeClasses = size === 'sm' ? 'text-[11px] px-2 py-0.5' : 'text-xs px-2.5 py-0.5';
 
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border font-medium select-none ${current.bg} ${sizeClasses} ${className}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${current.dot}`} aria-hidden="true" />
-      {current.label}
+      <Icon className={`w-3 h-3 shrink-0 ${current.iconColor}`} aria-hidden="true" />
+      <span>{current.label}</span>
     </span>
   );
 };

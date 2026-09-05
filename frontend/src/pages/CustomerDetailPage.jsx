@@ -4,7 +4,8 @@ import { customerApi } from '../api';
 import {
   Button,
   DataTable,
-  LoadingSpinner,
+  MetricCard,
+  SkeletonDashboard,
   ErrorAlert,
 } from '../components/ui';
 import {
@@ -53,7 +54,7 @@ export const CustomerDetailPage = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Aggregating Customer 360 intelligence..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   if (error || !data360) {
@@ -129,63 +130,34 @@ export const CustomerDetailPage = () => {
 
       {/* KPI Highlights Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lifetime Value</span>
-            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 mt-2">
-            ${(overview?.totalLifetimeValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <span className="text-[11px] text-slate-500">Total revenue generated</span>
-        </div>
-
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Pipeline</span>
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-              <FileText className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 mt-2">
-            ${(overview?.activeQuotationsValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <span className="text-[11px] text-slate-500">
-            {overview?.activeQuotationsCount || 0} open quote(s)
-          </span>
-        </div>
-
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Confirmed Orders</span>
-            <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
-              <ShoppingCart className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 mt-2">
-            {overview?.confirmedOrdersCount || 0}
-          </p>
-          <span className="text-[11px] text-slate-500">
-            ${(overview?.confirmedOrdersValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} closed
-          </span>
-        </div>
-
-        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Outstanding AR</span>
-            <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
-              <Receipt className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 mt-2">
-            ${(overview?.totalOutstandingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <span className="text-[11px] text-slate-500">
-            {overview?.totalInvoicesCount || 0} total invoice(s)
-          </span>
-        </div>
+        <MetricCard
+          label="Lifetime Value"
+          value={`$${(overview?.totalLifetimeValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={TrendingUp}
+          variant="emerald"
+          description="Total revenue generated"
+        />
+        <MetricCard
+          label="Active Pipeline"
+          value={`$${(overview?.activeQuotationsValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={FileText}
+          variant="indigo"
+          description={`${overview?.activeQuotationsCount || 0} open quote(s)`}
+        />
+        <MetricCard
+          label="Confirmed Orders"
+          value={overview?.confirmedOrdersCount || 0}
+          icon={ShoppingCart}
+          variant="purple"
+          description={`$${(overview?.confirmedOrdersValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} closed`}
+        />
+        <MetricCard
+          label="Outstanding AR"
+          value={`$${(overview?.totalOutstandingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={Receipt}
+          variant="amber"
+          description={`${overview?.totalInvoicesCount || 0} total invoice(s)`}
+        />
       </div>
 
       {/* Tabs Navigation */}

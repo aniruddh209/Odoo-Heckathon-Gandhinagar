@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { portalApi } from '../api';
 import { CustomerProposalView } from '../components/portal/CustomerProposalView';
-import { LoadingSpinner, ErrorAlert, Button } from '../components/ui';
+import { LoadingSpinner, ErrorAlert, Button, SkeletonPortal } from '../components/ui';
 import { ShieldCheck, Zap, ArrowLeft, Headphones } from 'lucide-react';
 
 export const CustomerPortalDetailPage = () => {
@@ -32,14 +32,7 @@ export const CustomerPortalDetailPage = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <LoadingSpinner
-          message="Verifying secure cryptographic access link..."
-          size="lg"
-        />
-      </div>
-    );
+    return <SkeletonPortal />;
   }
 
   if (error || !quote) {

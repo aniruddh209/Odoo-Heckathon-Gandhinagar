@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { reportApi, quotationApi, adminApi } from '../api';
 import { useAuth } from '../context/AuthContext';
-import { Button, StatusBadge, DataTable, LoadingSpinner, ErrorAlert, Badge } from '../components/ui';
+import {
+  Button,
+  StatusBadge,
+  DataTable,
+  PageHeader,
+  MetricCard,
+  SkeletonDashboard,
+  ErrorAlert,
+  Badge,
+} from '../components/ui';
 import { Download, RefreshCw, Filter, Layers, DollarSign, TrendingUp, ShieldAlert, CheckCircle2, FileText, Users } from 'lucide-react';
 
 export const ReportsPage = () => {
@@ -160,7 +169,7 @@ export const ReportsPage = () => {
   const hasActiveFilters = selectedSalesRep || selectedTier || selectedStatus || selectedPeriod !== 'all';
 
   if (isLoading) {
-    return <LoadingSpinner message="Aggregating multi-dimensional sales intelligence..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   const tierColumns = [
@@ -257,23 +266,21 @@ export const ReportsPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Platform Analytics &amp; Revenue Intelligence</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Operational revenue governance, subscription MRR/ARR run-rates, and multi-filter margin compliance audits.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadReports}>
-            Refresh
-          </Button>
-          <Button variant="primary" size="sm" icon={Download} onClick={handleExportCSV}>
-            Export Filtered CSV ({filteredQuotes.length})
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Platform Analytics & Revenue Intelligence"
+        subtitle="Operational revenue governance, subscription MRR/ARR run-rates, and multi-filter margin compliance audits."
+        badge={`${filteredQuotes.length} Deals Analyzed`}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadReports}>
+              Refresh
+            </Button>
+            <Button variant="primary" size="sm" icon={Download} onClick={handleExportCSV}>
+              Export Filtered CSV ({filteredQuotes.length})
+            </Button>
+          </div>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadReports} />}
 
@@ -433,45 +440,34 @@ export const ReportsPage = () => {
 
       {/* Dynamic Recalculated KPI Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Filtered Volume</span>
-          <div className="text-2xl font-bold text-slate-900 mt-1 font-mono">
-            ${filteredMetrics.totalQuoted.toLocaleString('en-US', { minimumFractionDigits: 0 })}
-          </div>
-          <span className="text-xs text-slate-500 mt-1 block">
-            {filteredMetrics.totalCount} Matching Proposals
-          </span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Filtered Booked</span>
-          <div className="text-2xl font-bold text-emerald-700 mt-1 font-mono">
-            ${filteredMetrics.totalBooked.toLocaleString('en-US', { minimumFractionDigits: 0 })}
-          </div>
-          <span className="text-xs text-emerald-600 font-semibold mt-1 block">
-            {filteredMetrics.ordersCount} Confirmed Orders
-          </span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Average Deal Margin</span>
-          <div className="text-2xl font-bold text-purple-700 mt-1 font-mono">
-            {filteredMetrics.avgMargin}%
-          </div>
-          <span className="text-xs text-purple-600 font-semibold mt-1 block">
-            Realized Margin Preservation
-          </span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Average Risk Score</span>
-          <div className="text-2xl font-bold text-slate-900 mt-1 font-mono">
-            {filteredMetrics.avgRisk}
-          </div>
-          <span className="text-xs text-amber-600 font-semibold mt-1 block">
-            Governance Risk Rating
-          </span>
-        </div>
+        <MetricCard
+          label="Filtered Volume"
+          value={`$${filteredMetrics.totalQuoted.toLocaleString('en-US', { minimumFractionDigits: 0 })}`}
+          icon={DollarSign}
+          variant="indigo"
+          description={`${filteredMetrics.totalCount} Matching Proposals`}
+        />
+        <MetricCard
+          label="Filtered Booked"
+          value={`$${filteredMetrics.totalBooked.toLocaleString('en-US', { minimumFractionDigits: 0 })}`}
+          icon={TrendingUp}
+          variant="emerald"
+          description={`${filteredMetrics.ordersCount} Confirmed Orders`}
+        />
+        <MetricCard
+          label="Average Deal Margin"
+          value={`${filteredMetrics.avgMargin}%`}
+          icon={Layers}
+          variant="purple"
+          description="Realized Margin Preservation"
+        />
+        <MetricCard
+          label="Average Risk Score"
+          value={filteredMetrics.avgRisk}
+          icon={ShieldAlert}
+          variant="amber"
+          description="Governance Risk Rating"
+        />
       </div>
 
       {/* Quotation Status Distribution Breakdown */}

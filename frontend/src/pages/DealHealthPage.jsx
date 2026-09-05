@@ -5,7 +5,9 @@ import {
   Button,
   StatusBadge,
   DataTable,
-  LoadingSpinner,
+  PageHeader,
+  MetricCard,
+  SkeletonDashboard,
   ErrorAlert,
 } from '../components/ui';
 import {
@@ -43,7 +45,7 @@ export const DealHealthPage = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Scanning active opportunities for risk signals and stalled quotes..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   const alertColumns = [
@@ -109,82 +111,56 @@ export const DealHealthPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900">Deal Health &amp; Anomaly Radar</h1>
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Active Background Monitoring
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Surveillance for stalled quotes (&gt;5 days), rep discount standard deviation outliers (&gt;2σ), and delivery slippages.
-          </p>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          icon={RefreshCw}
-          onClick={loadHealthData}
-        >
-          Refresh Radar
-        </Button>
-      </div>
+      <PageHeader
+        title="Deal Health & Anomaly Radar"
+        subtitle="Surveillance for stalled quotes (>5 days), rep discount outliers (>2σ), and delivery slippages."
+        badge="Active Radar"
+        badgeVariant="emerald"
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            onClick={loadHealthData}
+          >
+            Refresh Radar
+          </Button>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadHealthData} />}
 
       {/* Health Overview Cards */}
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Overall Health Score</span>
-            <div className="text-2xl font-bold text-slate-900 mt-1 font-mono">
-              {summary.healthScore}%
-            </div>
-            <span className="text-xs text-emerald-600 font-semibold mt-1 block">
-              {summary.healthyCount} of {summary.totalActiveDeals} deals healthy
-            </span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 shadow-xs">
-            <div className="flex items-center justify-between text-amber-800">
-              <span className="text-[10px] font-bold uppercase block">Stalled Opportunities</span>
-              <Clock className="w-4 h-4 text-amber-600" />
-            </div>
-            <div className="text-2xl font-bold text-amber-950 mt-1 font-mono">
-              {summary.stalledDealsCount || 0}
-            </div>
-            <span className="text-xs text-amber-700 mt-1 block font-medium">
-              &gt;5 days without customer touch
-            </span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/40 shadow-xs">
-            <div className="flex items-center justify-between text-rose-800">
-              <span className="text-[10px] font-bold uppercase block">Discount Anomalies</span>
-              <AlertTriangle className="w-4 h-4 text-rose-600" />
-            </div>
-            <div className="text-2xl font-bold text-rose-950 mt-1 font-mono">
-              {summary.discountAnomaliesCount || 0}
-            </div>
-            <span className="text-xs text-rose-700 mt-1 block font-medium">
-              &gt;2σ discount outliers detected
-            </span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/40 shadow-xs">
-            <div className="flex items-center justify-between text-purple-800">
-              <span className="text-[10px] font-bold uppercase block">High Risk Governance</span>
-              <ShieldAlert className="w-4 h-4 text-purple-600" />
-            </div>
-            <div className="text-2xl font-bold text-purple-950 mt-1 font-mono">
-              {summary.highRiskDealsCount || 0}
-            </div>
-            <span className="text-xs text-purple-700 mt-1 block font-medium">
-              Risk score &gt; 50 threshold
-            </span>
-          </div>
+          <MetricCard
+            label="Overall Health Score"
+            value={`${summary.healthScore}%`}
+            icon={Activity}
+            variant="emerald"
+            description={`${summary.healthyCount} of ${summary.totalActiveDeals} deals healthy`}
+          />
+          <MetricCard
+            label="Stalled Opportunities"
+            value={summary.stalledDealsCount || 0}
+            icon={Clock}
+            variant="amber"
+            description=">5 days without customer touch"
+          />
+          <MetricCard
+            label="Discount Anomalies"
+            value={summary.discountAnomaliesCount || 0}
+            icon={AlertTriangle}
+            variant="rose"
+            description=">2σ discount outliers detected"
+          />
+          <MetricCard
+            label="High Risk Governance"
+            value={summary.highRiskDealsCount || 0}
+            icon={ShieldAlert}
+            variant="indigo"
+            description="Risk score > 50 threshold"
+          />
         </div>
       )}
 

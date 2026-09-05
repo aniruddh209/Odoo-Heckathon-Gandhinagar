@@ -13,6 +13,7 @@ import {
   Textarea,
   LoadingSpinner,
   ErrorAlert,
+  SkeletonQuoteDetail,
 } from '../components/ui';
 import {
   ArrowLeft,
@@ -326,7 +327,7 @@ export const QuotationDetailPage = () => {
   }, [activeTab, quote?.orderId]);
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading quotation workspace and telemetry..." size="lg" />;
+    return <SkeletonQuoteDetail />;
   }
 
   if (error || !quote) {

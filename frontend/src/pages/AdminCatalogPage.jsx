@@ -7,7 +7,8 @@ import {
   Modal,
   Input,
   Select,
-  LoadingSpinner,
+  PageHeader,
+  SkeletonDashboard,
   ErrorAlert,
   StatusBadge,
 } from '../components/ui';
@@ -287,7 +288,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Querying master product catalog and pricing rules..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   // Filtered Products
@@ -483,29 +484,27 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   return (
     <div className="space-y-6 animate-in fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Products &amp; Contracted Pricing</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Master SKU catalog, product categorization, and contracted tier price list definitions.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadData}>
-            Refresh
-          </Button>
-          {activeTab === 'products' ? (
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddProduct}>
-              Add Product
+      <PageHeader
+        title="Products & Contracted Pricing"
+        subtitle="Master SKU catalog, product categorization, and contracted tier price list definitions."
+        badge={`${products.length} Products`}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadData}>
+              Refresh
             </Button>
-          ) : (
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddPriceList}>
-              Add Price List
-            </Button>
-          )}
-        </div>
-      </div>
+            {activeTab === 'products' ? (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddProduct}>
+                Add Product
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddPriceList}>
+                Add Price List
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadData} />}
 

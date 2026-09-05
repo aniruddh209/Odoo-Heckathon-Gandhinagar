@@ -7,15 +7,17 @@ import {
   Input,
   Select,
   Textarea,
-  LoadingSpinner,
+  PageHeader,
+  SkeletonQuoteBuilder,
   ErrorAlert,
 } from '../components/ui';
 import {
-  ArrowLeft,
   Plus,
   Trash2,
   Sparkles,
   CheckCircle2,
+  ShieldAlert,
+  ArrowRight,
 } from 'lucide-react';
 
 export const QuotationBuilderPage = () => {
@@ -47,7 +49,7 @@ export const QuotationBuilderPage = () => {
     try {
       const [custRes, prodRes] = await Promise.all([
         customerApi.getCustomers(),
-        adminApi.getProducts(),
+        adminApi.getProducts({ isActive: true }),
       ]);
 
       const custList = Array.isArray(custRes) ? custRes : custRes?.value || [];
@@ -107,15 +109,22 @@ export const QuotationBuilderPage = () => {
 
   // Optimistic calculation for immediate UI responsiveness
   const subTotal = lines.reduce(
-    (sum, l) => sum + (l.quantity || 0) * (l.unitPrice || 0),
+    (sum, l) => sum + (parseInt(l.quantity, 10) || 0) * (parseFloat(l.unitPrice) || 0),
     0
   );
   const discountTotal = lines.reduce(
     (sum, l) =>
-      sum + (l.quantity || 0) * (l.unitPrice || 0) * ((l.discountPercent || 0) / 100),
+      sum + (parseInt(l.quantity, 10) || 0) * (parseFloat(l.unitPrice) || 0) * ((parseFloat(l.discountPercent) || 0) / 100),
     0
   );
-  const grandTotal = (subTotal - discountTotal) * 1.18; // 18% Tax
+  const taxableAmount = subTotal - discountTotal;
+  const taxTotal = taxableAmount * 0.18; // 18% standard GST/Tax
+  const grandTotal = taxableAmount + taxTotal;
+
+  // Check if any line exceeds customer tier limit
+  const maxDiscountInQuote = lines.reduce((max, l) => Math.max(max, parseFloat(l.discountPercent) || 0), 0);
+  const tierLimit = selectedCustomer?.maxDiscountPercent || (selectedCustomer?.tierName === 'Gold' ? 15 : selectedCustomer?.tierName === 'Silver' ? 10 : 5);
+  const triggersApproval = maxDiscountInQuote > tierLimit;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -155,218 +164,292 @@ export const QuotationBuilderPage = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Initializing quotation builder..." size="lg" />;
+    return <SkeletonQuoteBuilder />;
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/workspace/quotations')}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">New Deal Quotation</h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Structured proposal with automated tier discount ceilings and gross margin rules.
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* Unified Page Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Quotations', path: '/workspace/quotations' },
+          { label: 'New Deal Proposal' },
+        ]}
+        title="Construct Commercial Quotation"
+        subtitle="Configure deal pricing, product allocations, and automated margin governance ceilings."
+      />
 
       {error && <ErrorAlert message={error} />}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Customer & Agreement Terms Card */}
-        <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-xs space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-blue-600" />
-            1. Customer Account & Agreement Terms
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Select
-              label="Customer Account"
-              required
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              options={customers.map((c) => ({
-                value: c.id,
-                label: `${c.name} (${c.tierName || 'Standard'})`,
-              }))}
-            />
-
-            <Select
-              label="Currency"
-              value={currencyCode}
-              onChange={(e) => setCurrencyCode(e.target.value)}
-              options={[
-                { value: 'USD', label: 'USD ($) - US Dollar' },
-                { value: 'EUR', label: 'EUR (€) - Euro' },
-                { value: 'GBP', label: 'GBP (£) - British Pound' },
-                { value: 'INR', label: 'INR (₹) - Indian Rupee' },
-              ]}
-            />
-
-            <Input
-              label="Target Close Date"
-              type="date"
-              value={expectedCloseDate}
-              onChange={(e) => setExpectedCloseDate(e.target.value)}
-            />
-          </div>
-
-          {selectedCustomer && (
-            <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200 flex items-center justify-between text-xs">
-              <div>
-                <span className="font-semibold text-blue-950">Active Tier: {selectedCustomer.tierName}</span>
-                <p className="text-blue-800 text-[11px] mt-0.5">
-                  Standard tier discount ceiling: {selectedCustomer.tierName === 'Gold' ? '15%' : selectedCustomer.tierName === 'Silver' ? '10%' : '5%'}. Exceeding this triggers automated approval routing.
-                </p>
-              </div>
-              <span className="font-semibold text-blue-900 bg-white px-2.5 py-1 rounded-md border border-blue-200">
-                Tier Ceiling Enforced
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Product Line Items */}
-        <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Form Details & Line Items (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Section 1: Customer & Contract Terms */}
+          <div className="p-5 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-600" />
-              2. Products & Commercial Pricing
+              <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              1. Customer Account &amp; Contract Terms
             </h2>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              icon={Plus}
-              onClick={handleAddBlankLine}
-            >
-              Add Item
-            </Button>
-          </div>
 
-          {lines.length === 0 ? (
-            <div className="text-center py-8 border border-dashed rounded-xl border-slate-200 text-slate-500 text-xs">
-              No products added yet. Click &quot;Add Item&quot; to begin building proposal lines.
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Select
+                label="Customer Account"
+                required
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                options={customers.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${c.tierName || 'Standard'})`,
+                }))}
+              />
+
+              <Select
+                label="Currency"
+                value={currencyCode}
+                onChange={(e) => setCurrencyCode(e.target.value)}
+                options={[
+                  { value: 'USD', label: 'USD ($) - US Dollar' },
+                  { value: 'EUR', label: 'EUR (€) - Euro' },
+                  { value: 'GBP', label: 'GBP (£) - British Pound' },
+                  { value: 'INR', label: 'INR (₹) - Indian Rupee' },
+                ]}
+              />
+
+              <Input
+                label="Target Close Date"
+                type="date"
+                value={expectedCloseDate}
+                onChange={(e) => setExpectedCloseDate(e.target.value)}
+              />
             </div>
-          ) : (
-            <div className="space-y-3">
-              {lines.map((line, idx) => (
-                <div
-                  key={idx}
-                  className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
-                >
-                  <div className="sm:col-span-5">
-                    <Select
-                      label={`Product Item #${idx + 1}`}
-                      value={line.productId}
-                      onChange={(e) => handleUpdateLine(idx, 'productId', e.target.value)}
-                      options={products.map((p) => ({
-                        value: p.id,
-                        label: `${p.name} ($${p.basePrice?.toFixed(2)})`,
-                      }))}
-                    />
-                  </div>
 
-                  <div className="sm:col-span-2">
-                    <Input
-                      label="Quantity"
-                      type="number"
-                      min="1"
-                      value={line.quantity}
-                      onChange={(e) => handleUpdateLine(idx, 'quantity', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <Input
-                      label="Unit Price ($)"
-                      type="number"
-                      step="0.01"
-                      value={line.unitPrice}
-                      onChange={(e) => handleUpdateLine(idx, 'unitPrice', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <Input
-                      label="Discount (%)"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={line.discountPercent}
-                      onChange={(e) => handleUpdateLine(idx, 'discountPercent', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="sm:col-span-1 flex justify-center pb-1">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveLine(idx)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-200 transition-colors"
-                      title="Delete line"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+            {selectedCustomer && (
+              <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="font-bold text-blue-950">Active Tier: {selectedCustomer.tierName}</span>
+                  <p className="text-blue-800 text-[11px] mt-0.5">
+                    Tier discount limit: {tierLimit}%. Exceeding this triggers automated approval escalation.
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Notes & Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="sm:col-span-2">
-            <Textarea
-              label="Commercial Terms & Notes"
-              placeholder="Enter special payment terms, delivery expectations, or remarks..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-            />
+                <span className="font-semibold text-blue-900 bg-white px-2.5 py-1 rounded-md border border-blue-200 self-start sm:self-auto text-[11px]">
+                  Ceiling: {tierLimit}%
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between text-slate-500">
-                <span>Subtotal:</span>
-                <span className="font-mono text-slate-900">${subTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-rose-600">
-                <span>Discounts:</span>
-                <span className="font-mono">-${discountTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-500">
-                <span>Estimated Tax (18%):</span>
-                <span className="font-mono text-slate-900">${((subTotal - discountTotal) * 0.18).toFixed(2)}</span>
-              </div>
-              <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-sm text-slate-900">
-                <span>Estimated Grand Total:</span>
-                <span className="text-blue-600 font-mono">${grandTotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-4 border-t border-slate-100">
+          {/* Section 2: Products & Line Items */}
+          <div className="p-5 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                2. Products &amp; Deliverables ({lines.length})
+              </h2>
               <Button
-                type="submit"
-                variant="primary"
-                fullWidth
-                size="md"
-                isLoading={isSubmitting}
+                type="button"
+                variant="outline"
+                size="xs"
+                icon={Plus}
+                onClick={handleAddBlankLine}
               >
-                Create & Calculate Proposal
+                Add Product Line
               </Button>
             </div>
+
+            {lines.length === 0 ? (
+              <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-xl space-y-3 bg-slate-50/50">
+                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">No items added to proposal yet</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Click the button below to add your first product or subscription service.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  icon={Plus}
+                  onClick={handleAddBlankLine}
+                >
+                  Add First Product
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50/80">
+                      <th className="py-2.5 px-3 min-w-[200px]">Product / Service</th>
+                      <th className="py-2.5 px-3 w-20 text-center">Qty</th>
+                      <th className="py-2.5 px-3 w-28 text-right">Unit Price ($)</th>
+                      <th className="py-2.5 px-3 w-24 text-center">Discount (%)</th>
+                      <th className="py-2.5 px-3 w-28 text-right">Subtotal</th>
+                      <th className="py-2.5 px-2 w-10 text-center"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {lines.map((line, idx) => {
+                      const lineSubtotal = (parseInt(line.quantity, 10) || 0) * (parseFloat(line.unitPrice) || 0) * (1 - (parseFloat(line.discountPercent) || 0) / 100);
+                      const isLineExceeding = (parseFloat(line.discountPercent) || 0) > tierLimit;
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-2.5 px-3">
+                            <select
+                              className="w-full h-8 px-2 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              value={line.productId}
+                              onChange={(e) => handleUpdateLine(idx, 'productId', e.target.value)}
+                            >
+                              {products.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  [{p.sku}] {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="number"
+                              min="1"
+                              value={line.quantity}
+                              onChange={(e) => handleUpdateLine(idx, 'quantity', e.target.value)}
+                              className="w-full h-8 px-2 text-center text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                            />
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={line.unitPrice}
+                              onChange={(e) => handleUpdateLine(idx, 'unitPrice', e.target.value)}
+                              className="w-full h-8 px-2 text-right text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                            />
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                value={line.discountPercent}
+                                onChange={(e) => handleUpdateLine(idx, 'discountPercent', e.target.value)}
+                                className={`w-full h-8 px-2 text-center text-xs rounded-lg border focus:outline-none focus:ring-1 font-mono ${
+                                  isLineExceeding
+                                    ? 'border-amber-400 bg-amber-50 text-amber-900 focus:ring-amber-500'
+                                    : 'border-slate-300 focus:ring-blue-500'
+                                }`}
+                              />
+                            </div>
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                            ${lineSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+
+                          <td className="py-2.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLine(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Section 3: Commercial Terms & Notes */}
+          <div className="p-5 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+              3. Special Commercial Terms &amp; Scope Notes
+            </h2>
+            <Textarea
+              placeholder="Enter payment milestone terms, special SLA delivery commitments, or customer-specific requests..."
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Right Column: Sticky Summary & Governance Status (4 cols) */}
+        <div className="lg:col-span-4 space-y-4 sticky top-20">
+          <div className="p-5 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                Commercial Summary
+              </span>
+              <span className="text-[11px] font-mono text-slate-400">{currencyCode}</span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between text-slate-500">
+                <span>Subtotal ({lines.length} lines)</span>
+                <span className="font-mono text-slate-800">${subTotal.toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between text-slate-500">
+                <span>Commercial Discount</span>
+                <span className="font-mono text-emerald-600">-${discountTotal.toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between text-slate-500">
+                <span>Estimated Tax (18%)</span>
+                <span className="font-mono text-slate-800">${taxTotal.toFixed(2)}</span>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-between items-baseline">
+                <span className="text-sm font-bold text-slate-900">Grand Total</span>
+                <span className="text-2xl font-bold font-mono text-blue-600 tracking-tight">
+                  ${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            {/* Governance Warning Badge */}
+            {triggersApproval ? (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Approval Escalation Required</span>
+                  <span className="text-[11px] text-amber-800 block mt-0.5">
+                    Discount ({maxDiscountInQuote}%) exceeds tier ceiling ({tierLimit}%). Proposal will require Manager signoff.
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="text-[11px] font-medium">Within tier discount limits. Instant signoff eligible.</span>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              fullWidth
+              isLoading={isSubmitting}
+              icon={ArrowRight}
+              className="mt-2"
+            >
+              Generate Quotation
+            </Button>
           </div>
         </div>
       </form>

@@ -11,6 +11,7 @@ import {
   LoadingSpinner,
   ErrorAlert,
   Drawer,
+  SkeletonPortal,
 } from '../components/ui';
 import { CustomerProposalView } from '../components/portal/CustomerProposalView';
 import {
@@ -174,11 +175,7 @@ export const CustomerAccountPage = () => {
   };
 
   if (isLoading && quotes.length === 0) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <LoadingSpinner message="Loading client portal dashboard..." size="lg" />
-      </div>
-    );
+    return <SkeletonPortal />;
   }
 
   const quoteCols = [

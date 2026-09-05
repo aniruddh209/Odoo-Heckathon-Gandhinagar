@@ -8,7 +8,8 @@ import {
   Modal,
   Input,
   Select,
-  LoadingSpinner,
+  PageHeader,
+  SkeletonDashboard,
   ErrorAlert,
 } from '../components/ui';
 import {
@@ -158,7 +159,7 @@ export const UserManagementPage = () => {
   });
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading user directory and permissions..." size="lg" />;
+    return <SkeletonDashboard />;
   }
 
   const columns = [
@@ -262,32 +263,28 @@ export const UserManagementPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-blue-600" /> User & Identity Management
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Role-governed directory, credentials provisioning, and account lifecycle control.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadData}>
-            Refresh
-          </Button>
-          {(isAdmin || isSalesManager) && (
-            <Button
-              variant="primary"
-              size="sm"
-              icon={UserPlus}
-              onClick={() => setIsCreateModalOpen(true)}
-            >
-              Add User
+      <PageHeader
+        title="User & Identity Management"
+        subtitle="Role-governed directory, credentials provisioning, and account lifecycle control."
+        badge={`${users.length} Users`}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadData}>
+              Refresh
             </Button>
-          )}
-        </div>
-      </div>
+            {(isAdmin || isSalesManager) && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={UserPlus}
+                onClick={() => setIsCreateModalOpen(true)}
+              >
+                Add User
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {error && <ErrorAlert message={error} onRetry={loadData} />}
 

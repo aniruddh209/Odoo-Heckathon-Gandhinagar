@@ -8,7 +8,7 @@ import {
   Select,
   StatusBadge,
   DataTable,
-  LoadingSpinner,
+  PageHeader,
   ErrorAlert,
 } from '../components/ui';
 import { Plus, Search, Filter, RefreshCw, FileText } from 'lucide-react';
@@ -134,33 +134,31 @@ export const QuotationListPage = () => {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Quotations & Deal Workspace</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Active sales proposals, pricing governance, and approval compliance tracking.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            icon={RefreshCw}
-            onClick={loadQuotations}
-          >
-            Refresh
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Plus}
-            onClick={() => navigate('/workspace/quotations/new')}
-          >
-            Create Quotation
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Quotations & Deal Workspace"
+        subtitle="Active sales proposals, pricing governance, and approval compliance tracking."
+        badge={`${filteredQuotes.length} Deals`}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={RefreshCw}
+              onClick={loadQuotations}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => navigate('/workspace/quotations/new')}
+            >
+              Create Quotation
+            </Button>
+          </div>
+        }
+      />
 
       {/* Filter and Search Bar */}
       <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center gap-3">
