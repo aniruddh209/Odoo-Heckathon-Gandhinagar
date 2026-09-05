@@ -1,4 +1,16 @@
+<<<<<<< HEAD
 .idea/
 obj/
 bin/
 .DS_Store
+=======
+bin/
+obj/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+*.nupkg
+>>>>>>> Backend
