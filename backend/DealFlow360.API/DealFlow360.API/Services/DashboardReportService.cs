@@ -1,6 +1,7 @@
 using DealFlow360.API.Data;
 using DealFlow360.API.DTOs.Pipeline;
 using DealFlow360.API.DTOs.Reports;
+using DealFlow360.API.Models;
 using DealFlow360.API.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,10 +9,10 @@ namespace DealFlow360.API.Services;
 
 public interface IDashboardReportService
 {
-    Task<DashboardResponse> GetDashboardMetricsAsync(int? salesRepId = null);
-    Task<PipelineResponse> GetPipelineOverviewAsync();
-    Task<byte[]> GenerateSalesReportXlsAsync();
-    Task<byte[]> GenerateSalesReportPdfAsync();
+    Task<DashboardResponse> GetDashboardMetricsAsync(ReportFilterRequest? filter = null);
+    Task<PipelineResponse> GetPipelineOverviewAsync(ReportFilterRequest? filter = null);
+    Task<byte[]> GenerateSalesReportXlsAsync(ReportFilterRequest? filter = null);
+    Task<byte[]> GenerateSalesReportPdfAsync(ReportFilterRequest? filter = null);
 }
 
 public class DashboardReportService : IDashboardReportService
@@ -23,17 +24,74 @@ public class DashboardReportService : IDashboardReportService
         _context = context;
     }
 
-    public async Task<DashboardResponse> GetDashboardMetricsAsync(int? salesRepId = null)
+    private IQueryable<Quotation> ApplyFilters(IQueryable<Quotation> query, ReportFilterRequest? filter)
     {
-        var query = _context.Quotations.AsQueryable();
-        if (salesRepId.HasValue)
+        if (filter == null) return query;
+
+        if (filter.StartDate.HasValue)
         {
-            query = query.Where(q => q.SalesRepId == salesRepId.Value);
+            query = query.Where(q => q.CreatedAtUtc >= filter.StartDate.Value);
+        }
+        else if (!string.IsNullOrWhiteSpace(filter.Period))
+        {
+            var now = DateTime.UtcNow;
+            if (filter.Period.Equals("today", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(q => q.CreatedAtUtc >= now.Date);
+            else if (filter.Period.Equals("7d", StringComparison.OrdinalIgnoreCase) || filter.Period.Equals("week", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(q => q.CreatedAtUtc >= now.AddDays(-7));
+            else if (filter.Period.Equals("30d", StringComparison.OrdinalIgnoreCase) || filter.Period.Equals("month", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(q => q.CreatedAtUtc >= now.AddDays(-30));
         }
 
+        if (filter.EndDate.HasValue)
+        {
+            query = query.Where(q => q.CreatedAtUtc <= filter.EndDate.Value);
+        }
+
+        if (filter.SalesRepId.HasValue)
+        {
+            query = query.Where(q => q.SalesRepId == filter.SalesRepId.Value);
+        }
+
+        if (filter.SalesTeamId.HasValue)
+        {
+            query = query.Where(q => q.SalesRep != null && q.SalesRep.SalesTeamId == filter.SalesTeamId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            if (Enum.TryParse<QuoteStatus>(filter.Status, true, out var st))
+            {
+                query = query.Where(q => q.Status == st);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ApprovalStatus))
+        {
+            if (Enum.TryParse<ApprovalStatus>(filter.ApprovalStatus, true, out var appSt))
+            {
+                query = query.Where(q => q.ApprovalStatus == appSt);
+            }
+        }
+
+        if (filter.CategoryId.HasValue)
+        {
+            query = query.Where(q => q.Lines.Any(l => l.Product != null && l.Product.CategoryId == filter.CategoryId.Value));
+        }
+
+        return query;
+    }
+
+    public async Task<DashboardResponse> GetDashboardMetricsAsync(ReportFilterRequest? filter = null)
+    {
+        var query = _context.Quotations.AsQueryable();
+        query = ApplyFilters(query, filter);
+
         var quotes = await query.ToListAsync();
-        var orders = await _context.Orders.ToListAsync();
-        var invoices = await _context.Invoices.ToListAsync();
+        var quoteIds = quotes.Select(q => q.Id).ToHashSet();
+        var orders = await _context.Orders.Where(o => quoteIds.Contains(o.QuotationId)).ToListAsync();
+        var orderIds = orders.Select(o => o.Id).ToHashSet();
+        var invoices = await _context.Invoices.Where(i => orderIds.Contains(i.OrderId)).ToListAsync();
 
         var totalQuotedRevenue = quotes.Sum(q => q.GrandTotal);
         var totalBookedRevenue = orders.Sum(o => o.Total);
@@ -57,9 +115,12 @@ public class DashboardReportService : IDashboardReportService
         };
     }
 
-    public async Task<PipelineResponse> GetPipelineOverviewAsync()
+    public async Task<PipelineResponse> GetPipelineOverviewAsync(ReportFilterRequest? filter = null)
     {
-        var quotes = await _context.Quotations.ToListAsync();
+        var query = _context.Quotations.AsQueryable();
+        query = ApplyFilters(query, filter);
+
+        var quotes = await query.ToListAsync();
 
         var stages = quotes.GroupBy(q => q.Status.ToString())
             .Select(g => new PipelineStageDto
@@ -77,20 +138,31 @@ public class DashboardReportService : IDashboardReportService
         };
     }
 
-    public async Task<byte[]> GenerateSalesReportXlsAsync()
+    public async Task<byte[]> GenerateSalesReportXlsAsync(ReportFilterRequest? filter = null)
     {
-        var quotes = await _context.Quotations
+        var query = _context.Quotations
             .Include(q => q.Customer)
             .Include(q => q.SalesRep)
+            .AsQueryable();
+
+        query = ApplyFilters(query, filter);
+
+        var quotes = await query
             .OrderByDescending(q => q.CreatedAtUtc)
             .ToListAsync();
 
-        var orders = await _context.Orders.ToListAsync();
-        var invoices = await _context.Invoices.ToListAsync();
+        var quoteIds = quotes.Select(q => q.Id).ToHashSet();
+        var orders = await _context.Orders.Where(o => quoteIds.Contains(o.QuotationId)).ToListAsync();
+        var orderIds = orders.Select(o => o.Id).ToHashSet();
+        var invoices = await _context.Invoices.Where(i => orderIds.Contains(i.OrderId)).ToListAsync();
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("DealFlow360 - Enterprise Sales & Executive Health Report");
         sb.AppendLine($"Generated on,{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        if (filter != null)
+        {
+            sb.AppendLine($"Filter Applied: Period={filter.Period ?? "All"}, Rep={filter.SalesRepId?.ToString() ?? "All"}, Status={filter.Status ?? "All"}");
+        }
         sb.AppendLine();
 
         sb.AppendLine("--- SALES & FINANCIAL SUMMARY ---");
@@ -129,17 +201,24 @@ public class DashboardReportService : IDashboardReportService
         return result;
     }
 
-    public async Task<byte[]> GenerateSalesReportPdfAsync()
+    public async Task<byte[]> GenerateSalesReportPdfAsync(ReportFilterRequest? filter = null)
     {
-        var quotes = await _context.Quotations
+        var query = _context.Quotations
             .Include(q => q.Customer)
             .Include(q => q.SalesRep)
+            .AsQueryable();
+
+        query = ApplyFilters(query, filter);
+
+        var quotes = await query
             .OrderByDescending(q => q.CreatedAtUtc)
-            .Take(15)
+            .Take(25)
             .ToListAsync();
 
-        var orders = await _context.Orders.ToListAsync();
-        var invoices = await _context.Invoices.ToListAsync();
+        var quoteIds = quotes.Select(q => q.Id).ToHashSet();
+        var orders = await _context.Orders.Where(o => quoteIds.Contains(o.QuotationId)).ToListAsync();
+        var orderIds = orders.Select(o => o.Id).ToHashSet();
+        var invoices = await _context.Invoices.Where(i => orderIds.Contains(i.OrderId)).ToListAsync();
 
         var totalQuoted = quotes.Sum(q => q.GrandTotal);
         var totalBooked = orders.Sum(o => o.Total);

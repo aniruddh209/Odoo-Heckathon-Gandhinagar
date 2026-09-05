@@ -128,6 +128,13 @@ public class QuotationsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("recommendations/preview")]
+    public async Task<IActionResult> PreviewRecommendations([FromBody] List<int> productIds)
+    {
+        var recommendations = await _quotationService.PreviewCartRecommendationsAsync(productIds);
+        return Ok(recommendations);
+    }
+
     [HttpPost("{id}/generate-portal-link")]
     public async Task<IActionResult> GeneratePortalLink(int id)
     {

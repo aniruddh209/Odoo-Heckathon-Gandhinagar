@@ -20,6 +20,7 @@ public interface IQuotationService
     Task<QuotationDetailResponse> RecalculateQuotationAsync(int id);
     Task<QuotationDetailResponse> SubmitForApprovalAsync(int id, int userId);
     Task<List<RecommendationResponse>> GetUpsellRecommendationsAsync(int id);
+    Task<List<RecommendationResponse>> PreviewCartRecommendationsAsync(List<int> productIds);
     Task<string> GeneratePortalLinkAsync(int quotationId);
     Task<QuotationDetailResponse> AddLineCommentAsync(int quotationId, int lineId, string comment, int userId);
     Task<QuotationDetailResponse> NegotiateLinePriceAsync(int quotationId, int lineId, NegotiatePriceRequest request, int userId);
@@ -715,6 +716,14 @@ public class QuotationService : IQuotationService
         var products = await _context.Products.ToListAsync();
 
         return _upsellEngine.GetRecommendations(quotation, rules, products);
+    }
+
+    public async Task<List<RecommendationResponse>> PreviewCartRecommendationsAsync(List<int> productIds)
+    {
+        if (productIds == null || !productIds.Any()) return new List<RecommendationResponse>();
+        var rules = await _context.UpsellCrossSellRules.ToListAsync();
+        var products = await _context.Products.ToListAsync();
+        return _upsellEngine.GetRecommendationsForProductIds(productIds, rules, products);
     }
 
     public async Task<string> GeneratePortalLinkAsync(int quotationId)

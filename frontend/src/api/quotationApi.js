@@ -49,6 +49,10 @@ export const quotationApi = {
     return apiClient.get(`quotations/${id}/recommendations`);
   },
 
+  previewRecommendations: async (productIds) => {
+    return apiClient.post('quotations/recommendations/preview', productIds);
+  },
+
   generatePortalLink: async (id) => {
     return apiClient.post(`quotations/${id}/generate-portal-link`);
   },

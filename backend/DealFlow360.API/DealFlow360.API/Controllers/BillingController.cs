@@ -40,6 +40,7 @@ public class BillingController : ControllerBase
     }
 
     [HttpPost("schedules/{scheduleId}/cancel")]
+    [HttpPost("subscriptions/{scheduleId}/cancel")]
     public async Task<IActionResult> CancelSubscriptionSchedule(int scheduleId, [FromBody] CancelSubscriptionRequest? request)
     {
         var result = await _billingService.CancelSubscriptionScheduleAsync(scheduleId, request?.Reason ?? "Cancelled by finance operations");
@@ -47,6 +48,7 @@ public class BillingController : ControllerBase
     }
 
     [HttpPost("subscriptions/{scheduleId}/seat-change")]
+    [HttpPost("schedules/{scheduleId}/seat-change")]
     public async Task<IActionResult> ApplySeatChange(int scheduleId, [FromBody] SubscriptionChangeRequest request)
     {
         var result = await _billingService.ApplySubscriptionSeatChangeAsync(scheduleId, request);
