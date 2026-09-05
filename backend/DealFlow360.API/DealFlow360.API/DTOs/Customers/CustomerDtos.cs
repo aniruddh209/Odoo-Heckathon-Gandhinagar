@@ -27,7 +27,9 @@ public class CustomerListResponse
     public string Name { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? Phone { get; set; }
+    public int TierId { get; set; }
     public string TierName { get; set; } = string.Empty;
+    public decimal TierMaxDiscount { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 }

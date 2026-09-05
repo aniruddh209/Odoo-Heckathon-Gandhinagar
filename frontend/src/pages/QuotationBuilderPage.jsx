@@ -83,8 +83,15 @@ export const QuotationBuilderPage = () => {
 
       if (paramCustId && custList.some((c) => c.id === parseInt(paramCustId, 10))) {
         setSelectedCustomerId(paramCustId);
+        const matchedCust = custList.find((c) => c.id === parseInt(paramCustId, 10));
+        if (matchedCust?.currencyCode) {
+          setCurrencyCode(matchedCust.currencyCode);
+        }
       } else if (custList.length > 0) {
         setSelectedCustomerId(custList[0].id.toString());
+        if (custList[0]?.currencyCode) {
+          setCurrencyCode(custList[0].currencyCode);
+        }
       }
 
       if (paramProdId) {
@@ -105,10 +112,18 @@ export const QuotationBuilderPage = () => {
       }
 
       if (paramNotes) {
-        setNotes(decodeURIComponent(paramNotes));
+        try {
+          setNotes(decodeURIComponent(paramNotes));
+        } catch {
+          setNotes(paramNotes);
+        }
       } else if (paramInquiryId) {
         setNotes(`Created from Sales Inquiry #${paramInquiryId}`);
       }
+
+      const defaultClose = new Date();
+      defaultClose.setDate(defaultClose.getDate() + 14);
+      setExpectedCloseDate(defaultClose.toISOString().split('T')[0]);
     } catch (err) {
       setError(err.message || 'Failed to load catalog data.');
     } finally {
@@ -119,6 +134,20 @@ export const QuotationBuilderPage = () => {
   const selectedCustomer = customers.find(
     (c) => c.id === parseInt(selectedCustomerId, 10)
   );
+
+  const tierLimit = Number(selectedCustomer?.tierMaxDiscount ?? selectedCustomer?.maxDiscountPercent ?? 15);
+
+  const handleApplyTierAdvantage = (percent) => {
+    const val = Number(percent) || 0;
+    setOrderDiscountPercent(val.toString());
+    toast.success('Tier Advantage Applied', `${val}% ${selectedCustomer?.tierName || ''} Tier discount advantage activated.`);
+  };
+
+  const handleResetDiscounts = () => {
+    setOrderDiscountPercent('');
+    setLines((prev) => prev.map((l) => ({ ...l, discountPercent: 0 })));
+    toast.info('Discounts Reset', 'All manual and tier discounts have been reset to 0%.');
+  };
 
   const handleAddBlankLine = () => {
     if (products.length === 0) return;
@@ -194,7 +223,6 @@ export const QuotationBuilderPage = () => {
   const grandTotal = netTotal + taxTotal;
 
   // Governance limit checks
-  const tierLimit = selectedCustomer?.maxDiscountPercent ?? 15;
   const maxDiscountInQuote = Math.max(
     orderDiscPct,
     ...lines.map((l) => parseFloat(l.discountPercent) || 0),
@@ -217,17 +245,20 @@ export const QuotationBuilderPage = () => {
     try {
       const payload = {
         customerId: parseInt(selectedCustomerId, 10),
-        currency: currencyCode,
-        targetCloseDate: expectedCloseDate || null,
+        currencyCode: currencyCode,
+        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate).toISOString() : null,
         notes: notes.trim() || null,
-        overallDiscountPercent: orderDiscPct,
-        lines: lines.map((l) => ({
-          productId: parseInt(l.productId, 10),
-          variantId: l.variantId ? parseInt(l.variantId, 10) : null,
-          quantity: parseInt(l.quantity, 10) || 1,
-          unitPrice: parseFloat(l.unitPrice) || 0,
-          discountPercent: parseFloat(l.discountPercent) || 0,
-        })),
+        lines: lines.map((l) => {
+          const lineDisc = parseFloat(l.discountPercent) || 0;
+          const effectiveDisc = lineDisc > 0 ? lineDisc : (orderDiscPct > 0 ? orderDiscPct : 0);
+          return {
+            productId: parseInt(l.productId, 10),
+            variantId: l.variantId ? parseInt(l.variantId, 10) : null,
+            quantity: parseInt(l.quantity, 10) || 1,
+            unitPrice: parseFloat(l.unitPrice) || 0,
+            discountPercent: effectiveDisc,
+          };
+        }),
       };
 
       const result = await quotationApi.createQuotation(payload);
@@ -261,6 +292,30 @@ export const QuotationBuilderPage = () => {
 
       {error && <ErrorAlert message={error} />}
 
+      {searchParams.get('inquiryId') && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-700">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs">Auto-Populated from Sales Inquiry</span>
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-200/80 text-emerald-900">
+                  #{searchParams.get('inquiryId')}
+                </span>
+              </div>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                Customer account, requested product deliverables, and inquiry notes pre-filled. Customize manual discounts or activate customer tier advantage below.
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-semibold text-emerald-700 bg-white/80 px-2.5 py-1 rounded-md border border-emerald-200 self-start sm:self-auto">
+            Live Quotation Bridge
+          </span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Form Details & Line Items (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
@@ -280,7 +335,7 @@ export const QuotationBuilderPage = () => {
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
                 options={customers.map((c) => ({
                   value: c.id,
-                  label: `${c.name} (${c.tierName || 'Standard'})`,
+                  label: `${c.name} (${c.tierName || 'Standard'} Tier)`,
                 }))}
               />
 
@@ -305,16 +360,57 @@ export const QuotationBuilderPage = () => {
             </div>
 
             {selectedCustomer && (
-              <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                <div>
-                  <span className="font-bold text-blue-950">Active Tier: {selectedCustomer.tierName}</span>
-                  <p className="text-blue-800 text-[11px] mt-0.5">
-                    Tier discount limit: {tierLimit}%. Exceeding this triggers automated approval escalation.
-                  </p>
+              <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50/90 to-indigo-50/90 border border-blue-200/90 shadow-2xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`px-2.5 py-1 text-xs font-bold uppercase rounded-lg border shadow-2xs ${
+                        selectedCustomer.tierName === 'Gold'
+                          ? 'bg-amber-100 text-amber-950 border-amber-300'
+                          : selectedCustomer.tierName === 'Silver'
+                          ? 'bg-slate-200 text-slate-900 border-slate-300'
+                          : 'bg-orange-100 text-orange-950 border-orange-300'
+                      }`}
+                    >
+                      {selectedCustomer.tierName || 'Standard'} Tier
+                    </span>
+                    <div>
+                      <span className="text-xs font-bold text-blue-950">
+                        Tier Discount Ceiling: <span className="text-blue-700 font-extrabold">{tierLimit}%</span>
+                      </span>
+                      <p className="text-[11px] text-blue-800 mt-0.5">
+                        {selectedCustomer.tierName === 'Gold'
+                          ? 'Premium enterprise account with up to 15% pre-approved commercial discount advantage.'
+                          : selectedCustomer.tierName === 'Silver'
+                          ? 'Established business account with up to 10% pre-approved commercial discount advantage.'
+                          : 'Standard business account with up to 5% pre-approved commercial discount advantage.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => handleApplyTierAdvantage(tierLimit)}
+                      className="bg-white hover:bg-blue-50 text-blue-700 border-blue-300 font-bold text-xs shadow-2xs"
+                    >
+                      Apply {tierLimit}% Tier Advantage
+                    </Button>
+                    {(orderDiscountPercent || lines.some((l) => parseFloat(l.discountPercent) > 0)) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={handleResetDiscounts}
+                        className="text-slate-500 hover:text-slate-700 text-xs"
+                      >
+                        Reset
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <span className="font-semibold text-blue-900 bg-white px-2.5 py-1 rounded-md border border-blue-200/80 self-start sm:self-auto text-[11px] shadow-2xs">
-                  Ceiling: {tierLimit}%
-                </span>
               </div>
             )}
           </div>
@@ -467,6 +563,50 @@ export const QuotationBuilderPage = () => {
                 </table>
               </div>
             )}
+
+            {/* Overall Manual Deal Discount Control */}
+            {lines.length > 0 && (
+              <div className="p-4 bg-slate-50/90 rounded-xl border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800">
+                    Overall Proposal Discount (%)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Apply blanket manual commercial discount across all proposal deliverables or use Tier Advantage above.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="100"
+                      value={orderDiscountPercent}
+                      onChange={(e) => setOrderDiscountPercent(e.target.value)}
+                      placeholder="0.0"
+                      className={`w-28 h-9 px-3 text-center text-xs font-mono font-bold rounded-lg border focus:outline-none focus:ring-2 ${
+                        orderDiscPct > tierLimit
+                          ? 'border-amber-400 bg-amber-50 text-amber-900 focus:ring-amber-500'
+                          : 'border-slate-300 bg-white focus:ring-blue-500'
+                      }`}
+                    />
+                    <span className="ml-2 text-xs font-bold text-slate-600">%</span>
+                  </div>
+                  {orderDiscPct > 0 && (
+                    <span
+                      className={`text-[11px] font-semibold px-2 py-1 rounded-md border ${
+                        orderDiscPct <= tierLimit
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-amber-50 text-amber-900 border-amber-300'
+                      }`}
+                    >
+                      {orderDiscPct <= tierLimit ? '✓ Auto-Approved' : '⚠ Escalation'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Section 3: Commercial Terms & Notes */}
@@ -517,21 +657,36 @@ export const QuotationBuilderPage = () => {
               </div>
             </div>
 
-            {/* Governance Warning Badge */}
-            {triggersApproval ? (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+            {/* Governance & Tier Advantage Status */}
+            {maxDiscountInQuote === 0 ? (
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block text-slate-800">Standard Catalog Pricing</span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5">
+                    Zero discounts applied. Direct customer transmission available upon generation.
+                  </span>
+                </div>
+              </div>
+            ) : triggersApproval ? (
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-start gap-2.5">
                 <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold block">Approval Escalation Required</span>
-                  <span className="text-[11px] text-amber-800 block mt-0.5">
-                    Discount ({maxDiscountInQuote}%) exceeds tier ceiling ({tierLimit}%). Proposal will require Manager signoff.
+                  <span className="text-[11px] text-amber-900 block mt-0.5 leading-relaxed">
+                    Max discount ({maxDiscountInQuote}%) exceeds <strong>{selectedCustomer?.tierName || 'Standard'}</strong> Tier ceiling ({tierLimit}%). Automatically routes to Sales Management for signoff.
                   </span>
                 </div>
               </div>
             ) : (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="text-[11px] font-medium">Within tier discount limits. Instant signoff eligible.</span>
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-950 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block text-emerald-900">Tier Advantage Verified</span>
+                  <span className="text-[11px] text-emerald-800 block mt-0.5 leading-relaxed">
+                    Applied discount ({maxDiscountInQuote}%) is within <strong>{selectedCustomer?.tierName || 'Standard'}</strong> Tier ceiling (≤ {tierLimit}%). Auto-approved for instant transmission.
+                  </span>
+                </div>
               </div>
             )}
 

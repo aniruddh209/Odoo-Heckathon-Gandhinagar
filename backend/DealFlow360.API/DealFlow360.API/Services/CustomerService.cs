@@ -69,7 +69,9 @@ public class CustomerService : ICustomerService
                 Name = c.Name,
                 Email = c.Email,
                 Phone = c.Phone,
+                TierId = c.TierId,
                 TierName = c.Tier.Name,
+                TierMaxDiscount = c.Tier.MaxDiscountPercent,
                 CurrencyCode = c.CurrencyCode,
                 IsActive = c.IsActive
             }).ToListAsync();

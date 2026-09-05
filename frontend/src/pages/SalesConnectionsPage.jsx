@@ -334,19 +334,17 @@ export const SalesConnectionsPage = () => {
     }
   };
 
-  // Open in Quotation Builder (Custom)
+  // Open in Quotation Builder (Pre-populates all inquiry fields)
   const handleOpenInQuoteBuilder = (target) => {
     const item = target || selectedInquiry;
     if (!item) return;
 
     const queryParams = new URLSearchParams({
-      customerId: item.customerId,
-      productId: item.productId,
-      quantity: item.requestedQuantity || 1,
-      inquiryId: item.requestNumber,
-      notes: encodeURIComponent(
-        `Generated from Inquiry #${item.requestNumber} (${item.companyName} - ${item.productName}). Customer note: ${item.customerMessage || 'N/A'}`
-      ),
+      customerId: (item.customerId || '').toString(),
+      productId: (item.productId || '').toString(),
+      quantity: (item.requestedQuantity || 1).toString(),
+      inquiryId: item.requestNumber || '',
+      notes: `Generated from Inquiry #${item.requestNumber} (${item.companyName || ''} - ${item.productName || ''}). Customer request: ${item.customerMessage || 'Standard RFP Request'}`,
     });
 
     setIsDrawerOpen(false);
@@ -461,39 +459,72 @@ export const SalesConnectionsPage = () => {
             )}
 
             {r.status === 'Accepted' && (
-              <Button
-                variant="primary"
-                size="xs"
-                icon={Phone}
-                onClick={() => triggerContactModal(r)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-              >
-                Contact
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  size="xs"
+                  icon={Phone}
+                  onClick={() => triggerContactModal(r)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  Contact
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  icon={FileText}
+                  onClick={() => handleOpenInQuoteBuilder(r)}
+                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs"
+                >
+                  Generate Quote
+                </Button>
+              </>
             )}
 
             {r.status === 'Contacted' && (
-              <Button
-                variant="primary"
-                size="xs"
-                icon={ShieldCheck}
-                onClick={() => triggerQualifyModal(r)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-              >
-                Qualify
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  size="xs"
+                  icon={ShieldCheck}
+                  onClick={() => triggerQualifyModal(r)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                >
+                  Qualify
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  icon={FileText}
+                  onClick={() => handleOpenInQuoteBuilder(r)}
+                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs"
+                >
+                  Generate Quote
+                </Button>
+              </>
             )}
 
-            {r.status === 'Qualified' && (
-              <Button
-                variant="primary"
-                size="xs"
-                icon={Zap}
-                onClick={() => handleCreateQuoteOneClick(r)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
-              >
-                1-Click Quote
-              </Button>
+            {r.status === 'Qualified' && !r.quotationId && (
+              <>
+                <Button
+                  variant="primary"
+                  size="xs"
+                  icon={FileText}
+                  onClick={() => handleOpenInQuoteBuilder(r)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs text-xs"
+                >
+                  Generate Quote
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  icon={Zap}
+                  onClick={() => handleCreateQuoteOneClick(r)}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold text-xs"
+                >
+                  1-Click
+                </Button>
+              </>
             )}
 
             {r.quotationId && (
@@ -512,7 +543,7 @@ export const SalesConnectionsPage = () => {
               variant="outline"
               size="xs"
               onClick={() => handleOpenDrawer(r)}
-              className="text-slate-600 hover:text-slate-900 border-slate-200"
+              className="text-slate-600 hover:text-slate-900 border-slate-200 font-medium"
             >
               Review
             </Button>
@@ -1054,10 +1085,20 @@ export const SalesConnectionsPage = () => {
                     <Button
                       variant="primary"
                       size="sm"
+                      icon={FileText}
+                      disabled={isSubmittingAction}
+                      onClick={() => handleOpenInQuoteBuilder(selectedInquiry)}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-xs"
+                    >
+                      Generate Quotation
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       icon={Phone}
                       disabled={isSubmittingAction}
                       onClick={() => triggerContactModal(selectedInquiry)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs"
+                      className="text-xs font-semibold"
                     >
                       Log Customer Contact
                     </Button>
@@ -1089,10 +1130,20 @@ export const SalesConnectionsPage = () => {
                     <Button
                       variant="primary"
                       size="sm"
+                      icon={FileText}
+                      disabled={isSubmittingAction}
+                      onClick={() => handleOpenInQuoteBuilder(selectedInquiry)}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-xs"
+                    >
+                      Generate Quotation
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       icon={ShieldCheck}
                       disabled={isSubmittingAction}
                       onClick={() => triggerQualifyModal(selectedInquiry)}
-                      className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs"
+                      className="text-xs font-semibold"
                     >
                       Qualify Requirements
                     </Button>
@@ -1114,22 +1165,22 @@ export const SalesConnectionsPage = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                      icon={Zap}
+                      icon={FileText}
                       disabled={isSubmittingAction}
-                      onClick={() => handleCreateQuoteOneClick(selectedInquiry)}
-                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs shadow-xs"
+                      onClick={() => handleOpenInQuoteBuilder(selectedInquiry)}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-xs"
                     >
-                      {isSubmittingAction ? 'Generating...' : '1-Click Quotation Creation'}
+                      Generate Quotation
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
-                      icon={FileText}
+                      icon={Zap}
                       disabled={isSubmittingAction}
-                      onClick={() => handleOpenInQuoteBuilder(selectedInquiry)}
+                      onClick={() => handleCreateQuoteOneClick(selectedInquiry)}
                       className="text-xs font-semibold"
                     >
-                      Open in Quote Builder
+                      {isSubmittingAction ? 'Generating...' : '1-Click Instant Quote'}
                     </Button>
                   </>
                 )}
