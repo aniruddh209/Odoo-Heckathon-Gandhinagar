@@ -49,7 +49,7 @@ export const PortalQuoteHeader = ({
             </div>
             <span>•</span>
             <div>
-              Version: <strong className="text-slate-700">v{quote.VersionNumber}</strong>
+              Version: <strong className="text-slate-700">v{quote.version || quote.Version || quote.VersionNumber || 1}</strong>
             </div>
           </div>
         </div>

@@ -24,9 +24,14 @@ public class CustomerQuoteDto
 {
     public int Id { get; set; }
     public string QuotationNumber { get; set; } = string.Empty;
+    public int Version { get; set; } = 1;
     public string CustomerName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string CurrencyCode { get; set; } = string.Empty;
+    public int? OrderId { get; set; }
+    public string? OrderNumber { get; set; }
+    public string? InvoiceNumber { get; set; }
+    public int ActiveSubscriptionsCount { get; set; }
     public decimal SubTotal { get; set; }
     public decimal DiscountTotal { get; set; }
     public decimal TaxTotal { get; set; }

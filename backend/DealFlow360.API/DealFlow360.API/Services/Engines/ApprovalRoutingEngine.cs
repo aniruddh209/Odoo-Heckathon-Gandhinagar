@@ -80,7 +80,19 @@ public class ApprovalRoutingEngine : IApprovalRoutingEngine
 
         if (currentLevel == ApprovalLevel.Manager || actingUser.Role == Role.SalesManager)
         {
-            if (quotation.RiskScore >= 70.00m)
+            // Evaluate if deal exceeds Finance threshold or high risk (>= 70.00m)
+            decimal financeThreshold = 10.00m;
+            if (quotation.Customer?.Tier != null)
+            {
+                if (quotation.Customer.Tier.MaxDiscountPercent <= 3.00m) financeThreshold = 5.00m;
+                else if (quotation.Customer.Tier.MaxDiscountPercent <= 5.00m) financeThreshold = 10.00m;
+                else financeThreshold = 15.00m;
+            }
+
+            bool exceedsFinance = quotation.RiskScore >= 70.00m ||
+                                  quotation.Lines.Any(l => l.DiscountPercent > financeThreshold);
+
+            if (exceedsFinance)
             {
                 return (QuoteStatus.PendingApproval, ApprovalStatus.ManagerApproved); // Needs Finance approval next
             }

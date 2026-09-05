@@ -56,6 +56,7 @@ public class QuotationListResponse
     public DateTime? ExpectedCloseDate { get; set; }
     public int? OrderId { get; set; }
     public string? OrderNumber { get; set; }
+    public int Version { get; set; } = 1;
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
 }
@@ -64,6 +65,7 @@ public class QuotationDetailResponse
 {
     public int Id { get; set; }
     public string QuotationNumber { get; set; } = string.Empty;
+    public int Version { get; set; } = 1;
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerTierName { get; set; } = string.Empty;

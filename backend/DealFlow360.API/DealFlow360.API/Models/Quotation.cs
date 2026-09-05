@@ -54,6 +54,7 @@ public class Quotation
     public string? Notes { get; set; }
 
     public bool IsPortalVisible { get; set; }
+    public int Version { get; set; } = 1;
 
     [Timestamp]
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();

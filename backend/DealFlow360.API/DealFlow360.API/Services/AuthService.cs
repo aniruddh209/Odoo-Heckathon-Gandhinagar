@@ -57,6 +57,12 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> SignupAsync(SignupRequest request)
     {
         // 1. Validation
+        if (!string.IsNullOrWhiteSpace(request.Role) &&
+            !string.Equals(request.Role.Trim(), "Customer", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Public registration is strictly permitted for Customer accounts only. Internal staff (Admin, Sales Manager, Sales Rep, Finance) cannot self-register.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.FullName))
         {
             throw new ArgumentException("Full name is required.");

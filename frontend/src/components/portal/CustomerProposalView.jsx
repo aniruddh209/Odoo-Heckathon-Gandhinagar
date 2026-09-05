@@ -93,14 +93,13 @@ export const CustomerProposalView = ({
   const oneTimeLines = lines.filter((l) => !isLineRecurring(l));
   const recurringLines = lines.filter((l) => isLineRecurring(l));
 
-  // Determine if proposal can be confirmed or negotiated
   const isApproved = quote.status === 'Approved' || quote.approvalStatus === 'Approved';
   const isFinalized =
     quote.status === 'Confirmed' ||
     quote.status === 'ConvertedToOrder';
   const isRejected = quote.status === 'Rejected' || quote.status === 'Cancelled';
   const isPendingApproval = quote.status === 'PendingApproval' || quote.approvalStatus === 'Pending';
-  const canConfirm = !isFinalized && !isRejected && !isPendingApproval;
+  const canConfirm = (isApproved || quote.status === 'Sent') && !isFinalized && !isRejected;
   const canNegotiate = !isApproved && !isFinalized && !isRejected && !isPendingApproval;
 
   // Formatting helpers
@@ -266,6 +265,10 @@ export const CustomerProposalView = ({
                 <span className="text-xs font-mono font-bold text-slate-700">
                   {quote.quotationNumber}
                 </span>
+                <span className="text-slate-300">•</span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                  v{quote.version || 1}
+                </span>
               </div>
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                 {quote.customerName}
@@ -350,21 +353,31 @@ export const CustomerProposalView = ({
           </div>
         )}
 
-        {quote.status === 'Confirmed' && (
-          <div className="px-6 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center gap-3 text-emerald-800 text-xs">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              <strong>Proposal Formally Confirmed:</strong> Thank you for your partnership! Our sales operations team has received this confirmation and order conversion is underway.
-            </span>
-          </div>
-        )}
-
-        {quote.status === 'ConvertedToOrder' && (
-          <div className="px-6 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center gap-3 text-indigo-800 text-xs">
-            <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-            <span>
-              <strong>Active Order Created:</strong> This quotation has officially converted into an execution order. Check your "My Orders" tab for fulfillment tracking.
-            </span>
+        {(quote.status === 'Confirmed' || quote.status === 'ConvertedToOrder') && (
+          <div className="px-6 py-3.5 bg-emerald-50 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-950 text-xs">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                <strong>Proposal Formally Confirmed & Converted:</strong> Order created and warehouse fulfillment & billing pipeline initialized.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {quote.orderNumber && (
+                <span className="bg-emerald-100/80 text-emerald-900 font-mono font-bold px-2 py-0.5 rounded border border-emerald-300">
+                  Order: {quote.orderNumber}
+                </span>
+              )}
+              {quote.invoiceNumber && (
+                <span className="bg-emerald-100/80 text-emerald-900 font-mono font-bold px-2 py-0.5 rounded border border-emerald-300">
+                  Invoice: {quote.invoiceNumber}
+                </span>
+              )}
+              {quote.activeSubscriptionsCount > 0 && (
+                <span className="bg-indigo-100/80 text-indigo-900 font-bold px-2 py-0.5 rounded border border-indigo-300">
+                  {quote.activeSubscriptionsCount} Subscriptions Active
+                </span>
+              )}
+            </div>
           </div>
         )}
 

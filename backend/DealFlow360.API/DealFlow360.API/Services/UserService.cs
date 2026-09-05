@@ -86,7 +86,12 @@ public class UserService : IUserService
             throw new ArgumentException("Full name is required.");
         }
 
-        if (!Enum.TryParse<Role>(request.Role, true, out var targetRole))
+        Role targetRole;
+        if (string.Equals(request.Role?.Trim(), "Finance", StringComparison.OrdinalIgnoreCase))
+        {
+            targetRole = Role.FinanceOperations;
+        }
+        else if (!Enum.TryParse<Role>(request.Role, true, out targetRole))
         {
             throw new ArgumentException($"Invalid role '{request.Role}'.");
         }

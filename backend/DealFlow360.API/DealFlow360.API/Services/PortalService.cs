@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DealFlow360.API.Data;
+using DealFlow360.API.DTOs.Billing;
 using DealFlow360.API.DTOs.Portal;
 using DealFlow360.API.Models;
 using DealFlow360.API.Models.Enums;
@@ -26,6 +27,8 @@ public class PortalService : IPortalService
     private readonly IBlendedDiscountRiskEngine _riskEngine;
     private readonly IMarginCalculationEngine _marginEngine;
     private readonly INotificationService _notificationService;
+    private readonly IFulfillmentService _fulfillmentService;
+    private readonly IBillingService _billingService;
 
     public PortalService(
         AppDbContext context,
@@ -34,7 +37,9 @@ public class PortalService : IPortalService
         IDiscountGovernanceEngine governanceEngine,
         IBlendedDiscountRiskEngine riskEngine,
         IMarginCalculationEngine marginEngine,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IFulfillmentService fulfillmentService,
+        IBillingService billingService)
     {
         _context = context;
         _jwtService = jwtService;
@@ -43,6 +48,8 @@ public class PortalService : IPortalService
         _riskEngine = riskEngine;
         _marginEngine = marginEngine;
         _notificationService = notificationService;
+        _fulfillmentService = fulfillmentService;
+        _billingService = billingService;
     }
 
     public async Task<CustomerQuoteDto> GetCustomerQuoteAsync(string token)
@@ -127,8 +134,8 @@ public class PortalService : IPortalService
             throw new InvalidOperationException("Cannot submit a counter-offer on an order that has already been converted.");
         if (quotation.Status == QuoteStatus.Confirmed)
             throw new InvalidOperationException("Cannot submit a counter-offer on a confirmed quotation.");
-        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
-            throw new InvalidOperationException("Cannot submit a counter-offer on an approved quotation. Commercial terms are locked.");
+        if (quotation.Status == QuoteStatus.PendingApproval || quotation.ApprovalStatus == ApprovalStatus.Pending)
+            throw new InvalidOperationException("Quotation is currently under review. Please wait for management approval before submitting additional changes.");
         if (quotation.Status == QuoteStatus.Rejected || quotation.Status == QuoteStatus.Cancelled)
             throw new InvalidOperationException("Cannot negotiate on a rejected or cancelled quotation.");
 
@@ -185,6 +192,7 @@ public class PortalService : IPortalService
             _context.ApprovalRequests.Add(approvalRequest);
         }
 
+        quotation.Version++;
         quotation.UpdatedAtUtc = DateTime.UtcNow;
         _context.Quotations.Update(quotation);
 
@@ -233,8 +241,8 @@ public class PortalService : IPortalService
             throw new InvalidOperationException("Cannot request changes on an order that has already been converted.");
         if (quotation.Status == QuoteStatus.Confirmed)
             throw new InvalidOperationException("Cannot request changes on a confirmed quotation.");
-        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
-            throw new InvalidOperationException("Cannot request changes on an approved quotation. Commercial terms are locked.");
+        if (quotation.Status == QuoteStatus.PendingApproval || quotation.ApprovalStatus == ApprovalStatus.Pending)
+            throw new InvalidOperationException("Quotation is currently under review. Please wait for management approval before requesting additional changes.");
         if (quotation.Status == QuoteStatus.Rejected || quotation.Status == QuoteStatus.Cancelled)
             throw new InvalidOperationException("Cannot request changes on a rejected or cancelled quotation.");
 
@@ -257,6 +265,7 @@ public class PortalService : IPortalService
         _context.QuotationChanges.Add(changeRecord);
 
         quotation.Status = QuoteStatus.UnderNegotiation;
+        quotation.Version++;
         quotation.UpdatedAtUtc = DateTime.UtcNow;
         _context.Quotations.Update(quotation);
 
@@ -321,9 +330,41 @@ public class PortalService : IPortalService
         {
             throw new InvalidOperationException("Quotation is currently undergoing internal governance review and cannot be confirmed until approved.");
         }
-        if (quotation.ApprovalStatus == ApprovalStatus.RevisionRequired)
+        if (quotation.ApprovalStatus != ApprovalStatus.Approved && quotation.Status != QuoteStatus.Approved && quotation.Status != QuoteStatus.Sent)
         {
-            throw new InvalidOperationException("Quotation requires revision and cannot be confirmed in its current state.");
+            throw new InvalidOperationException("Quotation must be approved before it can be confirmed.");
+        }
+
+        // Check or create order
+        var order = await _context.Orders
+            .Include(o => o.Lines).ThenInclude(ol => ol.Product)
+            .FirstOrDefaultAsync(o => o.QuotationId == quotation.Id);
+
+        if (order == null)
+        {
+            var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+            order = new Order
+            {
+                OrderNumber = orderNumber,
+                QuotationId = quotation.Id,
+                CustomerId = quotation.CustomerId,
+                Status = OrderStatus.Confirmed,
+                Total = quotation.GrandTotal,
+                CreatedAtUtc = DateTime.UtcNow,
+                Lines = quotation.Lines.Select(l => new OrderLine
+                {
+                    ProductId = l.ProductId,
+                    VariantId = l.VariantId,
+                    ProductType = l.Product.ProductType,
+                    Quantity = l.Quantity,
+                    UnitPrice = l.UnitPrice,
+                    DiscountPercent = l.DiscountPercent,
+                    NetAmount = l.NetAmount,
+                    TaxAmount = l.TaxAmount,
+                    SubscriptionPlanId = l.SubscriptionPlanId
+                }).ToList()
+            };
+            _context.Orders.Add(order);
         }
 
         quotation.Status = QuoteStatus.Confirmed;
@@ -336,10 +377,31 @@ public class PortalService : IPortalService
             EntityId = quotation.Id,
             Action = "CustomerConfirmedQuotation",
             CreatedAtUtc = DateTime.UtcNow,
-            Reason = $"Customer ({customerEmail}) confirmed quotation #{quotation.QuotationNumber} for {quotation.CurrencyCode} {quotation.GrandTotal:N2}"
+            Reason = $"Customer ({customerEmail}) confirmed quotation #{quotation.QuotationNumber} for {quotation.CurrencyCode} {quotation.GrandTotal:N2}. Order {order.OrderNumber} created."
         });
 
         await _context.SaveChangesAsync();
+
+        // Trigger Warehouse Fulfillment Allocation
+        try
+        {
+            await _fulfillmentService.ExecuteAllocationAsync(order.Id);
+        }
+        catch (Exception)
+        {
+            // Handled
+        }
+
+        // Trigger Hybrid Billing
+        BillingOverviewResponse? billingInfo = null;
+        try
+        {
+            billingInfo = await _billingService.GenerateBillingForOrderAsync(order.Id);
+        }
+        catch (Exception)
+        {
+            // Handled
+        }
 
         await _notificationService.SendNotificationAsync(
             quotation.SalesRepId,
@@ -354,21 +416,35 @@ public class PortalService : IPortalService
             .OrderByDescending(c => c.CreatedAtUtc)
             .ToListAsync();
 
-        return MapToCustomerQuoteDto(quotation, changes);
+        return MapToCustomerQuoteDto(quotation, changes, order, billingInfo?.InvoiceNumber, billingInfo?.ActiveSubscriptionsCount);
     }
 
-    private static CustomerQuoteDto MapToCustomerQuoteDto(Quotation q, List<QuotationChange>? changes = null)
+    private CustomerQuoteDto MapToCustomerQuoteDto(
+        Quotation q, 
+        List<QuotationChange>? changes = null,
+        Order? order = null,
+        string? invoiceNumber = null,
+        int? activeSubsCount = null)
     {
         // STRICT ZERO-LEAK SECURITY INVARIANT:
         // CostPrice, UnitMargin, MarginPercent, TotalCost, BlendedRiskScore,
         // and ManagerRemarks are strictly stripped!
+        var linkedOrder = order ?? _context.Orders.FirstOrDefault(o => o.QuotationId == q.Id);
+        var invNum = invoiceNumber ?? (linkedOrder != null ? _context.Invoices.Where(i => i.OrderId == linkedOrder.Id).Select(i => i.InvoiceNumber).FirstOrDefault() : null);
+        var subsCount = activeSubsCount ?? (linkedOrder != null ? _context.BillingSchedules.Count(s => s.OrderLine.OrderId == linkedOrder.Id) : 0);
+
         return new CustomerQuoteDto
         {
             Id = q.Id,
             QuotationNumber = q.QuotationNumber,
+            Version = q.Version,
             CustomerName = q.Customer?.Name ?? string.Empty,
             Status = q.Status.ToString(),
             CurrencyCode = q.CurrencyCode,
+            OrderId = linkedOrder?.Id,
+            OrderNumber = linkedOrder?.OrderNumber,
+            InvoiceNumber = invNum,
+            ActiveSubscriptionsCount = subsCount,
             SubTotal = q.SubTotal,
             DiscountTotal = q.DiscountTotal,
             TaxTotal = q.TaxTotal,

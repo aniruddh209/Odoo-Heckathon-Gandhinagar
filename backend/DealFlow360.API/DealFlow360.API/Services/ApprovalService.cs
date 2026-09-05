@@ -100,7 +100,8 @@ public class ApprovalService : IApprovalService
     public async Task<ApprovalDetailResponse> ActionApprovalAsync(int approvalRequestId, ApprovalActionRequest request, int actingUserId)
     {
         var ar = await _context.ApprovalRequests
-            .Include(a => a.Quotation)
+            .Include(a => a.Quotation).ThenInclude(q => q.Customer).ThenInclude(c => c.Tier)
+            .Include(a => a.Quotation).ThenInclude(q => q.Lines)
             .FirstOrDefaultAsync(a => a.Id == approvalRequestId);
 
         if (ar == null) throw new KeyNotFoundException($"Approval request {approvalRequestId} not found.");
@@ -123,7 +124,7 @@ public class ApprovalService : IApprovalService
         {
             actionEnum = ApprovalActionType.Reject;
         }
-        else if (normAction == "return" || normAction == "returned" || normAction == "requestrevision" || normAction == "returnforrevision")
+        else if (normAction == "return" || normAction == "returned" || normAction == "requestrevision" || normAction == "returnforrevision" || normAction == "requestchanges")
         {
             actionEnum = ApprovalActionType.RequestRevision;
         }

@@ -35,6 +35,8 @@ public class QuotationService : IQuotationService
     private readonly IBlendedDiscountRiskEngine _riskEngine;
     private readonly IUpsellCrossSellEngine _upsellEngine;
     private readonly IJwtService _jwtService;
+    private readonly IFulfillmentService _fulfillmentService;
+    private readonly IBillingService _billingService;
 
     public QuotationService(
         AppDbContext context,
@@ -42,7 +44,9 @@ public class QuotationService : IQuotationService
         IDiscountGovernanceEngine governanceEngine,
         IBlendedDiscountRiskEngine riskEngine,
         IUpsellCrossSellEngine upsellEngine,
-        IJwtService jwtService)
+        IJwtService jwtService,
+        IFulfillmentService fulfillmentService,
+        IBillingService billingService)
     {
         _context = context;
         _marginEngine = marginEngine;
@@ -50,6 +54,8 @@ public class QuotationService : IQuotationService
         _riskEngine = riskEngine;
         _upsellEngine = upsellEngine;
         _jwtService = jwtService;
+        _fulfillmentService = fulfillmentService;
+        _billingService = billingService;
     }
 
     public async Task<List<QuotationListResponse>> GetQuotationsAsync(int? salesRepId = null, QuoteStatus? status = null)
@@ -75,6 +81,7 @@ public class QuotationService : IQuotationService
             {
                 Id = q.Id,
                 QuotationNumber = q.QuotationNumber,
+                Version = q.Version,
                 CustomerName = q.Customer.Name,
                 SalesRepName = q.SalesRep.FullName,
                 Status = q.Status.ToString(),
@@ -521,6 +528,7 @@ public class QuotationService : IQuotationService
             quotation.ApprovalStatus = ApprovalStatus.None;
         }
 
+        quotation.Version++;
         quotation.UpdatedAtUtc = DateTime.UtcNow;
         _context.Quotations.Update(quotation);
         await RecalculateAndSaveQuotationAsync(quotation);
@@ -579,6 +587,7 @@ public class QuotationService : IQuotationService
             quotation.ApprovalStatus = ApprovalStatus.None;
         }
 
+        quotation.Version++;
         quotation.UpdatedAtUtc = DateTime.UtcNow;
         _context.Quotations.Update(quotation);
         await RecalculateAndSaveQuotationAsync(quotation);
@@ -729,41 +738,73 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
-        if (quotation.ApprovalStatus != ApprovalStatus.Approved && quotation.Status != QuoteStatus.Approved)
+        if (quotation.ApprovalStatus != ApprovalStatus.Approved && quotation.Status != QuoteStatus.Approved && quotation.Status != QuoteStatus.Confirmed)
         {
-            throw new InvalidOperationException($"Quotation {quotationId} must be fully approved before converting to an order.");
+            throw new InvalidOperationException($"Quotation {quotationId} must be fully approved or confirmed before converting to an order.");
         }
 
-        var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        var order = await _context.Orders
+            .Include(o => o.Lines).ThenInclude(ol => ol.Product)
+            .FirstOrDefaultAsync(o => o.QuotationId == quotation.Id);
 
-        var order = new Order
+        if (order == null)
         {
-            OrderNumber = orderNumber,
-            QuotationId = quotation.Id,
-            CustomerId = quotation.CustomerId,
-            Status = OrderStatus.Confirmed,
-            Total = quotation.GrandTotal,
-            CreatedAtUtc = DateTime.UtcNow,
-            Lines = quotation.Lines.Select(l => new OrderLine
+            var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+
+            order = new Order
             {
-                ProductId = l.ProductId,
-                VariantId = l.VariantId,
-                ProductType = l.Product.ProductType,
-                Quantity = l.Quantity,
-                UnitPrice = l.UnitPrice,
-                DiscountPercent = l.DiscountPercent,
-                NetAmount = l.NetAmount,
-                TaxAmount = l.TaxAmount,
-                SubscriptionPlanId = l.SubscriptionPlanId
-            }).ToList()
-        };
+                OrderNumber = orderNumber,
+                QuotationId = quotation.Id,
+                CustomerId = quotation.CustomerId,
+                Status = OrderStatus.Confirmed,
+                Total = quotation.GrandTotal,
+                CreatedAtUtc = DateTime.UtcNow,
+                Lines = quotation.Lines.Select(l => new OrderLine
+                {
+                    ProductId = l.ProductId,
+                    VariantId = l.VariantId,
+                    ProductType = l.Product.ProductType,
+                    Quantity = l.Quantity,
+                    UnitPrice = l.UnitPrice,
+                    DiscountPercent = l.DiscountPercent,
+                    NetAmount = l.NetAmount,
+                    TaxAmount = l.TaxAmount,
+                    SubscriptionPlanId = l.SubscriptionPlanId
+                }).ToList()
+            };
+
+            _context.Orders.Add(order);
+        }
 
         quotation.Status = QuoteStatus.ConvertedToOrder;
         quotation.UpdatedAtUtc = DateTime.UtcNow;
 
-        _context.Orders.Add(order);
         _context.Quotations.Update(quotation);
         await _context.SaveChangesAsync();
+
+        // Trigger Warehouse Fulfillment Allocation
+        try
+        {
+            await _fulfillmentService.ExecuteAllocationAsync(order.Id);
+        }
+        catch (Exception)
+        {
+            // Non-storable product or already allocated
+        }
+
+        // Trigger Hybrid Billing (Commercial Invoice + Recurring Subscriptions)
+        try
+        {
+            await _billingService.GenerateBillingForOrderAsync(order.Id);
+        }
+        catch (Exception)
+        {
+            // Already generated
+        }
+
+        order = await _context.Orders
+            .Include(o => o.Lines).ThenInclude(ol => ol.Product)
+            .FirstOrDefaultAsync(o => o.Id == order.Id) ?? order;
 
         return new OrderDetailResponse
         {
@@ -886,6 +927,7 @@ public class QuotationService : IQuotationService
         {
             Id = q.Id,
             QuotationNumber = q.QuotationNumber,
+            Version = q.Version,
             CustomerId = q.CustomerId,
             CustomerName = q.Customer?.Name ?? string.Empty,
             CustomerTierName = q.Customer?.Tier?.Name ?? "Silver",

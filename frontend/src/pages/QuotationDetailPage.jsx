@@ -357,6 +357,9 @@ export const QuotationDetailPage = () => {
               <h1 className="text-xl font-bold text-slate-900 font-mono tracking-tight">
                 {quote.quotationNumber}
               </h1>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                v{quote.version || 1}
+              </span>
               <StatusBadge status={quote.status} />
               <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1.5">
                 <span>{quote.customerTierName || 'Standard'} Tier</span>
