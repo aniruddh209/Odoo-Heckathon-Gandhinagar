@@ -72,8 +72,8 @@ export const ApprovalDetailPage = () => {
   const handleAction = async (actionType) => {
     if (!selectedApproval) return;
 
-    if ((actionType === 'Rejected' || actionType === 'Returned') && !actionReason.trim()) {
-      toast.error('Reason Required', `Please provide an explanation for why this deal was ${actionType.toLowerCase()}.`);
+    if ((actionType === 'Reject' || actionType === 'RequestRevision') && actionReason.trim().length < 10) {
+      toast.error('Detailed Reason Required', 'Please provide an explanation of at least 10 characters for why this proposal is being returned or rejected.');
       return;
     }
 
@@ -84,9 +84,10 @@ export const ApprovalDetailPage = () => {
         reason: actionReason || `Approved under standard authority by ${user?.fullName}.`,
       });
 
+      const label = actionType === 'Approve' ? 'Approved' : actionType === 'RequestRevision' ? 'Returned for Revision' : 'Rejected';
       toast.success(
         'Action Processed',
-        `Quote ${selectedApproval.quotationNumber} marked as ${actionType}.`
+        `Quote ${selectedApproval.quotationNumber} marked as ${label}.`
       );
 
       setSelectedApproval(null);
@@ -291,7 +292,7 @@ export const ApprovalDetailPage = () => {
                 size="md"
                 icon={CheckCircle2}
                 isLoading={isSubmitting}
-                onClick={() => handleAction('Approved')}
+                onClick={() => handleAction('Approve')}
               >
                 Approve Quotation
               </Button>
@@ -303,7 +304,7 @@ export const ApprovalDetailPage = () => {
                   icon={RotateCcw}
                   isLoading={isSubmitting}
                   className="border-amber-300 text-amber-800 hover:bg-amber-50"
-                  onClick={() => handleAction('Returned')}
+                  onClick={() => handleAction('RequestRevision')}
                 >
                   Return for Edit
                 </Button>
@@ -313,7 +314,7 @@ export const ApprovalDetailPage = () => {
                   size="sm"
                   icon={XCircle}
                   isLoading={isSubmitting}
-                  onClick={() => handleAction('Rejected')}
+                  onClick={() => handleAction('Reject')}
                 >
                   Reject Proposal
                 </Button>

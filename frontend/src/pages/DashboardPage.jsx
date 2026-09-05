@@ -12,8 +12,6 @@ import {
 import {
   Plus,
   TrendingUp,
-  AlertTriangle,
-  Clock,
   AlertCircle,
   DollarSign,
   Percent,

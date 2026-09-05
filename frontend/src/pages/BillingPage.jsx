@@ -13,15 +13,9 @@ import {
   ErrorAlert,
 } from '../components/ui';
 import {
-  CreditCard,
   DollarSign,
   Calendar,
-  Layers,
-  FileText,
-  CheckCircle2,
-  AlertTriangle,
   RefreshCw,
-  Plus,
 } from 'lucide-react';
 
 export const BillingPage = () => {
