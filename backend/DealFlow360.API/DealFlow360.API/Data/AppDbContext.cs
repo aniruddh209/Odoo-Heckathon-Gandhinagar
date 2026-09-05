@@ -18,6 +18,11 @@ public class AppDbContext : DbContext
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerTier> CustomerTiers => Set<CustomerTier>();
 
+    // ─── Companies & Sales Connections ─────────────────────────
+    public DbSet<Company> Companies => Set<Company>();
+    public DbSet<SalesAssignment> SalesAssignments => Set<SalesAssignment>();
+    public DbSet<SalesConnectionRequest> SalesConnectionRequests => Set<SalesConnectionRequest>();
+
     // ─── Products & Pricing ────────────────────────────────────
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<Product> Products => Set<Product>();
@@ -140,6 +145,11 @@ public class AppDbContext : DbContext
                 .WithMany(c => c.Products)
                 .HasForeignKey(p => p.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(p => p.Company)
+                .WithMany(c => c.Products)
+                .HasForeignKey(p => p.CompanyId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
 
@@ -666,6 +676,94 @@ public class AppDbContext : DbContext
 
             entity.Ignore(rt => rt.IsRevoked);
             entity.Ignore(rt => rt.IsExpired);
+        });
+
+
+        // ═══════════════════════════════════════════════════════
+        // COMPANY
+        // ═══════════════════════════════════════════════════════
+
+        modelBuilder.Entity<Company>(entity =>
+        {
+            entity.HasIndex(c => c.Code).IsUnique();
+        });
+
+
+        // ═══════════════════════════════════════════════════════
+        // SALES ASSIGNMENT (ROUTING RULES)
+        // ═══════════════════════════════════════════════════════
+
+        modelBuilder.Entity<SalesAssignment>(entity =>
+        {
+            entity.HasOne(sa => sa.Company)
+                .WithMany(c => c.SalesAssignments)
+                .HasForeignKey(sa => sa.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(sa => sa.SalesRepresentative)
+                .WithMany(u => u.SalesAssignments)
+                .HasForeignKey(sa => sa.SalesRepresentativeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(sa => sa.Product)
+                .WithMany()
+                .HasForeignKey(sa => sa.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(sa => sa.Category)
+                .WithMany()
+                .HasForeignKey(sa => sa.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(sa => sa.Customer)
+                .WithMany()
+                .HasForeignKey(sa => sa.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(sa => sa.CompanyId);
+            entity.HasIndex(sa => sa.SalesRepresentativeId);
+        });
+
+
+        // ═══════════════════════════════════════════════════════
+        // SALES CONNECTION REQUEST
+        // ═══════════════════════════════════════════════════════
+
+        modelBuilder.Entity<SalesConnectionRequest>(entity =>
+        {
+            entity.HasIndex(scr => scr.RequestNumber).IsUnique();
+
+            entity.Property(scr => scr.Status)
+                .HasConversion<string>()
+                .HasMaxLength(30);
+
+            entity.HasOne(scr => scr.Customer)
+                .WithMany(c => c.SalesConnectionRequests)
+                .HasForeignKey(scr => scr.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(scr => scr.Company)
+                .WithMany(c => c.ConnectionRequests)
+                .HasForeignKey(scr => scr.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(scr => scr.Product)
+                .WithMany()
+                .HasForeignKey(scr => scr.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(scr => scr.SalesRepresentative)
+                .WithMany(u => u.AssignedSalesConnections)
+                .HasForeignKey(scr => scr.SalesRepresentativeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(scr => scr.Quotation)
+                .WithMany()
+                .HasForeignKey(scr => scr.QuotationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(scr => new { scr.CustomerId, scr.Status });
+            entity.HasIndex(scr => new { scr.SalesRepresentativeId, scr.Status });
         });
     }
 }

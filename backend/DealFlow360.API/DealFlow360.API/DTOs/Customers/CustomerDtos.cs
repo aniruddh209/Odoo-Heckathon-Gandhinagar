@@ -96,4 +96,5 @@ public class Customer360Response
     public List<CustomerProductHistoryItem> ProductHistory { get; set; } = new();
     public List<CustomerActivityEvent> ActivityTimeline { get; set; } = new();
     public List<DealFlow360.API.DTOs.Users.UserResponse> AssociatedUsers { get; set; } = new();
+    public List<DealFlow360.API.DTOs.SalesConnections.SalesConnectionResponse> SalesConnections { get; set; } = new();
 }

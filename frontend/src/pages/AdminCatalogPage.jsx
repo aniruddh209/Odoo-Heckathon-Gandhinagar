@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { adminApi } from '../api';
+import { adminApi, salesConnectionApi } from '../api';
 import { useToast } from '../context/ToastContext';
 import {
   Button,
@@ -26,6 +26,8 @@ import {
   Layers,
   Trash2,
   ExternalLink,
+  Building2,
+  UserCheck,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 
@@ -81,6 +83,32 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   const [overrideUnitPrice, setOverrideUnitPrice] = useState('');
   const [isOverrideSubmitting, setIsOverrideSubmitting] = useState(false);
 
+  // Companies and Sales Assignments State
+  const [companies, setCompanies] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [users, setUsers] = useState([]);
+
+  // Company Modal State
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [compCode, setCompCode] = useState('');
+  const [compName, setCompName] = useState('');
+  const [compDesc, setCompDesc] = useState('');
+  const [compWebsite, setCompWebsite] = useState('');
+  const [compEmail, setCompEmail] = useState('');
+  const [compPhone, setCompPhone] = useState('');
+  const [isCompSubmitting, setIsCompSubmitting] = useState(false);
+
+  // Assignment Modal State
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+  const [asCompanyId, setAsCompanyId] = useState('');
+  const [asRepId, setAsRepId] = useState('');
+  const [asCategoryId, setAsCategoryId] = useState('');
+  const [asProductId, setAsProductId] = useState('');
+  const [asPriority, setAsPriority] = useState('10');
+  const [asIsDefault, setAsIsDefault] = useState(false);
+  const [asNotes, setAsNotes] = useState('');
+  const [isAsSubmitting, setIsAsSubmitting] = useState(false);
+
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
@@ -93,25 +121,39 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const [pRes, cRes, tRes, plRes] = await Promise.all([
+      const [pRes, cRes, tRes, plRes, compRes, asRes, uRes] = await Promise.all([
         adminApi.getProducts(),
         adminApi.getCategories(),
         adminApi.getCustomerTiers(),
         adminApi.getPriceLists(),
+        salesConnectionApi.getAllCompaniesAdmin().catch(() => []),
+        salesConnectionApi.getSalesAssignments().catch(() => []),
+        adminApi.getUsers().catch(() => []),
       ]);
 
       const pList = Array.isArray(pRes) ? pRes : pRes?.value || [];
       const cList = Array.isArray(cRes) ? cRes : cRes?.value || [];
       const tList = Array.isArray(tRes) ? tRes : tRes?.value || [];
       const plList = Array.isArray(plRes) ? plRes : plRes?.value || [];
+      const compList = Array.isArray(compRes) ? compRes : compRes?.value || [];
+      const asList = Array.isArray(asRes) ? asRes : asRes?.value || [];
+      const uList = Array.isArray(uRes) ? uRes : uRes?.value || [];
 
       setProducts(pList);
       setCategories(cList);
       setCustomerTiers(tList);
       setPriceLists(plList);
+      setCompanies(compList);
+      setAssignments(asList);
+      setUsers(uList);
 
       if (cList.length > 0 && !productCategoryId) setProductCategoryId(cList[0].id.toString());
       if (plList.length > 0 && !selectedPriceList) setSelectedPriceList(plList[0]);
+      if (compList.length > 0 && !asCompanyId) setAsCompanyId(compList[0].id.toString());
+      if (uList.length > 0 && !asRepId) {
+        const firstRep = uList.find(u => u.role === 'SalesRep' || u.role === 'SalesManager') || uList[0];
+        setAsRepId(firstRep.id.toString());
+      }
     } catch (err) {
       setError(err.message || 'Failed to load master catalog and price lists.');
     } finally {
@@ -297,6 +339,102 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
       await loadData();
     } catch (err) {
       toast.error('Failed to Remove Override', err.message);
+    }
+  };
+
+  // Company Management Handlers
+  const handleOpenAddCompany = () => {
+    setCompCode('');
+    setCompName('');
+    setCompDesc('');
+    setCompWebsite('');
+    setCompEmail('');
+    setCompPhone('');
+    setIsCompanyModalOpen(true);
+  };
+
+  const handleSaveCompany = async (e) => {
+    e.preventDefault();
+    if (!compCode.trim() || !compName.trim()) return;
+    setIsCompSubmitting(true);
+    try {
+      await salesConnectionApi.createCompany({
+        code: compCode.trim().toUpperCase(),
+        name: compName.trim(),
+        description: compDesc.trim() || null,
+        website: compWebsite.trim() || null,
+        contactEmail: compEmail.trim() || null,
+        contactPhone: compPhone.trim() || null,
+      });
+      toast.success('Company Created', `Operating company "${compName}" registered successfully.`);
+      setIsCompanyModalOpen(false);
+      await loadData();
+    } catch (err) {
+      toast.error('Failed to Create Company', err.message);
+    } finally {
+      setIsCompSubmitting(false);
+    }
+  };
+
+  const handleDeleteCompany = async (company) => {
+    if (!window.confirm(`Are you sure you want to delete "${company.name}"?`)) return;
+    try {
+      await salesConnectionApi.deleteCompany(company.id);
+      toast.success('Company Removed', `Company "${company.name}" deleted.`);
+      await loadData();
+    } catch (err) {
+      toast.error('Failed to Delete Company', err.message);
+    }
+  };
+
+  // Sales Assignment Handlers
+  const handleOpenAddAssignment = () => {
+    if (companies.length > 0) setAsCompanyId(companies[0].id.toString());
+    const firstRep = users.find(u => u.role === 'SalesRep' || u.role === 'SalesManager') || users[0];
+    if (firstRep) setAsRepId(firstRep.id.toString());
+    setAsProductId('');
+    setAsCategoryId('');
+    setAsPriority('10');
+    setAsIsDefault(false);
+    setAsNotes('');
+    setIsAssignmentModalOpen(true);
+  };
+
+  const handleSaveAssignment = async (e) => {
+    e.preventDefault();
+    if (!asCompanyId || !asRepId) {
+      toast.error('Validation Error', 'Please select both an operating company and a sales representative.');
+      return;
+    }
+    setIsAsSubmitting(true);
+    try {
+      await salesConnectionApi.createSalesAssignment({
+        companyId: parseInt(asCompanyId, 10),
+        salesRepresentativeId: parseInt(asRepId, 10),
+        productId: asProductId ? parseInt(asProductId, 10) : null,
+        categoryId: asCategoryId ? parseInt(asCategoryId, 10) : null,
+        priority: parseInt(asPriority, 10) || 10,
+        isDefault: asIsDefault,
+        notes: asNotes.trim() || null,
+      });
+      toast.success('Routing Rule Saved', 'Sales representative routing rule configured successfully.');
+      setIsAssignmentModalOpen(false);
+      await loadData();
+    } catch (err) {
+      toast.error('Failed to Create Rule', err.message);
+    } finally {
+      setIsAsSubmitting(false);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignment) => {
+    if (!window.confirm(`Remove this routing rule for ${assignment.companyName} → ${assignment.salesRepName}?`)) return;
+    try {
+      await salesConnectionApi.deleteSalesAssignment(assignment.id);
+      toast.success('Routing Rule Deleted', 'Sales routing rule removed.');
+      await loadData();
+    } catch (err) {
+      toast.error('Failed to Delete Rule', err.message);
     }
   };
 
@@ -506,25 +644,242 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
     },
   ];
 
+  // Company Columns
+  const companyColumns = [
+    {
+      header: 'Code',
+      accessor: 'code',
+      render: (c) => (
+        <span className="font-mono font-bold text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+          {c.code}
+        </span>
+      ),
+    },
+    {
+      header: 'Company / Brand Name',
+      accessor: 'name',
+      render: (c) => (
+        <div>
+          <span className="font-semibold text-slate-900 block">{c.name}</span>
+          {c.description && (
+            <p className="text-[11px] text-slate-500 line-clamp-1 italic max-w-xs">{c.description}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Contact Info',
+      accessor: 'contactEmail',
+      render: (c) => (
+        <div className="text-xs text-slate-600">
+          {c.contactEmail && <div>{c.contactEmail}</div>}
+          {c.contactPhone && <div className="text-slate-400 font-mono text-[11px]">{c.contactPhone}</div>}
+          {!c.contactEmail && !c.contactPhone && <span className="text-slate-400 italic">No contact specified</span>}
+        </div>
+      ),
+    },
+    {
+      header: 'Website',
+      accessor: 'website',
+      render: (c) =>
+        c.website ? (
+          <a
+            href={c.website.startsWith('http') ? c.website : `https://${c.website}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+          >
+            {c.website.replace(/^https?:\/\//, '')} <ExternalLink className="w-3 h-3 inline" />
+          </a>
+        ) : (
+          <span className="text-slate-400 text-xs">—</span>
+        ),
+    },
+    {
+      header: 'Products',
+      accessor: 'productCount',
+      render: (c) => (
+        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+          {c.productCount || 0} SKUs
+        </span>
+      ),
+    },
+    {
+      header: 'Routing Rules',
+      accessor: 'activeAssignmentsCount',
+      render: (c) => (
+        <span className="font-mono text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full font-semibold">
+          {c.activeAssignmentsCount || 0} rules
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      accessor: 'isActive',
+      render: (c) => (
+        <span
+          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+            c.isActive
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+          }`}
+        >
+          {c.isActive ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (c) => (
+        <Button
+          variant="danger"
+          size="xs"
+          icon={Trash2}
+          onClick={() => handleDeleteCompany(c)}
+          className="text-xs py-1 px-2 h-7"
+        >
+          Delete
+        </Button>
+      ),
+    },
+  ];
+
+  // Sales Assignment Routing Columns
+  const assignmentColumns = [
+    {
+      header: 'Priority',
+      accessor: 'priority',
+      render: (a) => (
+        <span className="font-mono font-bold text-xs text-slate-800 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded">
+          P{a.priority}
+        </span>
+      ),
+    },
+    {
+      header: 'Operating Company',
+      accessor: 'companyName',
+      render: (a) => <span className="font-semibold text-slate-900 text-xs">{a.companyName}</span>,
+    },
+    {
+      header: 'Assigned Representative',
+      accessor: 'salesRepName',
+      render: (a) => (
+        <div>
+          <span className="font-semibold text-blue-700 text-xs block">{a.salesRepName}</span>
+          <span className="text-[11px] text-slate-400 font-mono">{a.salesRepEmail}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Routing Scope',
+      accessor: 'scope',
+      render: (a) => {
+        if (a.productName) {
+          return (
+            <div>
+              <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                Product Specific
+              </span>
+              <span className="block text-xs text-slate-700 mt-0.5">{a.productName}</span>
+            </div>
+          );
+        }
+        if (a.categoryName) {
+          return (
+            <div>
+              <span className="text-[10px] uppercase font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                Category Level
+              </span>
+              <span className="block text-xs text-slate-700 mt-0.5">{a.categoryName}</span>
+            </div>
+          );
+        }
+        if (a.isDefault) {
+          return (
+            <span className="text-[10px] uppercase font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+              Company Default Rep
+            </span>
+          );
+        }
+        return <span className="text-xs text-slate-500 italic">General Company Rule</span>;
+      },
+    },
+    {
+      header: 'Default Fallback',
+      accessor: 'isDefault',
+      render: (a) => (
+        <span
+          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            a.isDefault ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'text-slate-400'
+          }`}
+        >
+          {a.isDefault ? 'Fallback Rep' : 'Rule Based'}
+        </span>
+      ),
+    },
+    {
+      header: 'Notes',
+      accessor: 'notes',
+      render: (a) => (
+        <span className="text-xs text-slate-500 italic max-w-xs block truncate">{a.notes || '—'}</span>
+      ),
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (a) => (
+        <Button
+          variant="danger"
+          size="xs"
+          icon={Trash2}
+          onClick={() => handleDeleteAssignment(a)}
+          className="text-xs py-1 px-2 h-7"
+        >
+          Delete
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6 animate-in fade-in">
       {/* Header */}
       <PageHeader
-        title="Products & Contracted Pricing"
-        subtitle="Master SKU catalog, product categorization, and contracted tier price list definitions."
-        badge={`${products.length} Products`}
+        title="Products, Pricing & Sales Routing"
+        subtitle="Master SKU catalog, contracted tier price list definitions, vendor companies, and deterministic sales routing rules."
+        badge={
+          activeTab === 'products'
+            ? `${products.length} Products`
+            : activeTab === 'pricing'
+            ? `${priceLists.length} Price Lists`
+            : activeTab === 'companies'
+            ? `${companies.length} Companies`
+            : `${assignments.length} Rules`
+        }
         actions={
           <div className="flex items-center gap-2.5">
             <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadData}>
               Refresh
             </Button>
-            {activeTab === 'products' ? (
+            {activeTab === 'products' && (
               <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddProduct}>
                 Add Product
               </Button>
-            ) : (
+            )}
+            {activeTab === 'pricing' && (
               <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddPriceList}>
                 Add Price List
+              </Button>
+            )}
+            {activeTab === 'companies' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddCompany}>
+                Add Company
+              </Button>
+            )}
+            {activeTab === 'assignments' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddAssignment}>
+                Add Routing Rule
               </Button>
             )}
           </div>
@@ -534,11 +889,11 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
       {error && <ErrorAlert message={error} onRetry={loadData} />}
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 space-x-6 text-xs font-semibold">
+      <div className="flex border-b border-slate-200 space-x-6 text-xs font-semibold overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab('products')}
-          className={`py-3 border-b-2 flex items-center gap-2 transition-colors ${
+          className={`py-3 border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'products'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -550,7 +905,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
         <button
           type="button"
           onClick={() => setActiveTab('pricing')}
-          className={`py-3 border-b-2 flex items-center gap-2 transition-colors ${
+          className={`py-3 border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'pricing'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -558,6 +913,30 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
         >
           <IndianRupee className="w-4 h-4" />
           Contracted Price Lists ({priceLists.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('companies')}
+          className={`py-3 border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
+            activeTab === 'companies'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          Vendor Brands & Companies ({companies.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('assignments')}
+          className={`py-3 border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
+            activeTab === 'assignments'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          Sales Routing Rules ({assignments.length})
         </button>
       </div>
 
@@ -737,6 +1116,70 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tab 3: Vendor Brands & Companies */}
+      {activeTab === 'companies' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200/80 flex items-start gap-3">
+            <Building2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+            <div className="text-xs text-blue-900">
+              <span className="font-bold block text-sm">Operating Companies & Vendor Brands</span>
+              Manage company entities representing internal business divisions or external vendor brands (e.g. Dell Technologies, Samsung Electronics, Cisco Systems, Hewlett Packard Enterprise). Products and customer sales inquiries are partitioned across these entities.
+            </div>
+          </div>
+
+          <DataTable
+            columns={companyColumns}
+            data={companies}
+            emptyMessage="No companies configured"
+            emptyDescription="Add an operating company or vendor brand to begin routing sales inquiries."
+          />
+        </div>
+      )}
+
+      {/* Tab 4: Sales Routing Rules */}
+      {activeTab === 'assignments' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-200/80 space-y-2">
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-indigo-600 shrink-0" />
+              <span className="font-bold text-sm text-indigo-950">
+                Deterministic 7-Level Sales Representative Routing Engine
+              </span>
+            </div>
+            <p className="text-xs text-indigo-900">
+              When a customer requests connection for a product and operating company, the system deterministically evaluates assignments in strict priority order:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 text-[11px] text-indigo-950 font-medium">
+              <div className="bg-white/80 p-2 rounded border border-indigo-100">
+                <span className="font-bold text-indigo-700">1. Customer + Product Match</span> — Direct customer key-account rule for SKU
+              </div>
+              <div className="bg-white/80 p-2 rounded border border-indigo-100">
+                <span className="font-bold text-indigo-700">2. Customer + Company Match</span> — Customer dedicated account rep for brand
+              </div>
+              <div className="bg-white/80 p-2 rounded border border-indigo-100">
+                <span className="font-bold text-indigo-700">3. Company + Product Match</span> — Product specialist assigned to this specific SKU
+              </div>
+              <div className="bg-white/80 p-2 rounded border border-indigo-100">
+                <span className="font-bold text-indigo-700">4. Company + Category Match</span> — Category specialist (e.g. Server, Networking)
+              </div>
+              <div className="bg-white/80 p-2 rounded border border-indigo-100">
+                <span className="font-bold text-indigo-700">5. Company Default Rep</span> — Dedicated fallback rep flagged for company
+              </div>
+              <div className="bg-white/80 p-2 rounded border border-indigo-100">
+                <span className="font-bold text-indigo-700">6. Customer Assigned Rep</span> — General relationship manager for customer
+              </div>
+            </div>
+          </div>
+
+          <DataTable
+            columns={assignmentColumns}
+            data={assignments}
+            emptyMessage="No routing rules configured"
+            emptyDescription="Create a sales assignment rule to route customer inquiries automatically."
+          />
         </div>
       )}
 
@@ -978,6 +1421,173 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Company Modal (Add) */}
+      <Modal
+        isOpen={isCompanyModalOpen}
+        onClose={() => setIsCompanyModalOpen(false)}
+        title="Add Vendor Brand / Operating Company"
+        description="Register a new vendor brand or division to group products and assign sales representatives."
+      >
+        <form onSubmit={handleSaveCompany} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Company Code"
+              required
+              placeholder="e.g. CISCO, DELL, HPE"
+              value={compCode}
+              onChange={(e) => setCompCode(e.target.value.toUpperCase())}
+            />
+            <Input
+              label="Company / Brand Name"
+              required
+              placeholder="e.g. Cisco Systems, Dell Tech"
+              value={compName}
+              onChange={(e) => setCompName(e.target.value)}
+            />
+          </div>
+
+          <Textarea
+            label="Description (Optional)"
+            placeholder="Overview of operating division or vendor brand..."
+            rows={2}
+            value={compDesc}
+            onChange={(e) => setCompDesc(e.target.value)}
+          />
+
+          <Input
+            label="Official Website (Optional)"
+            placeholder="e.g. https://www.cisco.com"
+            value={compWebsite}
+            onChange={(e) => setCompWebsite(e.target.value)}
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Contact Email (Optional)"
+              type="email"
+              placeholder="sales@vendor.com"
+              value={compEmail}
+              onChange={(e) => setCompEmail(e.target.value)}
+            />
+            <Input
+              label="Contact Phone (Optional)"
+              placeholder="+91 (80) 4123-4567"
+              value={compPhone}
+              onChange={(e) => setCompPhone(e.target.value)}
+            />
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsCompanyModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" isLoading={isCompSubmitting}>
+              Create Company
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Sales Assignment Modal (Add) */}
+      <Modal
+        isOpen={isAssignmentModalOpen}
+        onClose={() => setIsAssignmentModalOpen(false)}
+        title="Create Sales Representative Routing Rule"
+        description="Configure deterministic routing priorities to assign incoming inquiries to the right sales specialist."
+      >
+        <form onSubmit={handleSaveAssignment} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Operating Company"
+              required
+              value={asCompanyId}
+              onChange={(e) => setAsCompanyId(e.target.value)}
+              options={companies.map((c) => ({
+                value: c.id,
+                label: `${c.name} (${c.code})`,
+              }))}
+            />
+            <Select
+              label="Assigned Sales Representative"
+              required
+              value={asRepId}
+              onChange={(e) => setAsRepId(e.target.value)}
+              options={users.map((u) => ({
+                value: u.id,
+                label: `${u.fullName || u.username} (${u.role})`,
+              }))}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Product Specific (Optional)"
+              value={asProductId}
+              onChange={(e) => setAsProductId(e.target.value)}
+              options={[
+                { value: '', label: 'All Products in Company' },
+                ...products.map((p) => ({
+                  value: p.id,
+                  label: `[${p.sku}] ${p.name}`,
+                })),
+              ]}
+            />
+            <Select
+              label="Category Level (Optional)"
+              value={asCategoryId}
+              onChange={(e) => setAsCategoryId(e.target.value)}
+              options={[
+                { value: '', label: 'All Categories' },
+                ...categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                })),
+              ]}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 items-center">
+            <Input
+              label="Evaluation Priority (1 = Highest)"
+              type="number"
+              min="1"
+              max="100"
+              required
+              value={asPriority}
+              onChange={(e) => setAsPriority(e.target.value)}
+            />
+            <div className="pt-5">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={asIsDefault}
+                  onChange={(e) => setAsIsDefault(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                />
+                Mark as Default Fallback Rep for Company
+              </label>
+            </div>
+          </div>
+
+          <Textarea
+            label="Internal Notes (Optional)"
+            placeholder="Special territory notes or product specialty rationale..."
+            rows={2}
+            value={asNotes}
+            onChange={(e) => setAsNotes(e.target.value)}
+          />
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsAssignmentModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" isLoading={isAsSubmitting}>
+              Create Routing Rule
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

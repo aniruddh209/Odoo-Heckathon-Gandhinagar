@@ -597,6 +597,211 @@ public static class DbInitializer
             context.DiscountRules.AddRange(discountRules);
             await context.SaveChangesAsync();
         }
+
+        // 16. Companies & Brand Entities
+        if (!await context.Companies.AnyAsync())
+        {
+            var companies = new List<Company>
+            {
+                new()
+                {
+                    Name = "Dell Technologies",
+                    Code = "DELL",
+                    Description = "Enterprise computing solutions, servers, storage, and professional workstations.",
+                    Website = "https://www.dell.com",
+                    ContactEmail = "enterprise-sales@dell.com",
+                    ContactPhone = "+1-800-456-3355",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "Samsung Electronics",
+                    Code = "SAMSUNG",
+                    Description = "Global leader in professional displays, digital signage, memory, and mobile devices.",
+                    Website = "https://www.samsung.com",
+                    ContactEmail = "b2b-support@samsung.com",
+                    ContactPhone = "+1-800-726-7864",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "Cisco Systems",
+                    Code = "CISCO",
+                    Description = "Worldwide leader in enterprise networking, cybersecurity, and cloud collaboration infrastructure.",
+                    Website = "https://www.cisco.com",
+                    ContactEmail = "enterprise@cisco.com",
+                    ContactPhone = "+1-800-553-6387",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "HP Enterprise",
+                    Code = "HPE",
+                    Description = "Edge-to-cloud platform company helping enterprises connect, protect, analyze and act on data.",
+                    Website = "https://www.hpe.com",
+                    ContactEmail = "sales@hpe.com",
+                    ContactPhone = "+1-800-707-6327",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            };
+
+            context.Companies.AddRange(companies);
+            await context.SaveChangesAsync();
+        }
+
+        var dell = await context.Companies.FirstOrDefaultAsync(c => c.Code == "DELL");
+        var samsung = await context.Companies.FirstOrDefaultAsync(c => c.Code == "SAMSUNG");
+        var cisco = await context.Companies.FirstOrDefaultAsync(c => c.Code == "CISCO");
+        var hpe = await context.Companies.FirstOrDefaultAsync(c => c.Code == "HPE");
+
+        // Associate existing products with Companies if not associated
+        var prodLaptop = await context.Products.FirstOrDefaultAsync(p => p.SKU == "HW-LAPTOP-01");
+        if (prodLaptop != null && prodLaptop.CompanyId == null && dell != null)
+        {
+            prodLaptop.CompanyId = dell.Id;
+        }
+
+        var prodDock = await context.Products.FirstOrDefaultAsync(p => p.SKU == "HW-DOCK-01");
+        if (prodDock != null && prodDock.CompanyId == null && dell != null)
+        {
+            prodDock.CompanyId = dell.Id;
+        }
+
+        var prodSrvSetup = await context.Products.FirstOrDefaultAsync(p => p.SKU == "SRV-SETUP-01");
+        if (prodSrvSetup != null && prodSrvSetup.CompanyId == null && cisco != null)
+        {
+            prodSrvSetup.CompanyId = cisco.Id;
+        }
+
+        var prodSubPrem = await context.Products.FirstOrDefaultAsync(p => p.SKU == "SUB-PREM-01");
+        if (prodSubPrem != null && prodSubPrem.CompanyId == null && cisco != null)
+        {
+            prodSubPrem.CompanyId = cisco.Id;
+        }
+
+        // Seed additional flagship products for Samsung & HPE
+        var hwCategory = await context.ProductCategories.FirstOrDefaultAsync(c => c.Name == "Hardware");
+        if (hwCategory != null && samsung != null && !await context.Products.AnyAsync(p => p.SKU == "HW-SAMS-4K-01"))
+        {
+            context.Products.Add(new Product
+            {
+                SKU = "HW-SAMS-4K-01",
+                Name = "Samsung 85\" UHD Commercial Display Wall",
+                Description = "High-brightness commercial grade UHD 4K digital signage display with 24/7 run cycle.",
+                CategoryId = hwCategory.Id,
+                CompanyId = samsung.Id,
+                ProductType = ProductType.OneTime,
+                BasePrice = 3200.00m,
+                CostPrice = 1800.00m,
+                TaxRate = 18.00m,
+                Unit = "Each",
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+
+        if (hwCategory != null && hpe != null && !await context.Products.AnyAsync(p => p.SKU == "HW-HPE-SRV-01"))
+        {
+            context.Products.Add(new Product
+            {
+                SKU = "HW-HPE-SRV-01",
+                Name = "HPE ProLiant DL380 Gen10 Rack Server",
+                Description = "Dual Intel Xeon Silver, 64GB RAM, 8-Bay SFF server tailored for enterprise workloads.",
+                CategoryId = hwCategory.Id,
+                CompanyId = hpe.Id,
+                ProductType = ProductType.OneTime,
+                BasePrice = 4500.00m,
+                CostPrice = 2800.00m,
+                TaxRate = 18.00m,
+                Unit = "Each",
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        // 17. Seed Sales Rep Routing Assignments
+        if (!await context.SalesAssignments.AnyAsync())
+        {
+            var repUser = await context.Users.FirstOrDefaultAsync(u => u.Email == "rep@dealflow360.io");
+            var managerUser = await context.Users.FirstOrDefaultAsync(u => u.Email == "manager@dealflow360.io");
+
+            if (repUser != null && dell != null && samsung != null && cisco != null && hpe != null)
+            {
+                var assignments = new List<SalesAssignment>
+                {
+                    // Dell Default Rep -> Sarah Jenkins (Rep)
+                    new()
+                    {
+                        CompanyId = dell.Id,
+                        SalesRepresentativeId = repUser.Id,
+                        IsDefault = true,
+                        Priority = 10,
+                        Notes = "Primary representative for Dell enterprise hardware solutions",
+                        IsActive = true,
+                        CreatedAtUtc = DateTime.UtcNow
+                    },
+                    // Samsung Default Rep -> Sarah Jenkins (Rep)
+                    new()
+                    {
+                        CompanyId = samsung.Id,
+                        SalesRepresentativeId = repUser.Id,
+                        IsDefault = true,
+                        Priority = 10,
+                        Notes = "Dedicated account manager for Samsung commercial display lines",
+                        IsActive = true,
+                        CreatedAtUtc = DateTime.UtcNow
+                    },
+                    // Cisco Default Rep -> Michael Vance (Manager)
+                    new()
+                    {
+                        CompanyId = cisco.Id,
+                        SalesRepresentativeId = managerUser?.Id ?? repUser.Id,
+                        IsDefault = true,
+                        Priority = 10,
+                        Notes = "Enterprise lead for Cisco infrastructure and networking",
+                        IsActive = true,
+                        CreatedAtUtc = DateTime.UtcNow
+                    },
+                    // HPE Default Rep -> Michael Vance (Manager)
+                    new()
+                    {
+                        CompanyId = hpe.Id,
+                        SalesRepresentativeId = managerUser?.Id ?? repUser.Id,
+                        IsDefault = true,
+                        Priority = 10,
+                        Notes = "Executive lead for HPE data center server deployments",
+                        IsActive = true,
+                        CreatedAtUtc = DateTime.UtcNow
+                    }
+                };
+
+                // Specific Category override: If Cisco Services, route to Sarah Jenkins
+                var servicesCat = await context.ProductCategories.FirstOrDefaultAsync(c => c.Name == "Services");
+                if (servicesCat != null)
+                {
+                    assignments.Add(new SalesAssignment
+                    {
+                        CompanyId = cisco.Id,
+                        CategoryId = servicesCat.Id,
+                        SalesRepresentativeId = repUser.Id,
+                        IsDefault = false,
+                        Priority = 50,
+                        Notes = "Specialized service onboarding rep for Cisco professional services",
+                        IsActive = true,
+                        CreatedAtUtc = DateTime.UtcNow
+                    });
+                }
+
+                context.SalesAssignments.AddRange(assignments);
+                await context.SaveChangesAsync();
+            }
+        }
     }
 }
 

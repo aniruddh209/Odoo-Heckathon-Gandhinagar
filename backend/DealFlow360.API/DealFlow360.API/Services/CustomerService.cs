@@ -339,7 +339,59 @@ public class CustomerService : ICustomerService
             });
         }
 
-        var sortedTimeline = timeline.OrderByDescending(t => t.TimestampUtc).Take(30).ToList();
+        var salesConnections = await _context.SalesConnectionRequests
+            .Include(r => r.Company)
+            .Include(r => r.Product)
+            .Include(r => r.SalesRepresentative)
+            .Include(r => r.Quotation)
+            .Where(r => r.CustomerId == id)
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .Select(r => new DealFlow360.API.DTOs.SalesConnections.SalesConnectionResponse
+            {
+                Id = r.Id,
+                RequestNumber = r.RequestNumber,
+                CustomerId = r.CustomerId,
+                CustomerName = customerDetail.Name,
+                CustomerEmail = customerDetail.Email,
+                CompanyId = r.CompanyId,
+                CompanyName = r.Company.Name,
+                ProductId = r.ProductId,
+                ProductName = r.Product.Name,
+                ProductSku = r.Product.SKU,
+                BasePrice = r.Product.BasePrice,
+                SalesRepresentativeId = r.SalesRepresentativeId,
+                SalesRepName = r.SalesRepresentative.FullName,
+                SalesRepEmail = r.SalesRepresentative.Email,
+                Status = r.Status.ToString(),
+                RequestedQuantity = r.RequestedQuantity,
+                CustomerMessage = r.CustomerMessage,
+                PreferredContactMethod = r.PreferredContactMethod,
+                ResolutionReason = r.ResolutionReason,
+                QuotationId = r.QuotationId,
+                QuotationNumber = r.Quotation != null ? r.Quotation.QuotationNumber : null,
+                RepNotes = r.RepNotes,
+                RejectionReason = r.RejectionReason,
+                ContactedAtUtc = r.ContactedAtUtc,
+                QualifiedAtUtc = r.QualifiedAtUtc,
+                QuoteCreatedAtUtc = r.QuoteCreatedAtUtc,
+                ClosedAtUtc = r.ClosedAtUtc,
+                CreatedAtUtc = r.CreatedAtUtc
+            })
+            .ToListAsync();
+
+        foreach (var sc in salesConnections)
+        {
+            timeline.Add(new CustomerActivityEvent
+            {
+                EventType = "SalesConnectionRequested",
+                Title = $"Inquiry #{sc.RequestNumber} Submitted",
+                Description = $"Inquiry regarding {sc.ProductName} ({sc.CompanyName}). Assigned Rep: {sc.SalesRepName}. Status: {sc.Status}.",
+                TimestampUtc = sc.CreatedAtUtc,
+                ReferenceNumber = sc.RequestNumber
+            });
+        }
+
+        var sortedTimeline = timeline.OrderByDescending(t => t.TimestampUtc).Take(100).ToList();
 
         return new Customer360Response
         {
@@ -350,7 +402,8 @@ public class CustomerService : ICustomerService
             Invoices = invoices,
             ProductHistory = productHistoryMap.Values.OrderByDescending(p => p.TotalRevenue).ToList(),
             ActivityTimeline = sortedTimeline,
-            AssociatedUsers = associatedUsers
+            AssociatedUsers = associatedUsers,
+            SalesConnections = salesConnections
         };
     }
 

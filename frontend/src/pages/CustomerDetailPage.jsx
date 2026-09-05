@@ -25,6 +25,7 @@ import {
   Plus,
   RefreshCw,
   Users,
+  UserCheck,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
@@ -69,10 +70,11 @@ export const CustomerDetailPage = () => {
     );
   }
 
-  const { customer, overview, quotations, orders, invoices, productHistory, activityTimeline, associatedUsers } = data360;
+  const { customer, overview, quotations, orders, invoices, productHistory, activityTimeline, associatedUsers, salesConnections } = data360;
 
   const tabs = [
     { id: 'overview', label: '360 Overview', icon: Building2 },
+    { id: 'inquiries', label: `Sales Inquiries (${salesConnections?.length || 0})`, icon: UserCheck },
     { id: 'quotations', label: `Quotations (${quotations?.length || 0})`, icon: FileText },
     { id: 'orders', label: `Orders (${orders?.length || 0})`, icon: ShoppingCart },
     { id: 'invoices', label: `Invoices (${invoices?.length || 0})`, icon: Receipt },
@@ -289,6 +291,112 @@ export const CustomerDetailPage = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Sales Inquiries Tab */}
+      {activeTab === 'inquiries' && (
+        <div className="space-y-4">
+          <DataTable
+            columns={[
+              {
+                header: 'Tracking Ref',
+                accessor: 'requestNumber',
+                render: (r) => (
+                  <span className="font-mono font-bold text-xs text-blue-600">
+                    {r.requestNumber}
+                  </span>
+                ),
+              },
+              {
+                header: 'Product & Brand',
+                accessor: 'productName',
+                render: (r) => (
+                  <div>
+                    <span className="font-semibold text-xs text-slate-900 block">{r.productName}</span>
+                    <span className="text-[10px] text-blue-600 font-medium">{r.companyName} • SKU: {r.productSku}</span>
+                  </div>
+                ),
+              },
+              {
+                header: 'Assigned Specialist',
+                accessor: 'salesRepName',
+                render: (r) => (
+                  <div>
+                    <span className="text-xs font-semibold text-slate-800 block">{r.salesRepName}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{r.salesRepEmail}</span>
+                  </div>
+                ),
+              },
+              {
+                header: 'Qty',
+                accessor: 'requestedQuantity',
+                render: (r) => (
+                  <span className="font-mono font-bold text-slate-700 text-xs">{r.requestedQuantity}</span>
+                ),
+              },
+              {
+                header: 'Status',
+                accessor: 'status',
+                render: (r) => {
+                  const statusMap = {
+                    Pending: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+                    Contacted: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+                    Qualified: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+                    QuoteCreated: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+                    Converted: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
+                    Rejected: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
+                    Closed: { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' }
+                  };
+                  const s = statusMap[r.status] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+                  return (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
+                      {r.status === 'QuoteCreated' ? 'Quotation Issued' : r.status}
+                    </span>
+                  );
+                },
+              },
+              {
+                header: 'Submitted',
+                accessor: 'createdAtUtc',
+                render: (r) => (
+                  <span className="text-slate-500 text-xs">
+                    {r.createdAtUtc ? new Date(r.createdAtUtc).toLocaleDateString() : '—'}
+                  </span>
+                ),
+              },
+              {
+                header: 'Actions',
+                accessor: 'id',
+                render: (r) => (
+                  <div className="flex items-center gap-2">
+                    {r.quotationId ? (
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        icon={FileText}
+                        onClick={() => navigate(`/workspace/quotations/${r.quotationId}`)}
+                        className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                      >
+                        Quote #{r.quotationNumber || r.quotationId}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => navigate('/workspace/sales-connections')}
+                      >
+                        Action Inquiry
+                      </Button>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+            data={salesConnections || []}
+            emptyMessage="No sales inquiries on record"
+            emptyDescription="Product-to-brand inquiries submitted by this customer will appear here."
+          />
         </div>
       )}
 

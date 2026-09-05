@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { customerApi } from '../api';
+import { customerApi, salesConnectionApi } from '../api';
 import { useToast } from '../context/ToastContext';
 import {
   Button,
@@ -14,6 +14,7 @@ import {
   SkeletonPortal,
 } from '../components/ui';
 import { CustomerProposalView } from '../components/portal/CustomerProposalView';
+import { ConnectSalesSection } from '../components/portal/ConnectSalesSection';
 import {
   FileText,
   Package,
@@ -34,6 +35,7 @@ import {
   ExternalLink,
   Truck,
   Layers,
+  Sparkles,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
@@ -43,10 +45,11 @@ export const CustomerAccountPage = () => {
   const [searchParams] = useSearchParams();
   const { id: routeQuoteId } = useParams();
 
-  const [activeTab, setActiveTab] = useState('quotes'); // quotes, orders, invoices, profile
+  const [activeTab, setActiveTab] = useState('quotes'); // quotes, connect, inquiries, orders, invoices, profile
   const [quotes, setQuotes] = useState([]);
   const [orders, setOrders] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,10 +74,11 @@ export const CustomerAccountPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [qRes, oRes, iRes, pRes] = await Promise.all([
+      const [qRes, oRes, iRes, inqRes, pRes] = await Promise.all([
         customerApi.getMyQuotations(),
         customerApi.getMyOrders(),
         customerApi.getMyInvoices(),
+        salesConnectionApi.getMyRequests().catch(() => []),
         customerApi.getMyProfile().catch(() => null),
       ]);
 
@@ -82,6 +86,7 @@ export const CustomerAccountPage = () => {
       setQuotes(loadedQuotes);
       setOrders(Array.isArray(oRes) ? oRes : oRes?.value || []);
       setInvoices(Array.isArray(iRes) ? iRes : iRes?.value || []);
+      setInquiries(Array.isArray(inqRes) ? inqRes : inqRes?.value || []);
       if (pRes) setProfile(pRes);
 
       // If drawer is open, keep selected quote updated
@@ -384,6 +389,110 @@ export const CustomerAccountPage = () => {
     },
   ];
 
+  const inquiryCols = [
+    {
+      header: 'Tracking #',
+      accessor: 'requestNumber',
+      render: (r) => (
+        <span className="font-mono font-bold text-slate-800 text-xs">
+          {r.requestNumber}
+        </span>
+      ),
+    },
+    {
+      header: 'Product & Brand',
+      accessor: 'productName',
+      render: (r) => (
+        <div>
+          <span className="font-semibold text-slate-900 block text-xs">{r.productName}</span>
+          <span className="text-[10px] text-blue-600 font-medium">{r.companyName} • SKU: {r.productSku}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Assigned Specialist',
+      accessor: 'salesRepName',
+      render: (r) => (
+        <div>
+          <span className="font-medium text-slate-800 text-xs block">{r.salesRepName}</span>
+          <span className="text-[10px] text-slate-400 font-mono">{r.salesRepEmail}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Qty',
+      accessor: 'requestedQuantity',
+      render: (r) => (
+        <span className="font-mono font-bold text-slate-700 text-xs">
+          {r.requestedQuantity}
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      render: (r) => {
+        const statusMap = {
+          Pending: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+          Contacted: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+          Qualified: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+          QuoteCreated: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+          Converted: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
+          Rejected: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
+          Closed: { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' }
+        };
+        const s = statusMap[r.status] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+        return (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
+            {r.status === 'QuoteCreated' ? 'Quotation Issued' : r.status}
+          </span>
+        );
+      },
+    },
+    {
+      header: 'Submitted',
+      accessor: 'createdAtUtc',
+      render: (r) => (
+        <span className="text-slate-500 text-xs">
+          {r.createdAtUtc ? new Date(r.createdAtUtc).toLocaleDateString() : 'N/A'}
+        </span>
+      ),
+    },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      render: (r) => {
+        if (r.quotationId) {
+          return (
+            <Button
+              variant="outline"
+              size="xs"
+              icon={Eye}
+              onClick={() => {
+                const targetQuote = quotes.find(q => q.id === r.quotationId);
+                if (targetQuote) {
+                  handleOpenProposal(targetQuote);
+                } else {
+                  customerApi.getMyQuotationById(r.quotationId).then(q => {
+                    handleOpenProposal(q);
+                  });
+                }
+              }}
+              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+            >
+              Inspect Quote #{r.quotationNumber || r.quotationId}
+            </Button>
+          );
+        }
+        return (
+          <span className="text-[11px] text-slate-400 italic">
+            In Review by Rep
+          </span>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50/75 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -509,9 +618,11 @@ export const CustomerAccountPage = () => {
         </div>
 
         {/* Tab Selection */}
-        <div className="flex border-b border-slate-200 space-x-6 text-xs font-semibold">
+        <div className="flex border-b border-slate-200 space-x-6 text-xs font-semibold overflow-x-auto">
           {[
             { id: 'quotes', label: `My Proposals (${quotes.length})`, icon: FileText },
+            { id: 'connect', label: 'Connect with Sales', icon: Sparkles },
+            { id: 'inquiries', label: `My Inquiries (${inquiries.length})`, icon: UserCheck },
             { id: 'orders', label: `My Orders (${orders.length})`, icon: Package },
             { id: 'invoices', label: `Invoices & Billing (${invoices.length})`, icon: CreditCard },
             { id: 'profile', label: 'Company Profile & Sales Rep', icon: Building },
@@ -522,7 +633,7 @@ export const CustomerAccountPage = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-3 border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+                className={`py-3 border-b-2 flex items-center gap-2 transition-colors cursor-pointer shrink-0 ${
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600 font-bold'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -534,6 +645,44 @@ export const CustomerAccountPage = () => {
             );
           })}
         </div>
+
+        {/* Tab Content: Connect with Sales */}
+        {activeTab === 'connect' && (
+          <ConnectSalesSection
+            onConnectionCreated={() => {
+              loadCustomerData();
+              setActiveTab('inquiries');
+            }}
+            onNavigateToInquiries={() => setActiveTab('inquiries')}
+          />
+        )}
+
+        {/* Tab Content: My Inquiries */}
+        {activeTab === 'inquiries' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Brand Representative Inquiries</h3>
+                <p className="text-xs text-slate-500">Track status, assigned commercial specialists, and generated quotations</p>
+              </div>
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Sparkles}
+                onClick={() => setActiveTab('connect')}
+                className="bg-blue-600 text-white"
+              >
+                New Brand Inquiry
+              </Button>
+            </div>
+            <DataTable
+              columns={inquiryCols}
+              data={inquiries}
+              emptyMessage="No sales inquiries on file"
+              emptyDescription="Connect directly with certified brand representatives using the 'Connect with Sales' tab."
+            />
+          </div>
+        )}
 
         {/* Tab Content 1: Proposals */}
         {activeTab === 'quotes' && (

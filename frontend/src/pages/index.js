@@ -17,4 +17,5 @@ export { default as CustomerAccountPage } from './CustomerAccountPage';
 export { default as CustomerPortalDetailPage } from './CustomerPortalDetailPage';
 export { default as AdminCatalogPage } from './AdminCatalogPage';
 export { default as AdminGovernancePage } from './AdminGovernancePage';
+export { default as SalesConnectionsPage } from './SalesConnectionsPage';
 export { default as NotFoundPage } from './NotFoundPage';

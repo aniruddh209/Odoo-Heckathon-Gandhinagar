@@ -43,4 +43,8 @@ public class User
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    public ICollection<SalesAssignment> SalesAssignments { get; set; } = new List<SalesAssignment>();
+
+    public ICollection<SalesConnectionRequest> AssignedSalesConnections { get; set; } = new List<SalesConnectionRequest>();
 }

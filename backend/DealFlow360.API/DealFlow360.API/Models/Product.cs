@@ -39,8 +39,11 @@ public class Product
 
     public DateTime? UpdatedAtUtc { get; set; }
 
+    public int? CompanyId { get; set; }
 
     // Navigation Properties
+    public Company? Company { get; set; }
+
     public ProductCategory Category { get; set; } = null!;
 
     public ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();

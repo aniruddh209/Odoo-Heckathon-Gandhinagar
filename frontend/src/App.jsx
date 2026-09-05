@@ -25,6 +25,7 @@ import {
   CustomerPortalDetailPage,
   AdminCatalogPage,
   AdminGovernancePage,
+  SalesConnectionsPage,
   NotFoundPage,
 } from './pages';
 
@@ -77,6 +78,14 @@ export function App() {
             <Route path="workspace/pipeline" element={<PipelinePage />} />
             <Route path="workspace/customers" element={<CustomerListPage />} />
             <Route path="workspace/customers/:id" element={<CustomerDetailPage />} />
+            <Route
+              path="workspace/sales-connections"
+              element={
+                <ProtectedRoute allowedRoles={['SalesRep', 'SalesManager', 'Admin']}>
+                  <SalesConnectionsPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Governance & Approvals */}
             <Route

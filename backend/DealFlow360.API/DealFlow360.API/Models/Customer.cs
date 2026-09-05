@@ -39,4 +39,6 @@ public class Customer
     public ICollection<Order> Orders { get; set; } = new List<Order>();
 
     public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+
+    public ICollection<SalesConnectionRequest> SalesConnectionRequests { get; set; } = new List<SalesConnectionRequest>();
 }

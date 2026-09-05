@@ -1583,14 +1583,82 @@ The backend domain engines are the sole legal, financial, and operational author
 
 ## 28. Final Verification Checklist & Architectural Sign-Off
 
-- [x] All 13 core business engines fully analyzed and specified.
+- [x] All 14 core business engines fully analyzed and specified.
 - [x] Every mathematical formula registered with exact variables and bounds in the Formula Registry.
 - [x] 128-bit decimal precision and division-by-zero guards documented.
 - [x] State machine rules, rejection paths, and revision flows mapped without dead-ends.
 - [x] Multi-warehouse optimization and greedy split algorithms formalized.
 - [x] Hybrid billing segregation and daily calendar proration formulas verified.
 - [x] Zero-leak customer portal boundaries and segregation-of-duty invariants enforced.
-- [x] Engine-to-API (71 endpoints) and Engine-to-Database (41 entities) traceability complete.
+- [x] Engine-to-API and Engine-to-Database traceability complete.
 - [x] Engine Improvement Backlog documented with explicit priorities and business rationales.
+
+---
+
+## 29. Engine 14 — Sales Representative Resolution Engine (Deterministic 7-Level Priority Engine)
+
+### 29.1 Purpose & Problem Statement
+In modern B2B commerce, enterprises operate multi-brand portfolios (e.g., Dell Technologies, Samsung Electronics, Cisco Systems, Hewlett Packard Enterprise). When a customer explores products or requests a commercial quote, assigning the inquiry to a random rep results in lost deals, mismatched technical skills, and friction. 
+
+**Engine 14** deterministically evaluates incoming customer product inquiries against database routing rules (`SalesAssignment`), operating company partitions (`Company`), and customer relationship assignments (`Customer.AssignedSalesRepId`) to instantly connect the customer with the ideal specialist.
+
+### 29.2 Deterministic 7-Level Evaluation Hierarchy
+When evaluated for a given `(CustomerId?, CompanyId, ProductId)` tuple, the engine strictly executes the following waterfall in O(1) Linq evaluation:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│             Level 1: Customer + Product Specific Match                 │
+│      sa.CustomerId == CustomerId && sa.ProductId == ProductId          │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (None)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│             Level 2: Customer + Company Account Match                  │
+│  sa.CustomerId == CustomerId && sa.CompanyId == CompanyId (Global SKU) │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (None)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│             Level 3: Company + Product Specialist Match                │
+│             sa.CompanyId == CompanyId && sa.ProductId == ProductId     │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (None)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│             Level 4: Company + Category Specialist Match               │
+│        sa.CompanyId == CompanyId && sa.CategoryId == Product.CatId     │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (None)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│             Level 5: Company Default Representative                    │
+│             sa.CompanyId == CompanyId && sa.IsDefault == true          │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (None)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│             Level 6: Customer Assigned Relationship Manager            │
+│                 Customer.AssignedSalesRepId.HasValue                   │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ (None)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│             Level 7: Platform Sales Representative Fallback            │
+│               First active SalesRep / SalesManager in system           │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 29.3 Idempotency & Duplicate Conflict Protection
+To prevent accidental double-submissions and spamming reps, the engine enforces strict idempotency:
+$$\text{HasActiveInquiry} = \exists r \in \text{SalesConnectionRequests} \mid r.\text{CustomerId} = c \land r.\text{CompanyId} = co \land r.\text{ProductId} = p \land r.\text{Status} \notin \{\text{Closed}, \text{Rejected}\}$$
+If true, the API rejects the submission with `HTTP 409 Conflict`, preserving server resources and rep attention.
+
+### 29.4 1-Click Quotation Conversion Bridge
+Once a representative qualifies an inquiry in their Sales Workspace (`/workspace/sales-connections`), they can trigger **1-Click Quotation Conversion**:
+1. Generates `Quotation` entity linked to the customer and representative.
+2. Injects `QuotationLine` populated with the requested SKU, quantity, base price, and applicable taxes.
+3. Automatically fires Engine 1 (Pricing), Engine 2 (Discount Governance), Engine 3 (Margin Engine), and Engine 5 (Blended Risk Engine).
+4. Transitions `SalesConnectionRequest.Status` to `QuoteCreated` and binds `QuotationId`.
+5. Customer can immediately view and negotiate the formal quotation in their Customer Portal.
 
 **Approved and Signed Off by Lead Solution Architect & Technical Documentation Architect.**

@@ -104,6 +104,7 @@ public class Program
         builder.Services.AddScoped<ISubscriptionEngine, SubscriptionEngine>();
         builder.Services.AddScoped<ICustomerNegotiationEngine, CustomerNegotiationEngine>();
         builder.Services.AddScoped<IDealHealthEngine, DealHealthEngine>();
+        builder.Services.AddScoped<ISalesRepresentativeResolutionEngine, SalesRepresentativeResolutionEngine>();
 
         // ─── Register Application Services ────────────────────
         builder.Services.AddScoped<IJwtService, JwtService>();
@@ -118,6 +119,7 @@ public class Program
         builder.Services.AddScoped<IBillingService, BillingService>();
         builder.Services.AddScoped<IPortalService, PortalService>();
         builder.Services.AddScoped<IDealHealthService, DealHealthService>();
+        builder.Services.AddScoped<ISalesConnectionService, SalesConnectionService>();
         builder.Services.AddScoped<IDashboardReportService, DashboardReportService>();
 
         // ─── Build Application ─────────────────────────────────

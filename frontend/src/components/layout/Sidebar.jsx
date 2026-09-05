@@ -29,6 +29,7 @@ export const Sidebar = ({ onCloseMobile, isMobile = false }) => {
       group: 'Workspace',
       items: [
         { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, visible: true },
+        { label: 'Sales Inquiries', path: '/workspace/sales-connections', icon: UserCheck, visible: isSalesRep || isSalesManager || isAdmin },
         { label: 'Quotations & Deals', path: '/workspace/quotations', icon: FileText, visible: isSalesRep || isSalesManager || isAdmin },
         { label: 'Pipeline Kanban', path: '/workspace/pipeline', icon: GitPullRequest, visible: isSalesRep || isSalesManager || isAdmin },
         { label: 'Customers 360', path: '/workspace/customers', icon: Users, visible: isSalesRep || isSalesManager || isAdmin },
