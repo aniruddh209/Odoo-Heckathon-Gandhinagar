@@ -13,7 +13,7 @@ This document provides the definitive, comprehensive mapping of all 60+ ASP.NET 
 
 ### 1.2 Zero-Leak Customer Portal Boundary
 - **Separation of Contexts**: Internal staff (`/`) and external customers (`/portal`) operate under distinct token models (`dealflow_token` vs `dealflow_portal_token`).
-- **Data Privacy**: The customer portal components and endpoints (`src/api/portalApi.ts`, `src/pages/CustomerPortalDetailPage.tsx`) are strictly bounded. Standard cost prices (`StandardCostPrice`), order gross margins (`OrderGrossMarginPercent`), blended risk scores (`BlendedDiscountRiskScore`), and internal notes (`InternalRemarks`) are never exposed or rendered.
+- **Data Privacy**: The customer portal components and endpoints (`src/api/portalApi.js`, `src/pages/CustomerPortalDetailPage.jsx`) are strictly bounded. Standard cost prices (`StandardCostPrice`), order gross margins (`OrderGrossMarginPercent`), blended risk scores (`BlendedDiscountRiskScore`), and internal notes (`InternalRemarks`) are never exposed or rendered.
 
 ### 1.3 State Management & HTTP Architecture
 - Powered by **Pure React Hooks (`useState`, `useEffect`, `useApi`) & Native `window.fetch`**:
@@ -29,7 +29,7 @@ This document provides the definitive, comprehensive mapping of all 60+ ASP.NET 
 |---|---|---|---|---|---|---|---|---|
 | **1** | `POST` | `/api/v1/auth/login` | `authApi.login` | `LoginPage` | Login Form | Public | Staff credentials submission | `LoginRequest` &rarr; `LoginResponse` |
 | **2** | `POST` | `/api/v1/auth/signup` | `authApi.signup` | `SignupPage` | Registration Form | Public | New staff onboarding | `SignupRequest` &rarr; `LoginResponse` |
-| **3** | `POST` | `/api/v1/auth/refresh-token` | `authApi.refreshToken` | Axios Interceptor | `client.ts` | Authenticated Staff | Token renewal before expiry | `{ token, refreshToken }` &rarr; `LoginResponse` |
+| **3** | `POST` | `/api/v1/auth/refresh-token` | `authApi.refreshToken` | Token Refresh | `apiClient.js` | Authenticated Staff | Token renewal before expiry | `{ token, refreshToken }` &rarr; `LoginResponse` |
 | **4** | `GET` | `/api/v1/auth/me` | `authApi.getCurrentUser` | App Init | `AuthProvider` | Authenticated Staff | Session validation on reload | `None` &rarr; `UserDto` |
 | **5** | `POST` | `/api/v1/auth/logout` | `authApi.logout` | TopNav / Sidebar | User Profile Menu | Authenticated Staff | Explicit sign-out | `None` &rarr; `void` |
 | **6** | `POST` | `/api/v1/auth/customer-login` | `authApi.customerLogin` | `CustomerLoginPage` | Customer Login Form | Customer | Customer access code verification | `CustomerLoginRequest` &rarr; `CustomerLoginResponse` |
