@@ -72,6 +72,20 @@ public class CustomersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("me/quotations/{id}/confirm")]
+    [Authorize(Roles = "Customer,Admin")]
+    public async Task<IActionResult> ConfirmMyQuotation(int id)
+    {
+        var customerId = GetCurrentCustomerId();
+        if (!customerId.HasValue)
+        {
+            return BadRequest(new { message = "User is not linked to a customer account." });
+        }
+
+        var result = await _customerService.ConfirmCustomerQuotationAsync(customerId.Value, id);
+        return Ok(result);
+    }
+
     [HttpGet("me/orders")]
     [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> GetMyOrders()

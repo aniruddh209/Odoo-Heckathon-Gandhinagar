@@ -4,6 +4,7 @@ using DealFlow360.API.DTOs.Invoices;
 using DealFlow360.API.DTOs.Orders;
 using DealFlow360.API.DTOs.Portal;
 using DealFlow360.API.Models;
+using DealFlow360.API.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace DealFlow360.API.Services;
@@ -15,6 +16,7 @@ public interface ICustomerService
     Task<CustomerDetailResponse> CreateCustomerAsync(CreateCustomerRequest request);
     Task<CustomerDetailResponse> UpdateCustomerAsync(int id, UpdateCustomerRequest request);
     Task<List<CustomerQuoteDto>> GetCustomerQuotationsAsync(int customerId);
+    Task<CustomerQuoteDto> ConfirmCustomerQuotationAsync(int customerId, int quotationId);
     Task<List<OrderListResponse>> GetCustomerOrdersAsync(int customerId);
     Task<List<InvoiceListResponse>> GetCustomerInvoicesAsync(int customerId);
 }
@@ -112,6 +114,7 @@ public class CustomerService : ICustomerService
             .Include(q => q.Customer)
             .Include(q => q.Lines).ThenInclude(l => l.Product)
             .Include(q => q.Lines).ThenInclude(l => l.Comments)
+            .Include(q => q.Lines).ThenInclude(l => l.SubscriptionPlan)
             .Where(q => q.CustomerId == customerId)
             .OrderByDescending(q => q.CreatedAtUtc)
             .ToListAsync();
@@ -140,6 +143,9 @@ public class CustomerService : ICustomerService
                 DiscountPercent = l.DiscountPercent,
                 NetAmount = l.NetAmount,
                 TaxAmount = l.TaxAmount,
+                IsRecurring = l.SubscriptionPlanId.HasValue,
+                BillingFrequency = l.SubscriptionPlan?.BillingFrequency,
+                SubscriptionPlanName = l.SubscriptionPlan?.Name,
                 Comments = l.Comments.Select(c => new CustomerCommentDto
                 {
                     Id = c.Id,
@@ -148,6 +154,64 @@ public class CustomerService : ICustomerService
                 }).ToList()
             }).ToList()
         }).ToList();
+    }
+
+    public async Task<CustomerQuoteDto> ConfirmCustomerQuotationAsync(int customerId, int quotationId)
+    {
+        var quotation = await _context.Quotations
+            .Include(q => q.Customer)
+            .Include(q => q.Lines).ThenInclude(l => l.Product)
+            .Include(q => q.Lines).ThenInclude(l => l.Comments)
+            .Include(q => q.Lines).ThenInclude(l => l.SubscriptionPlan)
+            .FirstOrDefaultAsync(q => q.Id == quotationId && q.CustomerId == customerId);
+
+        if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found for this customer account.");
+
+        if (quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Quotation has already been converted to an active order.");
+        }
+
+        quotation.Status = QuoteStatus.Confirmed;
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+        _context.Quotations.Update(quotation);
+        await _context.SaveChangesAsync();
+
+        return new CustomerQuoteDto
+        {
+            Id = quotation.Id,
+            QuotationNumber = quotation.QuotationNumber,
+            CustomerName = quotation.Customer?.Name ?? string.Empty,
+            Status = quotation.Status.ToString(),
+            CurrencyCode = quotation.CurrencyCode,
+            SubTotal = quotation.SubTotal,
+            DiscountTotal = quotation.DiscountTotal,
+            TaxTotal = quotation.TaxTotal,
+            GrandTotal = quotation.GrandTotal,
+            ExpectedCloseDate = quotation.ExpectedCloseDate,
+            Notes = quotation.Notes,
+            Lines = quotation.Lines.Select(l => new CustomerQuoteLineDto
+            {
+                Id = l.Id,
+                ProductId = l.ProductId,
+                ProductName = l.Product?.Name ?? string.Empty,
+                SKU = l.Product?.SKU ?? string.Empty,
+                Quantity = l.Quantity,
+                UnitPrice = l.UnitPrice,
+                DiscountPercent = l.DiscountPercent,
+                NetAmount = l.NetAmount,
+                TaxAmount = l.TaxAmount,
+                IsRecurring = l.SubscriptionPlanId.HasValue,
+                BillingFrequency = l.SubscriptionPlan?.BillingFrequency,
+                SubscriptionPlanName = l.SubscriptionPlan?.Name,
+                Comments = l.Comments.Select(c => new CustomerCommentDto
+                {
+                    Id = c.Id,
+                    Comment = c.Comment,
+                    CreatedAtUtc = c.CreatedAtUtc
+                }).ToList()
+            }).ToList()
+        };
     }
 
     public async Task<List<OrderListResponse>> GetCustomerOrdersAsync(int customerId)

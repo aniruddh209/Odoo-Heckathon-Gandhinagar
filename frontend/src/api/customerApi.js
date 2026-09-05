@@ -28,6 +28,10 @@ export const customerApi = {
   getMyInvoices: async () => {
     return apiClient.get('customers/me/invoices');
   },
+
+  confirmMyQuotation: async (id) => {
+    return apiClient.post(`customers/me/quotations/${id}/confirm`);
+  },
 };
 
 export default customerApi;

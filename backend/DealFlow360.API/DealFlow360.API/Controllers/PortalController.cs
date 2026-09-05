@@ -37,4 +37,11 @@ public class PortalController : ControllerBase
         var result = await _portalService.SubmitCounterOfferAsync(token, request);
         return Ok(result);
     }
+
+    [HttpPost("quote/{token}/confirm")]
+    public async Task<IActionResult> ConfirmQuote(string token)
+    {
+        var result = await _portalService.ConfirmQuoteAsync(token);
+        return Ok(result);
+    }
 }

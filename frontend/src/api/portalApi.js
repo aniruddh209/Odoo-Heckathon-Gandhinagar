@@ -16,6 +16,10 @@ export const portalApi = {
       reason,
     });
   },
+
+  confirmQuote: async (token) => {
+    return apiClient.post(`portal/quote/${token}/confirm`);
+  },
 };
 
 export default portalApi;

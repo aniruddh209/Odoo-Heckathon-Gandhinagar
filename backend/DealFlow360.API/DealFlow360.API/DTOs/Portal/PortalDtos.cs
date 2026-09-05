@@ -51,6 +51,9 @@ public class CustomerQuoteLineDto
     public decimal DiscountPercent { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TaxAmount { get; set; }
+    public bool IsRecurring { get; set; }
+    public string? BillingFrequency { get; set; }
+    public string? SubscriptionPlanName { get; set; }
     public List<CustomerCommentDto> Comments { get; set; } = new();
 }
 

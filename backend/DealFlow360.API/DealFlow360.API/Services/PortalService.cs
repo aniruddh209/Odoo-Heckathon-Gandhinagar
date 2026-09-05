@@ -12,6 +12,7 @@ public interface IPortalService
     Task<CustomerQuoteDto> GetCustomerQuoteAsync(string token);
     Task SubmitLineCommentAsync(string token, int lineId, string comment);
     Task<CustomerQuoteDto> SubmitCounterOfferAsync(string token, CounterDiscountRequest request);
+    Task<CustomerQuoteDto> ConfirmQuoteAsync(string token);
 }
 
 public class PortalService : IPortalService
@@ -51,6 +52,7 @@ public class PortalService : IPortalService
             .Include(q => q.Customer)
             .Include(q => q.Lines).ThenInclude(l => l.Product)
             .Include(q => q.Lines).ThenInclude(l => l.Comments)
+            .Include(q => q.Lines).ThenInclude(l => l.SubscriptionPlan)
             .FirstOrDefaultAsync(q => q.Id == quotationId);
 
         if (quotation == null) throw new KeyNotFoundException("Quotation not found.");
@@ -107,6 +109,8 @@ public class PortalService : IPortalService
         var quotation = await _context.Quotations
             .Include(q => q.Customer).ThenInclude(c => c.Tier)
             .Include(q => q.Lines).ThenInclude(l => l.Product)
+            .Include(q => q.Lines).ThenInclude(l => l.Comments)
+            .Include(q => q.Lines).ThenInclude(l => l.SubscriptionPlan)
             .FirstOrDefaultAsync(q => q.Id == quotationId);
 
         if (quotation == null) throw new KeyNotFoundException("Quotation not found.");
@@ -133,6 +137,41 @@ public class PortalService : IPortalService
             "CounterOffer",
             "Quotation",
             0);
+
+        return MapToCustomerQuoteDto(quotation);
+    }
+
+    public async Task<CustomerQuoteDto> ConfirmQuoteAsync(string token)
+    {
+        var (isValid, quotationId, customerEmail) = _jwtService.ValidatePortalToken(token);
+        if (!isValid) throw new UnauthorizedAccessException("Invalid or expired customer portal link.");
+
+        var quotation = await _context.Quotations
+            .Include(q => q.Customer)
+            .Include(q => q.Lines).ThenInclude(l => l.Product)
+            .Include(q => q.Lines).ThenInclude(l => l.Comments)
+            .Include(q => q.Lines).ThenInclude(l => l.SubscriptionPlan)
+            .FirstOrDefaultAsync(q => q.Id == quotationId);
+
+        if (quotation == null) throw new KeyNotFoundException("Quotation not found.");
+
+        if (quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Quotation has already been converted to an active order.");
+        }
+
+        quotation.Status = QuoteStatus.Confirmed;
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+        _context.Quotations.Update(quotation);
+        await _context.SaveChangesAsync();
+
+        await _notificationService.SendNotificationAsync(
+            quotation.SalesRepId,
+            $"Quotation {quotation.QuotationNumber} Confirmed by Customer",
+            $"Customer {customerEmail} has accepted and confirmed commercial proposal {quotation.QuotationNumber}.",
+            "QuoteConfirmed",
+            "Quotation",
+            quotation.Id);
 
         return MapToCustomerQuoteDto(quotation);
     }
@@ -166,6 +205,9 @@ public class PortalService : IPortalService
                 DiscountPercent = l.DiscountPercent,
                 NetAmount = l.NetAmount,
                 TaxAmount = l.TaxAmount,
+                IsRecurring = l.SubscriptionPlanId.HasValue,
+                BillingFrequency = l.SubscriptionPlan?.BillingFrequency,
+                SubscriptionPlanName = l.SubscriptionPlan?.Name,
                 Comments = l.Comments.Select(c => new CustomerCommentDto
                 {
                     Id = c.Id,
