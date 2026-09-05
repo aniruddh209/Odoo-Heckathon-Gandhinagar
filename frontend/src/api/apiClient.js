@@ -123,7 +123,8 @@ export async function apiRequest(endpoint, options = {}) {
     config.body = typeof body === 'string' || body instanceof FormData ? body : JSON.stringify(body);
   }
 
-  const url = endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+  const url = cleanEndpoint.startsWith('api/') ? `/${cleanEndpoint}` : `/api/${cleanEndpoint}`;
 
   const response = await fetch(url, config);
   return handleResponse(response);

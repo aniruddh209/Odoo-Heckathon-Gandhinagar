@@ -128,15 +128,6 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
             <Kanban className="w-3.5 h-3.5" />
             <span>Pipeline</span>
           </Link>
-          <button
-            type="button"
-            onClick={() => navigate(location.pathname, { replace: true })}
-            title="Refresh Workspace View"
-            className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center gap-1.5"
-          >
-            <RotateCw className="w-3.5 h-3.5" />
-            <span>Refresh</span>
-          </button>
         </div>
 
 
@@ -145,16 +136,16 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
           {roleInfo.label}
         </span>
 
-        {/* Quick New Quote Action */}
+        {/* Quick New Quote / Add Product Action */}
         {(isSalesRep || isSalesManager || isAdmin) && (
           <Button
             variant="primary"
             size="xs"
             icon={Plus}
-            onClick={() => navigate('/workspace/quotations/new')}
+            onClick={() => isAdmin ? navigate('/admin/products') : navigate('/workspace/quotations/new')}
             className="hidden sm:inline-flex h-8 shadow-xs font-semibold"
           >
-            New Quote
+            {isAdmin ? 'Add Product' : 'New Quote'}
           </Button>
         )}
 

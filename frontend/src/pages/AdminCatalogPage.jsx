@@ -240,6 +240,54 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
     }
   };
 
+  // ─── Variant Handlers ───────────────────────────────────────
+  const handleOpenVariantsModal = async (p) => {
+    setSelectedProductForVariants(p);
+    setIsVariantsModalOpen(true);
+    setIsVariantsLoading(true);
+    try {
+      const res = await adminApi.getProductVariants(p.id);
+      setVariantsList(Array.isArray(res) ? res : res?.items || []);
+    } catch {
+      setVariantsList([]);
+    } finally {
+      setIsVariantsLoading(false);
+    }
+  };
+
+  const handleCreateVariant = async (e) => {
+    e.preventDefault();
+    if (!selectedProductForVariants || !newVariantName.trim()) return;
+    setIsVariantSubmitting(true);
+    try {
+      await adminApi.createProductVariant(selectedProductForVariants.id, {
+        name: newVariantName.trim(),
+        additionalPrice: parseFloat(newVariantPrice) || 0,
+      });
+      toast.success('Variant Added', `${newVariantName} added to product.`);
+      setNewVariantName('');
+      setNewVariantPrice('');
+      const res = await adminApi.getProductVariants(selectedProductForVariants.id);
+      setVariantsList(Array.isArray(res) ? res : res?.items || []);
+    } catch (err) {
+      toast.error('Failed to Add Variant', err.message);
+    } finally {
+      setIsVariantSubmitting(false);
+    }
+  };
+
+  const handleDeleteVariant = async (variantId) => {
+    if (!selectedProductForVariants) return;
+    try {
+      await adminApi.deleteProductVariant(selectedProductForVariants.id, variantId);
+      toast.success('Variant Deleted', 'Product variant removed.');
+      const res = await adminApi.getProductVariants(selectedProductForVariants.id);
+      setVariantsList(Array.isArray(res) ? res : res?.items || []);
+    } catch (err) {
+      toast.error('Failed to Delete Variant', err.message);
+    }
+  };
+
   // ─── Price List Handlers ────────────────────────────────────
   const handleOpenAddPriceList = () => {
     setEditingPriceList(null);

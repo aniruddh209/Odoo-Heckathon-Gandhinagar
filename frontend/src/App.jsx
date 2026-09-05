@@ -24,6 +24,7 @@ import {
   CustomerAccountPage,
   CustomerPortalDetailPage,
   AdminCatalogPage,
+  AdminProductsPage,
   AdminGovernancePage,
   SalesConnectionsPage,
   NotFoundPage,
@@ -154,7 +155,7 @@ export function App() {
               path="admin/products"
               element={
                 <ProtectedRoute allowedRoles={['Admin']}>
-                  <AdminCatalogPage defaultTab="products" />
+                  <AdminProductsPage />
                 </ProtectedRoute>
               }
             />
