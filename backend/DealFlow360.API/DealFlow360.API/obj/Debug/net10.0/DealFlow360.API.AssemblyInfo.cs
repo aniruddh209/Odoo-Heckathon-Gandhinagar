@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DealFlow360.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6991bcacce3fe310ae588426a915431432d01183")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c28eb5889d7417df06bebb1070e37230e9718288")]
 [assembly: System.Reflection.AssemblyProductAttribute("DealFlow360.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DealFlow360.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
