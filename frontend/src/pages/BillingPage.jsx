@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { billingApi, adminApi } from '../api';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
   Button,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 
 export const BillingPage = () => {
+  const { isFinance, isAdmin } = useAuth();
   const toast = useToast();
 
   const [invoices, setInvoices] = useState([]);
@@ -199,22 +201,28 @@ export const BillingPage = () => {
       header: 'Actions',
       render: (inv) => (
         <div className="flex items-center gap-2">
-          {inv.status !== 'Paid' && (
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => handleOpenPayment(inv)}
-            >
-              Record Payment
-            </Button>
+          {(isFinance || isAdmin) ? (
+            <>
+              {inv.status !== 'Paid' && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => handleOpenPayment(inv)}
+                >
+                  Record Payment
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => handleOpenCredit(inv)}
+              >
+                Credit Note
+              </Button>
+            </>
+          ) : (
+            <span className="text-[11px] text-slate-400 italic">Audit Access</span>
           )}
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => handleOpenCredit(inv)}
-          >
-            Credit Note
-          </Button>
         </div>
       ),
     },
@@ -240,14 +248,16 @@ export const BillingPage = () => {
           >
             Refresh
           </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Calendar}
-            onClick={() => setIsSeatModalOpen(true)}
-          >
-            Test Mid-Cycle Proration
-          </Button>
+          {(isFinance || isAdmin) && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Calendar}
+              onClick={() => setIsSeatModalOpen(true)}
+            >
+              Test Mid-Cycle Proration
+            </Button>
+          )}
         </div>
       </div>
 

@@ -25,7 +25,7 @@ public class CustomersController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    [Authorize(Roles = "SalesRep,SalesManager,FinanceOperations,Admin")]
     public async Task<IActionResult> GetCustomers()
     {
         var result = await _customerService.GetCustomersAsync();
@@ -33,7 +33,7 @@ public class CustomersController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    [Authorize(Roles = "SalesRep,SalesManager,FinanceOperations,Admin")]
     public async Task<IActionResult> GetCustomerById(int id)
     {
         var result = await _customerService.GetCustomerByIdAsync(id);

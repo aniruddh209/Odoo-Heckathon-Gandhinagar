@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { quotationApi, adminApi } from '../api';
 import {
@@ -28,6 +29,7 @@ import {
 
 export const QuotationDetailPage = () => {
   const { id } = useParams();
+  const { isFinance, isAdmin } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -157,7 +159,11 @@ export const QuotationDetailPage = () => {
     try {
       const order = await quotationApi.convertToOrder(id);
       toast.success('Converted to Order', `Sale Order ${order.orderNumber} successfully confirmed.`);
-      navigate(`/workspace/fulfillment?orderId=${order.id}`);
+      if (isFinance || isAdmin) {
+        navigate(`/workspace/fulfillment?orderId=${order.id}`);
+      } else {
+        await loadQuoteData();
+      }
     } catch (err) {
       toast.error('Conversion Failed', err.message);
     }
@@ -276,7 +282,7 @@ export const QuotationDetailPage = () => {
             </Button>
           )}
 
-          {isConverted && (
+          {isConverted && (isFinance || isAdmin) && (
             <Button
               variant="primary"
               size="sm"

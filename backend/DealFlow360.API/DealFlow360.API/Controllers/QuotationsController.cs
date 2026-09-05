@@ -9,7 +9,7 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "SalesRep,SalesManager,Admin")]
+[Authorize(Roles = "SalesRep,SalesManager,FinanceOperations,Admin")]
 public class QuotationsController : ControllerBase
 {
     private readonly IQuotationService _quotationService;

@@ -80,10 +80,10 @@ export const AppLayout = () => {
     // Operations & Revenue
     {
       group: 'Fulfillment & Billing',
-      visible: isFinance || isAdmin,
+      visible: isFinance || isAdmin || isSalesManager,
       items: [
         { label: 'Warehouse Allocation', path: '/workspace/fulfillment', icon: Truck, visible: isFinance || isAdmin },
-        { label: 'Hybrid Billing & Invoices', path: '/workspace/billing', icon: CreditCard, visible: isFinance || isAdmin },
+        { label: 'Hybrid Billing & Invoices', path: '/workspace/billing', icon: CreditCard, visible: isFinance || isAdmin || isSalesManager },
       ],
     },
     // Intelligence & Reports

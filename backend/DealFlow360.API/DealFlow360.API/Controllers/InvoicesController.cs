@@ -7,7 +7,7 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "FinanceOperations,Admin")]
+[Authorize(Roles = "FinanceOperations,Admin,SalesManager")]
 public class InvoicesController : ControllerBase
 {
     private readonly IBillingService _billingService;
@@ -32,6 +32,7 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPost("{id}/pay")]
+    [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> RecordPayment(int id, [FromBody] RecordPaymentRequest request)
     {
         var result = await _billingService.RecordPaymentAsync(id, request);
@@ -39,6 +40,7 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPost("{id}/credit-note")]
+    [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> CreateCreditNote(int id, [FromBody] CreateCreditNoteRequest request)
     {
         var result = await _billingService.CreateCreditNoteAsync(id, request);
