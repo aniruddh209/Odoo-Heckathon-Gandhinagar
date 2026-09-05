@@ -210,11 +210,11 @@ public class QuotationService : IQuotationService
             _context.Quotations.Update(quotation);
             await _context.SaveChangesAsync();
         }
-        else if (!string.IsNullOrWhiteSpace(targetInquiryRef))
+        else
         {
-            // Move quotation status from Draft to Sent so customer can immediately view and act upon it in Customer Portal
-            quotation.Status = QuoteStatus.Sent;
-            quotation.ApprovalStatus = ApprovalStatus.None;
+            // Auto-approved immediately within customer tier ceiling (<= tierLimit) -> No manager escalation needed
+            quotation.Status = !string.IsNullOrWhiteSpace(targetInquiryRef) ? QuoteStatus.Sent : QuoteStatus.Approved;
+            quotation.ApprovalStatus = ApprovalStatus.Approved;
             quotation.UpdatedAtUtc = DateTime.UtcNow;
             _context.Quotations.Update(quotation);
             await _context.SaveChangesAsync();
@@ -246,9 +246,9 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
-        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
+        if (quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
         {
-            throw new InvalidOperationException("Cannot modify deliverables on an approved or confirmed quotation. Commercial terms are locked.");
+            throw new InvalidOperationException("Cannot modify deliverables on a confirmed quotation. Commercial terms are locked.");
         }
 
         var product = await _context.Products.FindAsync(request.ProductId);
@@ -276,7 +276,7 @@ public class QuotationService : IQuotationService
         quotation.Lines.Add(line);
 
         var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
-        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
         string tierName = customer?.Tier?.Name ?? "Silver";
 
         if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
@@ -287,8 +287,8 @@ public class QuotationService : IQuotationService
         }
         else
         {
-            quotation.Status = QuoteStatus.Draft;
-            quotation.ApprovalStatus = ApprovalStatus.None;
+            quotation.Status = QuoteStatus.Approved;
+            quotation.ApprovalStatus = ApprovalStatus.Approved;
             var pendingRequests = await _context.ApprovalRequests
                 .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
                 .ToListAsync();
@@ -310,9 +310,9 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
-        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
+        if (quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
         {
-            throw new InvalidOperationException("Cannot modify deliverables on an approved or confirmed quotation. Commercial terms are locked.");
+            throw new InvalidOperationException("Cannot modify deliverables on a confirmed quotation. Commercial terms are locked.");
         }
 
         var line = quotation.Lines.FirstOrDefault(l => l.Id == lineId);
@@ -328,7 +328,7 @@ public class QuotationService : IQuotationService
         _marginEngine.CalculateLine(line, product);
 
         var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
-        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
         string tierName = customer?.Tier?.Name ?? "Silver";
 
         if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
@@ -339,8 +339,8 @@ public class QuotationService : IQuotationService
         }
         else
         {
-            quotation.Status = QuoteStatus.Draft;
-            quotation.ApprovalStatus = ApprovalStatus.None;
+            quotation.Status = QuoteStatus.Approved;
+            quotation.ApprovalStatus = ApprovalStatus.Approved;
             var pendingRequests = await _context.ApprovalRequests
                 .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
                 .ToListAsync();
@@ -363,9 +363,9 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
-        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
+        if (quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
         {
-            throw new InvalidOperationException("Cannot remove line items from an approved or confirmed quotation. Commercial terms are locked.");
+            throw new InvalidOperationException("Cannot remove line items from a confirmed quotation. Commercial terms are locked.");
         }
 
         var line = quotation.Lines.FirstOrDefault(l => l.Id == lineId);
@@ -375,7 +375,7 @@ public class QuotationService : IQuotationService
             quotation.Lines.Remove(line);
 
             var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
-            decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+            decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
             string tierName = customer?.Tier?.Name ?? "Silver";
 
             if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
@@ -386,8 +386,8 @@ public class QuotationService : IQuotationService
             }
             else
             {
-                quotation.Status = QuoteStatus.Draft;
-                quotation.ApprovalStatus = ApprovalStatus.None;
+                quotation.Status = QuoteStatus.Approved;
+                quotation.ApprovalStatus = ApprovalStatus.Approved;
                 var pendingRequests = await _context.ApprovalRequests
                     .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
                     .ToListAsync();
@@ -628,7 +628,7 @@ public class QuotationService : IQuotationService
         var evalResult = _governanceEngine.EvaluateDiscounts(quotation.Customer, quotation.Lines, discountRules);
         var riskResult = _riskEngine.CalculateRiskScore(evalResult.PeakLineViolation, evalResult.WeightedMarginLoss, quotation.MarginPercent, approvalRules);
 
-        decimal tierLimit = quotation.Customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+        decimal tierLimit = quotation.Customer?.Tier?.MaxDiscountPercent ?? 5.00m;
         string tierName = quotation.Customer?.Tier?.Name ?? "Silver";
         bool exceedsTier = quotation.Lines.Any(l => l.DiscountPercent > tierLimit);
         bool requiresApproval = exceedsTier || evalResult.RequiresApproval || riskResult.RiskScore >= 70.00m;
@@ -889,7 +889,7 @@ public class QuotationService : IQuotationService
             CustomerId = q.CustomerId,
             CustomerName = q.Customer?.Name ?? string.Empty,
             CustomerTierName = q.Customer?.Tier?.Name ?? "Silver",
-            CustomerTierMaxDiscount = q.Customer?.Tier?.MaxDiscountPercent ?? 10.0m,
+            CustomerTierMaxDiscount = q.Customer?.Tier?.MaxDiscountPercent ?? 5.0m,
             SalesRepId = q.SalesRepId,
             SalesRepName = q.SalesRep?.FullName ?? string.Empty,
             PriceListId = q.PriceListId,

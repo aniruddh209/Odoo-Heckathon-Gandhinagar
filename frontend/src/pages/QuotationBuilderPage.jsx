@@ -143,7 +143,7 @@ export const QuotationBuilderPage = () => {
     (c) => c.id === parseInt(selectedCustomerId, 10)
   );
 
-  const tierLimit = Number(selectedCustomer?.tierMaxDiscount ?? selectedCustomer?.maxDiscountPercent ?? 15);
+  const tierLimit = Number(selectedCustomer?.tierMaxDiscount ?? selectedCustomer?.maxDiscountPercent ?? 5);
 
   const handleCustomerChange = (customerId) => {
     setSelectedCustomerId(customerId);

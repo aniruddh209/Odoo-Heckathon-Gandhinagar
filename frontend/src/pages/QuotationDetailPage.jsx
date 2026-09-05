@@ -52,14 +52,13 @@ export const QuotationDetailPage = () => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('lines'); // lines, negotiation, recommendations, approvals, fulfillment
+  const [activeTab, setActiveTab] = useState('lines'); // lines, recommendations, approvals, fulfillment
 
   // Governance decision modal state
   const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
   const [decisionAction, setDecisionAction] = useState('Approve');
   const [decisionReason, setDecisionReason] = useState('');
   const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
-
 
   // Drawer for adding a line item
   const [isAddLineOpen, setIsAddLineOpen] = useState(false);
@@ -76,31 +75,12 @@ export const QuotationDetailPage = () => {
   const [editPrice, setEditPrice] = useState(0);
   const [isUpdatingLine, setIsUpdatingLine] = useState(false);
 
-  // Line Price Negotiation modal state
-  const [isNegotiateModalOpen, setIsNegotiateModalOpen] = useState(false);
-  const [negotiatingLine, setNegotiatingLine] = useState(null);
-  const [targetUnitPrice, setTargetUnitPrice] = useState(0);
-  const [targetDiscountPercent, setTargetDiscountPercent] = useState(0);
-  const [targetQuantity, setTargetQuantity] = useState(1);
-  const [negotiateReason, setNegotiateReason] = useState('');
-  const [isSubmittingNegotiation, setIsSubmittingNegotiation] = useState(false);
-
-  // Deal-wide negotiation modal state
-  const [isDealNegotiateModalOpen, setIsDealNegotiateModalOpen] = useState(false);
-  const [dealDiscountPercent, setDealDiscountPercent] = useState(5);
-  const [dealNegotiateReason, setDealNegotiateReason] = useState('');
-  const [isSubmittingDealNegotiation, setIsSubmittingDealNegotiation] = useState(false);
-
   // Dismissed recommendations list
   const [dismissedRecIds, setDismissedRecIds] = useState([]);
 
   // Fulfillment preview data for quote detail view
   const [fulfillmentPreview, setFulfillmentPreview] = useState(null);
   const [isLoadingFulfillment, setIsLoadingFulfillment] = useState(false);
-
-  // Line comment reply state: { [lineId]: string }
-  const [lineReplyTexts, setLineReplyTexts] = useState({});
-  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   // Portal Link Modal
   const [portalLink, setPortalLink] = useState('');
@@ -283,97 +263,7 @@ export const QuotationDetailPage = () => {
     }
   };
 
-  const handleOpenNegotiateLine = (line) => {
-    setNegotiatingLine(line);
-    setTargetUnitPrice(line.unitPrice || 0);
-    setTargetDiscountPercent(line.discountPercent || 0);
-    setTargetQuantity(line.quantity || 1);
-    setNegotiateReason('');
-    setIsNegotiateModalOpen(true);
-  };
 
-  const handleSubmitNegotiateLine = async (e) => {
-    e.preventDefault();
-    if (!negotiatingLine) return;
-
-    if (quote?.status === 'Approved' || quote?.approvalStatus === 'Approved') {
-      toast.error('Terms Locked', 'Cannot negotiate prices on an approved quotation. Commercial terms are locked.');
-      return;
-    }
-
-    setIsSubmittingNegotiation(true);
-    try {
-      await quotationApi.negotiateLinePrice(id, negotiatingLine.id, {
-        targetUnitPrice: parseFloat(targetUnitPrice) || 0,
-        targetDiscountPercent: parseFloat(targetDiscountPercent) || 0,
-        quantity: parseInt(targetQuantity, 10) || 1,
-        reason: negotiateReason.trim() || 'Commercial counter-pricing proposed by Sales Representative.',
-      });
-
-      toast.success(
-        'Counter-Offer Applied',
-        `Updated line pricing for ${negotiatingLine.productName}. Status changed to Under Negotiation.`
-      );
-      setIsNegotiateModalOpen(false);
-      setNegotiatingLine(null);
-      await loadQuoteData();
-    } catch (err) {
-      toast.error('Negotiation Failed', err.message || 'Could not apply counter-pricing.');
-    } finally {
-      setIsSubmittingNegotiation(false);
-    }
-  };
-
-  const handleOpenNegotiateDeal = () => {
-    setDealDiscountPercent(quote?.customerTierMaxDiscount || 5);
-    setDealNegotiateReason('');
-    setIsDealNegotiateModalOpen(true);
-  };
-
-  const handleSubmitNegotiateDeal = async (e) => {
-    e.preventDefault();
-
-    if (quote?.status === 'Approved' || quote?.approvalStatus === 'Approved') {
-      toast.error('Terms Locked', 'Cannot negotiate terms on an approved quotation. Commercial terms are locked.');
-      return;
-    }
-
-    setIsSubmittingDealNegotiation(true);
-    try {
-      await quotationApi.negotiateDeal(id, {
-        overallDiscountPercent: parseFloat(dealDiscountPercent) || 0,
-        reason: dealNegotiateReason.trim() || 'Deal-wide discount counter-offer proposed by Sales Representative.',
-      });
-
-      toast.success(
-        'Deal Terms Updated',
-        `Deal-wide discount of ${dealDiscountPercent}% applied. Status changed to Under Negotiation.`
-      );
-      setIsDealNegotiateModalOpen(false);
-      await loadQuoteData();
-    } catch (err) {
-      toast.error('Deal Negotiation Failed', err.message || 'Could not apply deal terms.');
-    } finally {
-      setIsSubmittingDealNegotiation(false);
-    }
-  };
-
-  const handleSendLineComment = async (lineId) => {
-    const text = lineReplyTexts[lineId]?.trim();
-    if (!text) return;
-
-    setIsSubmittingReply(true);
-    try {
-      await quotationApi.addLineComment(id, lineId, text);
-      toast.success('Reply Sent', 'Your response has been added to the customer inquiry thread.');
-      setLineReplyTexts((prev) => ({ ...prev, [lineId]: '' }));
-      await loadQuoteData();
-    } catch (err) {
-      toast.error('Failed to post reply', err.message);
-    } finally {
-      setIsSubmittingReply(false);
-    }
-  };
 
   const handleDismissRecommendation = (productId) => {
     setDismissedRecIds((prev) => [...prev, productId]);
@@ -437,10 +327,17 @@ export const QuotationDetailPage = () => {
     );
   }
 
-  const isApproved = quote.status === 'Approved' || quote.approvalStatus === 'Approved';
+  const tierLimit = quote.customerTierMaxDiscount ?? 5;
+  const maxLineDiscount = quote.lines?.length
+    ? Math.max(...quote.lines.map((l) => l.discountPercent || 0))
+    : 0;
+  const isWithinTierCeiling = maxLineDiscount <= tierLimit;
+  const isApproved =
+    quote.status === 'Approved' ||
+    quote.approvalStatus === 'Approved' ||
+    (quote.status === 'Draft' && isWithinTierCeiling && (quote.lines?.length || 0) > 0);
   const isConverted = quote.status === 'ConvertedToOrder';
   const isFinalized = isConverted || quote.status === 'Confirmed';
-  const canNegotiate = !isApproved && !isFinalized;
 
   return (
     <div className="space-y-6">
@@ -464,7 +361,7 @@ export const QuotationDetailPage = () => {
               <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1.5">
                 <span>{quote.customerTierName || 'Standard'} Tier</span>
                 <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
-                  ≤ {quote.customerTierMaxDiscount ?? 10}% Pre-Approved Limit
+                  ≤ {tierLimit}% Pre-Approved Limit
                 </span>
               </span>
             </div>
@@ -530,6 +427,36 @@ export const QuotationDetailPage = () => {
           )}
         </div>
       </div>
+
+      {/* ── Pre-Approved Tier Banner ─────────────────────────── */}
+      {isApproved && !isConverted && (
+        <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+            <div>
+              <h3 className="font-bold text-emerald-950 text-sm flex items-center gap-2">
+                Pre-Approved Commercial Proposal
+                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-200/80 text-emerald-900">
+                  Customer {quote.customerTierName || 'Silver'} Tier Ceiling: ≤ {tierLimit}%
+                </span>
+              </h3>
+              <p className="text-xs text-emerald-800 mt-1">
+                All deliverables and applied discounts are within the pre-authorized customer tier ceiling. No sales manager escalation required. You can confirm this sale order immediately.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="success"
+              size="sm"
+              icon={CheckCircle}
+              onClick={handleConvertToOrder}
+            >
+              Confirm Sale Order
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── Pending Governance Approval Action Banner ─────────── */}
       {quote.status === 'PendingApproval' && (
@@ -624,47 +551,6 @@ export const QuotationDetailPage = () => {
         </div>
       )}
 
-      {/* ── Active Negotiation Banner ─────────────────────────── */}
-      {quote.status === 'UnderNegotiation' && (
-        <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-start gap-3">
-            <MessageSquare className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
-            <div className="text-xs">
-              <h3 className="font-bold text-indigo-900 text-sm flex items-center gap-2">
-                Active Commercial Negotiation
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-200 text-indigo-800 uppercase tracking-wider">
-                  Live Counter-Offers Active
-                </span>
-              </h3>
-              <p className="text-indigo-800 mt-1">
-                Commercial counter-pricing is active on this quotation. Customer sees revised terms on their portal in real time.
-                You can propose further adjustments per deliverable item or deal-wide anytime.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="xs"
-              className="border-indigo-300 text-indigo-800 hover:bg-indigo-100"
-              onClick={() => setActiveTab('negotiation')}
-            >
-              Open Negotiation Hub
-            </Button>
-            {canNegotiate && (
-              <Button
-                variant="primary"
-                size="xs"
-                icon={Sparkles}
-                onClick={handleOpenNegotiateDeal}
-              >
-                Negotiate Deal
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── 2. Authoritative Financial Summary Strip ──────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
@@ -716,10 +602,6 @@ export const QuotationDetailPage = () => {
           {[
             { id: 'lines', label: `Quotation Lines (${quote.lines?.length || 0})` },
             {
-              id: 'negotiation',
-              label: `Customer Inquiries (${quote.lines?.reduce((acc, l) => acc + (l.comments?.length || 0), 0) || 0})`,
-            },
-            {
               id: 'recommendations',
               label: `Live Upsell Engine (${recommendations.filter((r) => !dismissedRecIds.includes(r.productId)).length})`,
             },
@@ -745,26 +627,14 @@ export const QuotationDetailPage = () => {
 
         {activeTab === 'lines' && !isConverted && (
           <div className="flex items-center gap-2">
-            {canNegotiate && (
-              <Button
-                variant="outline"
-                size="xs"
-                icon={Sparkles}
-                onClick={handleOpenNegotiateDeal}
-              >
-                Negotiate Deal
-              </Button>
-            )}
-            {!isApproved && (
-              <Button
-                variant="primary"
-                size="xs"
-                icon={Plus}
-                onClick={() => setIsAddLineOpen(true)}
-              >
-                Add Product Line
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              size="xs"
+              icon={Plus}
+              onClick={() => setIsAddLineOpen(true)}
+            >
+              Add Product Line
+            </Button>
           </div>
         )}
       </div>
@@ -807,17 +677,17 @@ export const QuotationDetailPage = () => {
                     </td>
                     <td className="py-3.5 px-3 text-right">
                       <div className="flex flex-col items-end">
-                        <span className={`font-semibold ${line.discountPercent > (quote.customerTierMaxDiscount ?? 10) ? 'text-rose-600' : 'text-slate-700'}`}>
+                        <span className={`font-semibold ${line.discountPercent > tierLimit ? 'text-rose-600' : 'text-slate-700'}`}>
                           {line.discountPercent}%
                         </span>
                         {line.discountPercent > 0 && (
-                          line.discountPercent <= (quote.customerTierMaxDiscount ?? 10) ? (
+                          line.discountPercent <= tierLimit ? (
                             <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 mt-0.5 whitespace-nowrap">
-                              ✓ ≤ {quote.customerTierMaxDiscount ?? 10}% Tier Safe
+                              ✓ ≤ {tierLimit}% Tier Safe
                             </span>
                           ) : (
                             <span className="text-[9px] font-bold text-rose-700 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/60 mt-0.5 whitespace-nowrap">
-                              ⚠ &gt; {quote.customerTierMaxDiscount ?? 10}% Manager Req
+                              ⚠ &gt; {tierLimit}% Manager Req
                             </span>
                           )
                         )}
@@ -837,45 +707,22 @@ export const QuotationDetailPage = () => {
                     {!isConverted && (
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          {canNegotiate ? (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenNegotiateLine(line)}
-                              className="px-2 py-1 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
-                              title="Propose Counter-Price / Commercial Negotiation"
-                            >
-                              <Sparkles className="w-3 h-3 text-blue-600" />
-                              Negotiate
-                            </button>
-                          ) : isApproved ? (
-                            <span
-                              className="px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0"
-                              title="Quotation is approved. Commercial terms are locked."
-                            >
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              Locked
-                            </span>
-                          ) : null}
-                          {!isApproved && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditLine(line)}
-                                className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                                title="Edit quantity or discount"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveLine(line.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                title="Remove item"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditLine(line)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                            title="Edit quantity or discount"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLine(line.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     )}
@@ -887,164 +734,6 @@ export const QuotationDetailPage = () => {
         </div>
       )}
 
-      {/* ── 4. Customer Inquiries & Negotiation Tab ─────────── */}
-      {activeTab === 'negotiation' && (
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <MessageSquare className="w-5 h-5 text-blue-600" />
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Customer Negotiation & Inquiry Hub
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Direct deliverable feedback, counter-pricing proposals, and audit thread between Sales Representative and Client.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2.5">
-              {canNegotiate && (
-                <Button
-                  variant="outline"
-                  size="xs"
-                  icon={Sparkles}
-                  onClick={handleOpenNegotiateDeal}
-                >
-                  Propose Deal Discount
-                </Button>
-              )}
-              {isApproved && (
-                <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Terms Approved &amp; Locked
-                </span>
-              )}
-              <StatusBadge status={quote.status} />
-            </div>
-          </div>
-
-          {!quote.lines || quote.lines.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 border border-dashed rounded-xl border-slate-200 text-xs">
-              No deliverable line items in this quotation yet.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {quote.lines.map((line) => {
-                const comments = line.comments || [];
-                return (
-                  <div key={line.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
-                    <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-xs text-slate-900">{line.productName}</span>
-                          <span className="font-mono text-[10px] text-slate-400">SKU: {line.sku || line.productSKU}</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs mt-1">
-                          <span className="text-slate-500">Qty: <strong>{line.quantity}</strong></span>
-                          <span className="text-slate-500">
-                            Unit Price: <strong className="font-mono">{formatCurrency(line.unitPrice || 0, quote.currencyCode || quote.currency || 'INR')}</strong>
-                          </span>
-                          <span className="text-blue-600 font-semibold">Discount: {line.discountPercent}%</span>
-                          <span className="text-slate-700 font-mono">
-                            Net Total: <strong className="text-slate-900">{formatCurrency(line.netAmount || 0, quote.currencyCode || quote.currency || 'INR')}</strong>
-                          </span>
-                        </div>
-                      </div>
-
-                      {canNegotiate ? (
-                        <Button
-                          variant="outline"
-                          size="xs"
-                          icon={Sparkles}
-                          className="border-blue-300 text-blue-700 hover:bg-blue-50 shrink-0"
-                          onClick={() => handleOpenNegotiateLine(line)}
-                        >
-                          Propose Counter Price
-                        </Button>
-                      ) : isApproved ? (
-                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Locked
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="p-4 space-y-3">
-                      {comments.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic py-1">
-                          No inquiries or notes submitted for this item yet. Click "Propose Counter Price" above to offer customized terms to the client.
-                        </p>
-                      ) : (
-                        comments.map((c) => {
-                          const isCustomer = c.comment?.startsWith('Customer (') || c.authorRole === 'Customer';
-                          const isRepCounter = c.comment?.includes('[Sales Rep Counter-Offer]');
-                          return (
-                            <div
-                              key={c.id}
-                              className={`p-3 rounded-lg text-xs ${
-                                isRepCounter
-                                  ? 'bg-amber-50/90 border border-amber-200 text-amber-950 font-medium'
-                                  : isCustomer
-                                  ? 'bg-blue-50/70 border border-blue-200 text-blue-900'
-                                  : 'bg-slate-100/80 border border-slate-200 text-slate-800'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold text-[11px] flex items-center gap-1.5">
-                                  {isRepCounter ? (
-                                    <>
-                                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                                      Sales Representative Counter-Offer
-                                    </>
-                                  ) : isCustomer ? (
-                                    'Client Portal Inquiry'
-                                  ) : (
-                                    c.userName || c.authorName || 'Sales Representative Response'
-                                  )}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  {new Date(c.createdAtUtc).toLocaleString()}
-                                </span>
-                              </div>
-                              <p className="whitespace-pre-wrap">{c.comment}</p>
-                            </div>
-                          );
-                        })
-                      )}
-
-                      {/* Reply Box for Sales Rep */}
-                      {!isConverted && (
-                        <div className="pt-2 flex items-center gap-2">
-                          <input
-                            type="text"
-                            placeholder="Type your message or response to client..."
-                            value={lineReplyTexts[line.id] || ''}
-                            onChange={(e) =>
-                              setLineReplyTexts((prev) => ({ ...prev, [line.id]: e.target.value }))
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSendLineComment(line.id);
-                            }}
-                            className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                          <Button
-                            variant="primary"
-                            size="xs"
-                            icon={Send}
-                            isLoading={isSubmittingReply}
-                            onClick={() => handleSendLineComment(line.id)}
-                          >
-                            Reply
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {activeTab === 'recommendations' && (
         <div className="space-y-4">
@@ -1499,233 +1188,9 @@ export const QuotationDetailPage = () => {
           </div>
         </div>
       </Modal>
-
-      {/* ── 8. Sales Rep Line Price Negotiation Modal ───────────── */}
-      <Modal
-        isOpen={isNegotiateModalOpen}
-        onClose={() => setIsNegotiateModalOpen(false)}
-        title="Propose Counter-Price / Commercial Negotiation"
-        description={`Item: ${negotiatingLine?.productName} • SKU: ${negotiatingLine?.sku || negotiatingLine?.productSKU}`}
-      >
-        {negotiatingLine && (() => {
-          const qty = parseInt(targetQuantity, 10) || 1;
-          const uPrice = parseFloat(targetUnitPrice) || 0;
-          const disc = Math.max(0, Math.min(100, parseFloat(targetDiscountPercent) || 0));
-          const lineGross = qty * uPrice;
-          const discAmt = (lineGross * disc) / 100;
-          const lineNet = lineGross - discAmt;
-          const cost = (negotiatingLine.costPrice || 0) * qty;
-          const marginAmt = lineNet - cost;
-          const marginPct = lineNet > 0 ? (marginAmt / lineNet) * 100 : 0;
-          const tierCeiling = quote?.customerTierMaxDiscount || 5;
-          const exceedsTier = disc > tierCeiling;
-
-          return (
-            <form onSubmit={handleSubmitNegotiateLine} className="space-y-4 text-xs">
-              {/* Reference metrics */}
-              <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Base Cost Price</span>
-                  <span className="font-mono font-bold text-slate-700">
-                    {formatCurrency(negotiatingLine.costPrice || 0, quote.currencyCode || quote.currency || 'INR')}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Customer Tier</span>
-                  <span className="font-bold text-slate-800">
-                    {quote.customerTierName || 'Standard'} (Max {tierCeiling}%)
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Current Net</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {formatCurrency(negotiatingLine.netAmount || 0, quote.currencyCode || quote.currency || 'INR')}
-                  </span>
-                </div>
-              </div>
-
-              {/* Input Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Input
-                  label="Target Unit Price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={targetUnitPrice}
-                  onChange={(e) => setTargetUnitPrice(e.target.value)}
-                  helperText="Adjust item unit price"
-                />
-
-                <Input
-                  label="Target Discount (%)"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  required
-                  value={targetDiscountPercent}
-                  onChange={(e) => setTargetDiscountPercent(e.target.value)}
-                  helperText={`Tier ceiling: ${tierCeiling}%`}
-                />
-
-                <Input
-                  label="Quantity"
-                  type="number"
-                  min="1"
-                  required
-                  value={targetQuantity}
-                  onChange={(e) => setTargetQuantity(e.target.value)}
-                />
-              </div>
-
-              {/* Commercial Rationale */}
-              <Textarea
-                label="Commercial Rationale / Audit Note"
-                required
-                placeholder="Explain the commercial reason for this counter-offer (e.g., Strategic volume discount approved)..."
-                value={negotiateReason}
-                onChange={(e) => setNegotiateReason(e.target.value)}
-                rows={3}
-                helperText="Will be recorded in the customer negotiation thread and audit log."
-              />
-
-              {/* Live Preview Card */}
-              <div className="p-3 rounded-xl border border-blue-200 bg-blue-50/50 space-y-2">
-                <div className="flex items-center justify-between font-semibold text-blue-900">
-                  <span>Projected Line Total:</span>
-                  <span className="font-mono text-sm font-extrabold text-blue-700">
-                    {formatCurrency(lineNet, quote.currencyCode || quote.currency || 'INR')}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600 text-[11px]">
-                  <span>Projected Line Margin:</span>
-                  <span className={`font-mono font-bold ${marginPct >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {marginPct.toFixed(1)}% ({formatCurrency(marginAmt, quote.currencyCode || quote.currency || 'INR')})
-                  </span>
-                </div>
-
-                {/* Tier Policy Indicator */}
-                <div className={`p-2 rounded-lg text-[11px] font-medium border ${
-                  exceedsTier
-                    ? 'bg-amber-100/70 border-amber-300 text-amber-900'
-                    : 'bg-emerald-100/70 border-emerald-300 text-emerald-900'
-                }`}>
-                  {exceedsTier ? (
-                    <span>⚠️ Discount ({disc}%) exceeds customer {quote.customerTierName} Tier ceiling ({tierCeiling}%). Submitting will route this deal to Management for Governance Review.</span>
-                  ) : (
-                    <span>✅ Within customer {quote.customerTierName} Tier ceiling ({tierCeiling}%). Commercial advantage pre-approved.</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Modal Actions */}
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-                <Button variant="outline" size="sm" type="button" onClick={() => setIsNegotiateModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  type="submit"
-                  icon={Sparkles}
-                  isLoading={isSubmittingNegotiation}
-                >
-                  Apply Counter-Offer
-                </Button>
-              </div>
-            </form>
-          );
-        })()}
-      </Modal>
-
-      {/* ── 9. Sales Rep Deal-Wide Discount Negotiation Modal ────── */}
-      <Modal
-        isOpen={isDealNegotiateModalOpen}
-        onClose={() => setIsDealNegotiateModalOpen(false)}
-        title="Propose Deal-Wide Commercial Discount"
-        description={`Quotation ${quote?.quotationNumber} • Account: ${quote?.customerName}`}
-      >
-        {(() => {
-          const disc = Math.max(0, Math.min(100, parseFloat(dealDiscountPercent) || 0));
-          const tierCeiling = quote?.customerTierMaxDiscount || 5;
-          const exceedsTier = disc > tierCeiling;
-
-          return (
-            <form onSubmit={handleSubmitNegotiateDeal} className="space-y-4 text-xs">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Customer Account:</span>
-                  <span className="font-bold text-slate-800">{quote?.customerName}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Customer Tier & Advantage:</span>
-                  <span className="font-bold text-blue-700">
-                    {quote?.customerTierName || 'Bronze'} (Max Pre-Approved: {tierCeiling}%)
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Current Total Deliverables:</span>
-                  <span className="font-mono font-bold text-slate-800">{quote?.lines?.length || 0} line item(s)</span>
-                </div>
-              </div>
-
-              <Input
-                label="Overall Deal Discount (%)"
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                required
-                value={dealDiscountPercent}
-                onChange={(e) => setDealDiscountPercent(e.target.value)}
-                helperText={`Applies uniformly across all deliverables in this proposal.`}
-              />
-
-              <Textarea
-                label="Commercial Justification / Audit Note"
-                required
-                placeholder="State the strategic reason for this overall deal counter-discount..."
-                value={dealNegotiateReason}
-                onChange={(e) => setDealNegotiateReason(e.target.value)}
-                rows={3}
-                helperText="Will be recorded in the customer proposal audit log."
-              />
-
-              {/* Tier Alert */}
-              <div className={`p-2.5 rounded-lg text-[11px] font-medium border ${
-                exceedsTier
-                  ? 'bg-amber-100/70 border-amber-300 text-amber-900'
-                  : 'bg-emerald-100/70 border-emerald-300 text-emerald-900'
-              }`}>
-                {exceedsTier ? (
-                  <span>⚠️ Discount ({disc}%) exceeds customer {quote?.customerTierName} Tier ceiling ({tierCeiling}%). Deal will trigger management governance review.</span>
-                ) : (
-                  <span>✅ Within customer {quote?.customerTierName} Tier ceiling ({tierCeiling}%). Deal remains auto-approved for customer signature.</span>
-                )}
-              </div>
-
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-                <Button variant="outline" size="sm" type="button" onClick={() => setIsDealNegotiateModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  type="submit"
-                  icon={Sparkles}
-                  isLoading={isSubmittingDealNegotiation}
-                >
-                  Apply Deal Counter-Offer
-                </Button>
-              </div>
-            </form>
-          );
-        })()}
-      </Modal>
     </div>
   );
 };
 
-
 export default QuotationDetailPage;
+

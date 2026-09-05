@@ -25,8 +25,8 @@ public static class DbInitializer
         var tiers = new List<(string Name, decimal MaxDiscount)>
         {
             ("Gold", 15.00m),
-            ("Silver", 10.00m),
-            ("Bronze", 5.00m)
+            ("Silver", 5.00m),
+            ("Bronze", 3.00m)
         };
 
         foreach (var (tName, tMax) in tiers)
@@ -485,23 +485,23 @@ public static class DbInitializer
         {
             // Global Ceilings
             new() { TierId = goldTier.Id, CategoryId = null, MaxDiscountPercent = 15.00m, ManagerThreshold = 10.00m, FinanceThreshold = 15.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            new() { TierId = silverTier.Id, CategoryId = null, MaxDiscountPercent = 10.00m, ManagerThreshold = 7.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            new() { TierId = bronzeTier.Id, CategoryId = null, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = silverTier.Id, CategoryId = null, MaxDiscountPercent = 5.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = bronzeTier.Id, CategoryId = null, MaxDiscountPercent = 3.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
 
             // Gold Category Specific Ceilings (Services & Subscriptions capped at 10%)
             new() { TierId = goldTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 15.00m, ManagerThreshold = 8.00m, FinanceThreshold = 12.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
             new() { TierId = goldTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
             new() { TierId = goldTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 6.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
 
-            // Silver Category Specific Ceilings (Hardware capped at 10%, Services capped at 10%)
-            new() { TierId = silverTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 6.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            new() { TierId = silverTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            new() { TierId = silverTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 10.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            // Silver Category Specific Ceilings (Hardware capped at 5%, Services capped at 5%)
+            new() { TierId = silverTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = silverTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = silverTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 5.00m, FinanceThreshold = 10.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
 
-            // Bronze Category Specific Ceilings (Capped at 5%)
-            new() { TierId = bronzeTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            new() { TierId = bronzeTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
-            new() { TierId = bronzeTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 5.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow }
+            // Bronze Category Specific Ceilings (Capped at 3%)
+            new() { TierId = bronzeTier.Id, CategoryId = hwCat.Id, MaxDiscountPercent = 3.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = bronzeTier.Id, CategoryId = srvCat.Id, MaxDiscountPercent = 3.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+            new() { TierId = bronzeTier.Id, CategoryId = subCat.Id, MaxDiscountPercent = 3.00m, ManagerThreshold = 3.00m, FinanceThreshold = 5.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow }
         };
 
         foreach (var dr in discountRules)
