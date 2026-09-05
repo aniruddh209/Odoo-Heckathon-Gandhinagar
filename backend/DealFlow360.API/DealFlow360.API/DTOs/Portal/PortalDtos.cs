@@ -34,6 +34,7 @@ public class CustomerQuoteDto
     public DateTime? ExpectedCloseDate { get; set; }
     public string? Notes { get; set; }
     public List<CustomerQuoteLineDto> Lines { get; set; } = new();
+    public List<NegotiationHistoryResponse> ChangeRequests { get; set; } = new();
 
     // STRICT ZERO-LEAK SECURITY INVARIANT:
     // CostPrice, UnitMargin, MarginPercent, TotalCost, BlendedRiskScore,
@@ -80,3 +81,93 @@ public class NegotiationHistoryResponse
     public string? Description { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }
+
+public class SubmitChangeRequest
+{
+    public int? LineId { get; set; }
+    public string ChangeType { get; set; } = "General"; // QuantityChange, ScopeChange, Terms, General
+    public int? NewQuantity { get; set; }
+    public string Description { get; set; } = string.Empty;
+}
+
+public class CustomerOrderDetailDto
+{
+    public int Id { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public decimal Total { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public int QuotationId { get; set; }
+    public string QuotationNumber { get; set; } = string.Empty;
+    public List<CustomerOrderLineDto> Lines { get; set; } = new();
+}
+
+public class CustomerOrderLineDto
+{
+    public int Id { get; set; }
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public string SKU { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal NetAmount { get; set; }
+}
+
+public class CustomerInvoiceDetailDto
+{
+    public int Id { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public decimal SubTotal { get; set; }
+    public decimal TaxTotal { get; set; }
+    public decimal Total { get; set; }
+    public decimal PaidAmount { get; set; }
+    public decimal Outstanding { get; set; }
+    public DateTime DueDate { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public List<CustomerInvoiceLineDto> Lines { get; set; } = new();
+    public List<CustomerPaymentDto> Payments { get; set; } = new();
+    public List<CustomerCreditNoteDto> CreditNotes { get; set; } = new();
+}
+
+public class CustomerInvoiceLineDto
+{
+    public int Id { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal NetAmount { get; set; }
+}
+
+public class CustomerPaymentDto
+{
+    public int Id { get; set; }
+    public decimal Amount { get; set; }
+    public string PaymentMethod { get; set; } = string.Empty;
+    public DateTime PaidAtUtc { get; set; }
+    public string? Reference { get; set; }
+}
+
+public class CustomerCreditNoteDto
+{
+    public int Id { get; set; }
+    public string CreditNoteNumber { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+}
+
+public class CustomerProfileDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+    public string TierName { get; set; } = string.Empty;
+    public string CurrencyCode { get; set; } = "USD";
+    public DateTime CreatedAtUtc { get; set; }
+    public string? AssignedSalesRepName { get; set; }
+    public string? AssignedSalesRepEmail { get; set; }
+}
+

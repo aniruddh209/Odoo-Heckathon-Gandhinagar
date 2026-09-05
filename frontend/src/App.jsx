@@ -49,6 +49,14 @@ export function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/portal/quotations/:id"
+            element={
+              <ProtectedRoute allowedRoles={['Customer', 'Admin']}>
+                <CustomerAccountPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Internal CRM & Sales Operations App Layout */}
           <Route

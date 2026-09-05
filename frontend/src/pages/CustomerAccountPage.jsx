@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { customerApi } from '../api';
 import { useToast } from '../context/ToastContext';
 import {
   Button,
   StatusBadge,
+  Badge,
   DataTable,
   LoadingSpinner,
   ErrorAlert,
@@ -23,22 +25,41 @@ import {
   Eye,
   Building,
   RefreshCw,
+  UserCheck,
+  Mail,
+  Phone,
+  Calendar,
+  CheckCircle2,
+  ExternalLink,
+  Truck,
+  Layers,
 } from 'lucide-react';
 
 export const CustomerAccountPage = () => {
   const { user, logout } = useAuth();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const { id: routeQuoteId } = useParams();
 
-  const [activeTab, setActiveTab] = useState('quotes'); // quotes, orders, invoices
+  const [activeTab, setActiveTab] = useState('quotes'); // quotes, orders, invoices, profile
   const [quotes, setQuotes] = useState([]);
   const [orders, setOrders] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Selected Quote Drawer for full proposal inspection & confirmation
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Selected Order Drawer
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false);
+
+  // Selected Invoice Drawer
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [isInvoiceDrawerOpen, setIsInvoiceDrawerOpen] = useState(false);
 
   useEffect(() => {
     loadCustomerData();
@@ -48,16 +69,18 @@ export const CustomerAccountPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [qRes, oRes, iRes] = await Promise.all([
+      const [qRes, oRes, iRes, pRes] = await Promise.all([
         customerApi.getMyQuotations(),
         customerApi.getMyOrders(),
         customerApi.getMyInvoices(),
+        customerApi.getMyProfile().catch(() => null),
       ]);
 
       const loadedQuotes = Array.isArray(qRes) ? qRes : qRes?.value || [];
       setQuotes(loadedQuotes);
       setOrders(Array.isArray(oRes) ? oRes : oRes?.value || []);
       setInvoices(Array.isArray(iRes) ? iRes : iRes?.value || []);
+      if (pRes) setProfile(pRes);
 
       // If drawer is open, keep selected quote updated
       if (selectedQuote) {
@@ -71,9 +94,41 @@ export const CustomerAccountPage = () => {
     }
   };
 
+  // Deep-linking: auto-open proposal if query param or route param is present
+  useEffect(() => {
+    const targetId = searchParams.get('quoteId') || routeQuoteId;
+    if (targetId && quotes.length > 0) {
+      const target = quotes.find((q) => String(q.id) === String(targetId));
+      if (target) {
+        setSelectedQuote(target);
+        setIsDrawerOpen(true);
+      }
+    }
+  }, [searchParams, routeQuoteId, quotes]);
+
   const handleOpenProposal = (quote) => {
     setSelectedQuote(quote);
     setIsDrawerOpen(true);
+  };
+
+  const handleOpenOrder = async (order) => {
+    try {
+      const detailed = await customerApi.getMyOrderById(order.id);
+      setSelectedOrder(detailed);
+      setIsOrderDrawerOpen(true);
+    } catch (err) {
+      toast.error('Failed to load order', err.message);
+    }
+  };
+
+  const handleOpenInvoice = async (invoice) => {
+    try {
+      const detailed = await customerApi.getMyInvoiceById(invoice.id);
+      setSelectedInvoice(detailed);
+      setIsInvoiceDrawerOpen(true);
+    } catch (err) {
+      toast.error('Failed to load invoice', err.message);
+    }
   };
 
   const handleConfirmQuotation = async (quotationId) => {
@@ -212,9 +267,13 @@ export const CustomerAccountPage = () => {
       header: 'Order #',
       accessor: 'orderNumber',
       render: (o) => (
-        <span className="font-mono font-bold text-blue-600">
+        <button
+          type="button"
+          onClick={() => handleOpenOrder(o)}
+          className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-left cursor-pointer"
+        >
           {o.orderNumber}
-        </span>
+        </button>
       ),
     },
     {
@@ -242,6 +301,20 @@ export const CustomerAccountPage = () => {
         <StatusBadge type="order" status={o.status || 'Confirmed'} />
       ),
     },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      render: (o) => (
+        <Button
+          variant="outline"
+          size="xs"
+          icon={Truck}
+          onClick={() => handleOpenOrder(o)}
+        >
+          Order &amp; Fulfillment
+        </Button>
+      ),
+    },
   ];
 
   const invoiceCols = [
@@ -249,9 +322,22 @@ export const CustomerAccountPage = () => {
       header: 'Invoice #',
       accessor: 'invoiceNumber',
       render: (i) => (
-        <span className="font-mono font-bold text-blue-600">
+        <button
+          type="button"
+          onClick={() => handleOpenInvoice(i)}
+          className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-left cursor-pointer"
+        >
           {i.invoiceNumber}
-        </span>
+        </button>
+      ),
+    },
+    {
+      header: 'Billing Type',
+      accessor: 'type',
+      render: (i) => (
+        <Badge variant={i.type === 'Recurring' ? 'purple' : 'blue'} size="sm">
+          {i.type === 'Recurring' ? 'Recurring SaaS' : 'One-Time'}
+        </Badge>
       ),
     },
     {
@@ -289,6 +375,20 @@ export const CustomerAccountPage = () => {
       header: 'Status',
       accessor: 'status',
       render: (i) => <StatusBadge type="invoice" status={i.status} />,
+    },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      render: (i) => (
+        <Button
+          variant="outline"
+          size="xs"
+          icon={Eye}
+          onClick={() => handleOpenInvoice(i)}
+        >
+          Statement Breakdown
+        </Button>
+      ),
     },
   ];
 
@@ -422,6 +522,7 @@ export const CustomerAccountPage = () => {
             { id: 'quotes', label: `My Proposals (${quotes.length})`, icon: FileText },
             { id: 'orders', label: `My Orders (${orders.length})`, icon: Package },
             { id: 'invoices', label: `Invoices & Billing (${invoices.length})`, icon: CreditCard },
+            { id: 'profile', label: 'Company Profile & Sales Rep', icon: Building },
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -477,9 +578,91 @@ export const CustomerAccountPage = () => {
             />
           </div>
         )}
+
+        {/* Tab Content 4: Company Profile & Sales Rep */}
+        {activeTab === 'profile' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Company Organization Card */}
+            <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <Building className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-sm font-bold text-slate-900">Commercial Account Profile</h3>
+                </div>
+                <Badge variant="blue" size="sm">
+                  {profile?.tierName || 'Standard Tier'}
+                </Badge>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Enterprise Name:</span>
+                  <span className="font-bold text-slate-800">{profile?.name || user?.fullName}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Primary Billing Email:</span>
+                  <span className="font-mono text-slate-800">{profile?.email || user?.email}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Contact Phone:</span>
+                  <span className="font-mono text-slate-800">{profile?.phone || 'On file with Sales Ops'}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Account Currency:</span>
+                  <span className="font-mono font-bold text-slate-800">{profile?.currencyCode || 'USD'}</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-slate-500 font-medium">Customer Since:</span>
+                  <span className="text-slate-800">
+                    {profile?.createdAtUtc ? new Date(profile.createdAtUtc).toLocaleDateString() : 'Active Partner'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Assigned Sales Representative Card */}
+            <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <UserCheck className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-slate-900">Dedicated Account Executive</h3>
+                </div>
+                <Badge variant="indigo" size="sm">
+                  Commercial Support
+                </Badge>
+              </div>
+
+              <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  {profile?.assignedSalesRepName ? profile.assignedSalesRepName.substring(0, 2).toUpperCase() : 'DF'}
+                </div>
+                <div className="space-y-1 text-xs">
+                  <h4 className="font-bold text-slate-900">
+                    {profile?.assignedSalesRepName || 'DealFlow Account Team'}
+                  </h4>
+                  <p className="text-slate-500">Commercial Account Executive</p>
+                  <p className="text-indigo-700 font-mono text-[11px] flex items-center gap-1 mt-1">
+                    <Mail className="w-3.5 h-3.5" />
+                    {profile?.assignedSalesRepEmail || 'sales@dealflow360.com'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <a
+                  href={`mailto:${profile?.assignedSalesRepEmail || 'sales@dealflow360.com'}?subject=Inquiry%20regarding%20account%20${encodeURIComponent(profile?.name || '')}`}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  Contact Account Executive
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Drawer: Detailed Interactive Customer Proposal View */}
+      {/* Drawer 1: Detailed Interactive Customer Proposal View */}
       <Drawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
@@ -494,6 +677,241 @@ export const CustomerAccountPage = () => {
             onConfirmOverride={handleConfirmQuotation}
             isEmbedded
           />
+        )}
+      </Drawer>
+
+      {/* Drawer 2: Detailed Order & Fulfillment View */}
+      <Drawer
+        isOpen={isOrderDrawerOpen}
+        onClose={() => setIsOrderDrawerOpen(false)}
+        title={`Order ${selectedOrder?.orderNumber || ''}`}
+        subtitle="Operational Fulfillment & Logistics Progress"
+        width="lg"
+      >
+        {selectedOrder && (
+          <div className="space-y-6">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Order Status:</span>
+                <StatusBadge type="order" status={selectedOrder.status} />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Originating Quotation:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOrderDrawerOpen(false);
+                    const matchedQuote = quotes.find((q) => q.id === selectedOrder.quotationId);
+                    if (matchedQuote) {
+                      handleOpenProposal(matchedQuote);
+                    }
+                  }}
+                  className="font-mono font-bold text-blue-600 hover:underline cursor-pointer"
+                >
+                  #{selectedOrder.quotationNumber}
+                </button>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Order Placed:</span>
+                <span className="text-slate-800">
+                  {new Date(selectedOrder.createdAtUtc).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Fulfillment Status Progress Stepper */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
+                Fulfillment Milestone Tracker
+              </span>
+              <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
+                <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">
+                  <CheckCircle2 className="w-4 h-4 mx-auto mb-1 text-emerald-600" />
+                  Confirmed
+                </div>
+                <div className={`p-2 rounded-lg border ${['Processing', 'Shipped', 'Delivered'].includes(selectedOrder.status) ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-bold' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                  <CheckCircle2 className="w-4 h-4 mx-auto mb-1" />
+                  Processing
+                </div>
+                <div className={`p-2 rounded-lg border ${['Shipped', 'Delivered'].includes(selectedOrder.status) ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-bold' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                  <Truck className="w-4 h-4 mx-auto mb-1" />
+                  Dispatched
+                </div>
+                <div className={`p-2 rounded-lg border ${selectedOrder.status === 'Delivered' ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-bold' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                  <CheckCircle2 className="w-4 h-4 mx-auto mb-1" />
+                  Delivered
+                </div>
+              </div>
+            </div>
+
+            {/* Order Items Table */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                Ordered Deliverables ({selectedOrder.lines?.length || 0})
+              </span>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-semibold uppercase text-[10px]">
+                      <th className="py-2.5 px-3">Item</th>
+                      <th className="py-2.5 px-3 text-right">Qty</th>
+                      <th className="py-2.5 px-3 text-right">Unit Price</th>
+                      <th className="py-2.5 px-3 text-right">Net Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {selectedOrder.lines?.map((line) => (
+                      <tr key={line.id}>
+                        <td className="py-2.5 px-3">
+                          <span className="font-semibold text-slate-800 block">{line.productName}</span>
+                          <span className="font-mono text-[10px] text-slate-400">{line.sku}</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono">{line.quantity}</td>
+                        <td className="py-2.5 px-3 text-right font-mono">{formatMoney(line.unitPrice)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatMoney(line.netAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center text-sm font-bold text-slate-900">
+              <span>Total Order Value:</span>
+              <span className="font-mono text-base text-blue-600">{formatMoney(selectedOrder.total)}</span>
+            </div>
+          </div>
+        )}
+      </Drawer>
+
+      {/* Drawer 3: Detailed Invoice & Billing Statement View */}
+      <Drawer
+        isOpen={isInvoiceDrawerOpen}
+        onClose={() => setIsInvoiceDrawerOpen(false)}
+        title={`Invoice ${selectedInvoice?.invoiceNumber || ''}`}
+        subtitle="Commercial Statement & Payment Breakdown"
+        width="lg"
+      >
+        {selectedInvoice && (
+          <div className="space-y-6">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Invoice Status:</span>
+                <StatusBadge type="invoice" status={selectedInvoice.status} />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Billing Category:</span>
+                <Badge variant={selectedInvoice.type === 'Recurring' ? 'purple' : 'blue'} size="sm">
+                  {selectedInvoice.type === 'Recurring' ? 'Recurring SaaS Schedule' : 'One-Time Deliverables'}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Due Date:</span>
+                <span className="font-medium text-slate-800">
+                  {selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString() : 'Net-30'}
+                </span>
+              </div>
+            </div>
+
+            {/* Line Items Breakdown */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                Invoiced Items &amp; Services
+              </span>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-semibold uppercase text-[10px]">
+                      <th className="py-2.5 px-3">Description</th>
+                      <th className="py-2.5 px-3 text-right">Qty</th>
+                      <th className="py-2.5 px-3 text-right">Unit Price</th>
+                      <th className="py-2.5 px-3 text-right">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {selectedInvoice.lines?.map((line) => (
+                      <tr key={line.id}>
+                        <td className="py-2.5 px-3 font-medium text-slate-800">{line.description}</td>
+                        <td className="py-2.5 px-3 text-right font-mono">{line.quantity}</td>
+                        <td className="py-2.5 px-3 text-right font-mono">{formatMoney(line.unitPrice)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatMoney(line.netAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Financial Reconciliation */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span>Subtotal:</span>
+                <span className="font-mono text-slate-900">{formatMoney(selectedInvoice.subTotal)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Tax Total (18%):</span>
+                <span className="font-mono text-slate-900">{formatMoney(selectedInvoice.taxTotal)}</span>
+              </div>
+              <div className="flex justify-between text-slate-900 font-bold pt-1.5 border-t border-slate-200">
+                <span>Total Invoiced:</span>
+                <span className="font-mono">{formatMoney(selectedInvoice.total)}</span>
+              </div>
+              <div className="flex justify-between text-emerald-700 font-semibold">
+                <span>Paid to Date:</span>
+                <span className="font-mono">-{formatMoney(selectedInvoice.paidAmount)}</span>
+              </div>
+              <div className="flex justify-between text-base font-black pt-2 border-t border-slate-200">
+                <span>Outstanding Balance:</span>
+                <span className={`font-mono ${selectedInvoice.outstanding > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {formatMoney(selectedInvoice.outstanding)}
+                </span>
+              </div>
+            </div>
+
+            {/* Payments History */}
+            {selectedInvoice.payments?.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                  Payment Receipts ({selectedInvoice.payments.length})
+                </span>
+                <div className="space-y-2">
+                  {selectedInvoice.payments.map((p) => (
+                    <div key={p.id} className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs flex justify-between items-center">
+                      <div>
+                        <span className="font-bold text-emerald-950 block">{p.paymentMethod || 'Wire / Bank Transfer'}</span>
+                        <span className="text-[11px] text-emerald-700 font-mono">Ref: {p.reference || 'N/A'} • {new Date(p.paidAtUtc).toLocaleDateString()}</span>
+                      </div>
+                      <span className="font-mono font-bold text-emerald-800 text-sm">
+                        {formatMoney(p.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Credit Notes */}
+            {selectedInvoice.creditNotes?.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                  Applied Credit Notes ({selectedInvoice.creditNotes.length})
+                </span>
+                <div className="space-y-2">
+                  {selectedInvoice.creditNotes.map((c) => (
+                    <div key={c.id} className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-xs flex justify-between items-center">
+                      <div>
+                        <span className="font-bold text-amber-950 block">{c.creditNoteNumber}</span>
+                        <span className="text-[11px] text-amber-700">Reason: {c.reason}</span>
+                      </div>
+                      <span className="font-mono font-bold text-amber-800 text-sm">
+                        -{formatMoney(c.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </Drawer>
     </div>

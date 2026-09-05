@@ -17,6 +17,15 @@ export const portalApi = {
     });
   },
 
+  submitChangeRequest: async (token, { lineId, changeType, newQuantity, description }) => {
+    return apiClient.post(`portal/quote/${token}/change-request`, {
+      lineId,
+      changeType,
+      newQuantity,
+      description,
+    });
+  },
+
   confirmQuote: async (token) => {
     return apiClient.post(`portal/quote/${token}/confirm`);
   },

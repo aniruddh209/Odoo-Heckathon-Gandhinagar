@@ -18,8 +18,13 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  FileEdit,
+  AlertCircle,
+  History,
+  Clock,
 } from 'lucide-react';
 import { portalApi } from '../../api/portalApi';
+import { customerApi } from '../../api/customerApi';
 import { useToast } from '../../context/ToastContext';
 
 export const CustomerProposalView = ({
@@ -43,6 +48,14 @@ export const CustomerProposalView = ({
   const [proposedDiscount, setProposedDiscount] = useState('');
   const [counterReason, setCounterReason] = useState('');
   const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
+
+  // Change Request Modal State
+  const [changeModalOpen, setChangeModalOpen] = useState(false);
+  const [changeType, setChangeType] = useState('QuantityChange');
+  const [changeLineId, setChangeLineId] = useState('');
+  const [changeNewQty, setChangeNewQty] = useState('');
+  const [changeDescription, setChangeDescription] = useState('');
+  const [isSubmittingChange, setIsSubmittingChange] = useState(false);
 
   // Acceptance & Confirmation Modal State
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -82,7 +95,8 @@ export const CustomerProposalView = ({
     quote.status === 'Confirmed' ||
     quote.status === 'ConvertedToOrder';
   const isRejected = quote.status === 'Rejected' || quote.status === 'Cancelled';
-  const canConfirm = !isFinalized && !isRejected;
+  const isPendingApproval = quote.status === 'PendingApproval';
+  const canConfirm = !isFinalized && !isRejected && !isPendingApproval;
 
   // Formatting helpers
   const currency = quote.currencyCode || 'USD';
@@ -124,9 +138,9 @@ export const CustomerProposalView = ({
     setIsSubmittingComment(true);
     try {
       if (token) {
-        await portalApi.submitLineComment(token, activeLineForComment.id, commentText);
+        await portalApi.submitLineComment(token, activeLineForComment.id, commentText.trim());
       } else {
-        await portalApi.submitLineComment('auth-client', activeLineForComment.id, commentText);
+        await customerApi.submitLineComment(quote.id, activeLineForComment.id, commentText.trim());
       }
       toast.success('Inquiry Relayed', 'Your question has been sent to your dedicated account executive.');
       setCommentModalOpen(false);
@@ -145,12 +159,15 @@ export const CustomerProposalView = ({
 
     setIsSubmittingCounter(true);
     try {
+      const payload = {
+        lineId: activeLineForCounter.id,
+        proposedDiscountPercent: parseFloat(proposedDiscount) || 0,
+        reason: counterReason.trim(),
+      };
       if (token) {
-        await portalApi.submitCounterOffer(token, {
-          lineId: activeLineForCounter.id,
-          proposedDiscountPercent: parseFloat(proposedDiscount) || 0,
-          reason: counterReason,
-        });
+        await portalApi.submitCounterOffer(token, payload);
+      } else {
+        await customerApi.submitCounterOffer(quote.id, payload);
       }
       toast.success('Counter-Offer Submitted', 'Negotiation engine evaluated your request and alerted the sales team.');
       setCounterModalOpen(false);
@@ -159,6 +176,39 @@ export const CustomerProposalView = ({
       toast.error('Counter-Offer Failed', err.message || 'Unable to submit counter proposal.');
     } finally {
       setIsSubmittingCounter(false);
+    }
+  };
+
+  const handleSubmitChangeRequest = async (e) => {
+    e.preventDefault();
+    if (!changeDescription.trim()) return;
+
+    setIsSubmittingChange(true);
+    try {
+      const payload = {
+        lineId: changeLineId ? parseInt(changeLineId, 10) : null,
+        changeType,
+        newQuantity: changeNewQty ? parseInt(changeNewQty, 10) : null,
+        description: changeDescription.trim(),
+      };
+      if (token) {
+        await portalApi.submitChangeRequest(token, payload);
+      } else {
+        await customerApi.submitChangeRequest(quote.id, payload);
+      }
+      toast.success(
+        'Change Request Submitted',
+        'Your requested changes have been sent to your account executive for review.'
+      );
+      setChangeModalOpen(false);
+      setChangeDescription('');
+      setChangeLineId('');
+      setChangeNewQty('');
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      toast.error('Submission Failed', err.message || 'Could not submit change request.');
+    } finally {
+      setIsSubmittingChange(false);
     }
   };
 
@@ -175,7 +225,7 @@ export const CustomerProposalView = ({
       } else if (token) {
         await portalApi.confirmQuote(token);
       } else {
-        throw new Error('No authorization method provided for quote confirmation.');
+        await customerApi.confirmMyQuotation(quote.id);
       }
 
       toast.success('Proposal Confirmed!', `Quotation ${quote.quotationNumber} is now formally confirmed.`);
@@ -216,6 +266,16 @@ export const CustomerProposalView = ({
 
           <div className="flex items-center gap-3">
             <StatusBadge status={quote.status} />
+            {!isFinalized && !isRejected && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={FileEdit}
+                onClick={() => setChangeModalOpen(true)}
+              >
+                Request Changes
+              </Button>
+            )}
             {canConfirm && (
               <Button
                 variant="primary"
@@ -235,6 +295,15 @@ export const CustomerProposalView = ({
         </div>
 
         {/* Informational Status Banner */}
+        {quote.status === 'PendingApproval' && (
+          <div className="px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-3 text-amber-800 text-xs">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Pending Governance Review:</strong> This quotation contains revised commercial terms and is currently undergoing internal review by sales leadership. Final confirmation will unlock once approved.
+            </span>
+          </div>
+        )}
+
         {quote.status === 'Confirmed' && (
           <div className="px-6 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center gap-3 text-emerald-800 text-xs">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -655,6 +724,42 @@ export const CustomerProposalView = ({
               </div>
             </div>
           </div>
+
+          {/* Negotiation & Revision History Timeline */}
+          {quote.changeRequests && quote.changeRequests.length > 0 && (
+            <div className="space-y-3 pt-6 border-t border-slate-200">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-slate-500" />
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Negotiation &amp; Revision Log ({quote.changeRequests.length})
+                </h2>
+              </div>
+              <div className="space-y-2.5">
+                {quote.changeRequests.map((change) => (
+                  <div
+                    key={change.id}
+                    className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
+                          {change.changeType || 'Change Request'}
+                        </span>
+                        <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(change.createdAtUtc).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed">{change.description}</p>
+                    </div>
+                    <Badge variant="blue" size="sm">
+                      Logged in Audit Trail
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -815,6 +920,89 @@ export const CustomerProposalView = ({
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal 4: Commercial Change Request Modal */}
+      <Modal
+        isOpen={changeModalOpen}
+        onClose={() => setChangeModalOpen(false)}
+        title="Submit Commercial Change Request"
+        description={`Request modifications or adjustments to proposal ${quote.quotationNumber}`}
+      >
+        <form onSubmit={handleSubmitChangeRequest} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Change Category
+            </label>
+            <select
+              value={changeType}
+              onChange={(e) => setChangeType(e.target.value)}
+              className="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="QuantityChange">Quantity Adjustment</option>
+              <option value="ScopeChange">Product / Scope Modification</option>
+              <option value="Terms">Commercial / Payment Terms</option>
+              <option value="General">General Inquiries &amp; Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Associated Deliverable Line (Optional)
+            </label>
+            <select
+              value={changeLineId}
+              onChange={(e) => setChangeLineId(e.target.value)}
+              className="w-full text-xs rounded-lg border border-slate-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">-- Applies to Overall Proposal --</option>
+              {lines.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.productName} ({l.quantity}x @ {formatMoney(l.unitPrice)})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {changeType === 'QuantityChange' && (
+            <Input
+              label="Proposed Quantity"
+              type="number"
+              min="1"
+              value={changeNewQty}
+              onChange={(e) => setChangeNewQty(e.target.value)}
+              placeholder="e.g. 5"
+            />
+          )}
+
+          <Textarea
+            label="Detailed Change Description / Reason"
+            required
+            placeholder="e.g., We would like to increase the license count to 25 units and defer hardware delivery by 2 weeks."
+            value={changeDescription}
+            onChange={(e) => setChangeDescription(e.target.value)}
+            rows={4}
+          />
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setChangeModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isSubmittingChange}
+              icon={Send}
+            >
+              Submit Change Request
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
