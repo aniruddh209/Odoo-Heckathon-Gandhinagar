@@ -127,6 +127,20 @@ public class PortalService : IPortalService
             _riskEngine,
             _marginEngine);
 
+        if (evalResult.RequiresReApproval)
+        {
+            var approvalRequest = new ApprovalRequest
+            {
+                QuotationId = quotation.Id,
+                Level = evalResult.NewApprovalLevel != ApprovalLevel.None ? evalResult.NewApprovalLevel : ApprovalLevel.Manager,
+                Status = ApprovalStatus.Pending,
+                Sequence = 1,
+                RequestedAtUtc = DateTime.UtcNow,
+                Reason = $"Customer counter-offer on line #{request.LineId} proposed {request.ProposedDiscountPercent:F2}% (Risk score: {evalResult.NewRiskScore:F2})"
+            };
+            _context.ApprovalRequests.Add(approvalRequest);
+        }
+
         _context.Quotations.Update(quotation);
         await _context.SaveChangesAsync();
 

@@ -79,6 +79,15 @@ public class QuotationsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id}/lines/{lineId}/comments")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> AddLineComment(int id, int lineId, [FromBody] AddCommentRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.AddLineCommentAsync(id, lineId, request.Comment, userId);
+        return Ok(result);
+    }
+
     [HttpPost("{id}/recalculate")]
     public async Task<IActionResult> Recalculate(int id)
     {

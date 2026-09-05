@@ -6,7 +6,7 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "FinanceOperations,Admin")]
+[Authorize(Roles = "SalesRep,SalesManager,FinanceOperations,Admin")]
 public class FulfillmentController : ControllerBase
 {
     private readonly IFulfillmentService _fulfillmentService;
@@ -24,6 +24,7 @@ public class FulfillmentController : ControllerBase
     }
 
     [HttpPost("allocate/{orderId}")]
+    [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> ExecuteAllocation(int orderId)
     {
         var result = await _fulfillmentService.ExecuteAllocationAsync(orderId);
@@ -38,6 +39,7 @@ public class FulfillmentController : ControllerBase
     }
 
     [HttpPost("replenish")]
+    [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> ReplenishStock([FromQuery] int warehouseId, [FromQuery] int productId)
     {
         await _fulfillmentService.ConsolidateOnReplenishmentAsync(warehouseId, productId);

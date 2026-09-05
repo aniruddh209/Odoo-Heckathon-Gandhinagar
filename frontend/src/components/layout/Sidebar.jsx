@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Truck,
+  Users,
 } from 'lucide-react';
 import { cn } from '../../utils/cn.js';
 
@@ -44,6 +45,18 @@ export const Sidebar = () => {
           path: '/workspace/pipeline',
           icon: <Kanban className="w-4 h-4" />,
           roles: ['SalesRep', 'SalesManager', 'Admin'],
+        },
+        {
+          label: 'Customers 360',
+          path: '/workspace/customers',
+          icon: <Users className="w-4 h-4" />,
+          roles: ['SalesRep', 'SalesManager', 'Admin'],
+        },
+        {
+          label: 'Order Fulfillment',
+          path: '/workspace/fulfillment',
+          icon: <Truck className="w-4 h-4" />,
+          roles: ['SalesRep', 'SalesManager', 'FinanceOperations', 'Admin'],
         },
       ],
     },

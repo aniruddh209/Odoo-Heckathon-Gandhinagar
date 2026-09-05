@@ -58,6 +58,7 @@ public class FulfillmentService : IFulfillmentService
             Allocations = result.Allocations.Select(a => new AllocationResponse
             {
                 OrderLineId = a.OrderLineId,
+                ProductName = order.Lines.FirstOrDefault(ol => ol.Id == a.OrderLineId)?.Product?.Name ?? string.Empty,
                 WarehouseId = a.WarehouseId,
                 WarehouseName = warehouseMap.GetValueOrDefault(a.WarehouseId)?.Name ?? string.Empty,
                 Quantity = a.Quantity,

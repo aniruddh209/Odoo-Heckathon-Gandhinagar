@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fulfillmentApi, quotationApi, adminApi } from '../api';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../hooks/useAuth';
 import {
   Button,
   Select,
@@ -20,6 +21,8 @@ export const FulfillmentPage = () => {
   const [searchParams] = useSearchParams();
   const initialOrderId = searchParams.get('orderId');
   const toast = useToast();
+  const { hasRole } = useAuth();
+  const canExecuteFulfillment = hasRole('FinanceOperations') || hasRole('Admin');
 
   const [orders, setOrders] = useState([]);
   const [selectedOrderId, setSelectedOrderId] = useState(initialOrderId || '');
@@ -56,8 +59,9 @@ export const FulfillmentPage = () => {
 
       // Generate order list from converted quotes
       const mappedOrders = qList.map((q) => ({
-        id: q.id, // For demo convenience or converted order id
-        orderNumber: `ORD-${q.quotationNumber.replace('QT-', '')}`,
+        id: q.orderId || q.id,
+        quotationId: q.id,
+        orderNumber: q.orderNumber || `ORD-${q.quotationNumber.replace('QT-', '')}`,
         customerName: q.customerName,
         total: q.grandTotal,
       }));
@@ -126,18 +130,22 @@ export const FulfillmentPage = () => {
     { header: 'Product Item', accessor: 'productName', render: (b) => <span className="font-semibold text-slate-900">{b.productName}</span> },
     { header: 'Deficit Quantity', accessor: 'quantity', render: (b) => <span className="font-bold text-rose-600">{b.quantity} Units</span> },
     { header: 'Status', accessor: 'status', render: (b) => <StatusBadge status={b.status || 'Processing'} /> },
-    {
-      header: 'Action',
-      render: (b) => (
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => handleReplenish(warehouses[0]?.id || 1, b.productId)}
-        >
-          Replenish & Consolidate
-        </Button>
-      ),
-    },
+    ...(canExecuteFulfillment
+      ? [
+          {
+            header: 'Action',
+            render: (b) => (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => handleReplenish(warehouses[0]?.id || 1, b.productId)}
+              >
+                Replenish & Consolidate
+              </Button>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -182,15 +190,22 @@ export const FulfillmentPage = () => {
 
         {preview && (
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={CheckCircle2}
-              isLoading={isAllocating}
-              onClick={handleExecuteAllocation}
-            >
-              Commit Warehouse Allocation
-            </Button>
+            {canExecuteFulfillment ? (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={CheckCircle2}
+                isLoading={isAllocating}
+                onClick={handleExecuteAllocation}
+              >
+                Commit Warehouse Allocation
+              </Button>
+            ) : (
+              <div className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-600 font-medium flex items-center gap-2">
+                <Truck className="w-3.5 h-3.5 text-slate-500" />
+                <span>Sales Rep: Real-Time Depot Tracking (Read-Only)</span>
+              </div>
+            )}
           </div>
         )}
       </div>

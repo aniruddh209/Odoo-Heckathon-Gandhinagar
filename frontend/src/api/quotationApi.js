@@ -33,6 +33,10 @@ export const quotationApi = {
     return apiClient.delete(`quotations/${quotationId}/lines/${lineId}`);
   },
 
+  addLineComment: async (quotationId, lineId, comment) => {
+    return apiClient.post(`quotations/${quotationId}/lines/${lineId}/comments`, { comment });
+  },
+
   recalculate: async (id) => {
     return apiClient.post(`quotations/${id}/recalculate`);
   },

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { quotationApi, adminApi } from '../api';
+import { quotationApi, adminApi, fulfillmentApi } from '../api';
 import {
   Button,
   StatusBadge,
@@ -25,6 +25,10 @@ import {
   Trash2,
   RefreshCw,
   TrendingUp,
+  Edit2,
+  MessageSquare,
+  Truck,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const QuotationDetailPage = () => {
@@ -38,7 +42,7 @@ export const QuotationDetailPage = () => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('lines'); // lines, recommendations, approvals, portal
+  const [activeTab, setActiveTab] = useState('lines'); // lines, negotiation, recommendations, approvals, fulfillment
 
   // Drawer for adding a line item
   const [isAddLineOpen, setIsAddLineOpen] = useState(false);
@@ -47,6 +51,24 @@ export const QuotationDetailPage = () => {
   const [lineDiscount, setLineDiscount] = useState(0);
   const [linePrice, setLinePrice] = useState(0);
   const [isSubmittingLine, setIsSubmittingLine] = useState(false);
+
+  // Drawer for editing a line item
+  const [editingLine, setEditingLine] = useState(null);
+  const [editQty, setEditQty] = useState(1);
+  const [editDiscount, setEditDiscount] = useState(0);
+  const [editPrice, setEditPrice] = useState(0);
+  const [isUpdatingLine, setIsUpdatingLine] = useState(false);
+
+  // Dismissed recommendations list
+  const [dismissedRecIds, setDismissedRecIds] = useState([]);
+
+  // Fulfillment preview data for quote detail view
+  const [fulfillmentPreview, setFulfillmentPreview] = useState(null);
+  const [isLoadingFulfillment, setIsLoadingFulfillment] = useState(false);
+
+  // Line comment reply state: { [lineId]: string }
+  const [lineReplyTexts, setLineReplyTexts] = useState({});
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   // Portal Link Modal
   const [portalLink, setPortalLink] = useState('');
@@ -194,6 +216,76 @@ export const QuotationDetailPage = () => {
     }
   };
 
+  const handleOpenEditLine = (line) => {
+    setEditingLine(line);
+    setEditQty(line.quantity);
+    setEditDiscount(line.discountPercent || 0);
+    setEditPrice(line.unitPrice);
+  };
+
+  const handleUpdateLine = async (e) => {
+    e.preventDefault();
+    if (!editingLine) return;
+
+    setIsUpdatingLine(true);
+    try {
+      await quotationApi.updateLineItem(id, editingLine.id, {
+        quantity: parseInt(editQty, 10) || 1,
+        unitPrice: parseFloat(editPrice) || 0,
+        discountPercent: parseFloat(editDiscount) || 0,
+      });
+
+      toast.success('Line Updated', 'Line updated. If previously approved, proposal has returned to Draft to enforce governance verification.');
+      setEditingLine(null);
+      await loadQuoteData();
+    } catch (err) {
+      toast.error('Update Line Failed', err.message);
+    } finally {
+      setIsUpdatingLine(false);
+    }
+  };
+
+  const handleSendLineComment = async (lineId) => {
+    const text = lineReplyTexts[lineId]?.trim();
+    if (!text) return;
+
+    setIsSubmittingReply(true);
+    try {
+      await quotationApi.addLineComment(id, lineId, text);
+      toast.success('Reply Sent', 'Your response has been added to the customer inquiry thread.');
+      setLineReplyTexts((prev) => ({ ...prev, [lineId]: '' }));
+      await loadQuoteData();
+    } catch (err) {
+      toast.error('Failed to post reply', err.message);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
+  const handleDismissRecommendation = (productId) => {
+    setDismissedRecIds((prev) => [...prev, productId]);
+    toast.info('Suggestion Dismissed', 'Recommendation hidden from view.');
+  };
+
+  const loadFulfillmentPreview = async (orderId) => {
+    if (!orderId) return;
+    setIsLoadingFulfillment(true);
+    try {
+      const res = await fulfillmentApi.previewAllocation(orderId);
+      setFulfillmentPreview(res);
+    } catch (err) {
+      console.warn('Failed to load fulfillment preview:', err);
+    } finally {
+      setIsLoadingFulfillment(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'fulfillment' && quote?.orderId) {
+      loadFulfillmentPreview(quote.orderId);
+    }
+  }, [activeTab, quote?.orderId]);
+
   if (isLoading) {
     return <LoadingSpinner message="Loading quotation workspace and telemetry..." size="lg" />;
   }
@@ -287,13 +379,39 @@ export const QuotationDetailPage = () => {
               variant="primary"
               size="sm"
               icon={FileCheck}
-              onClick={() => navigate('/workspace/fulfillment')}
+              onClick={() => navigate(`/workspace/fulfillment?orderId=${quote.orderId || quote.id}`)}
             >
               Manage Fulfillment
             </Button>
           )}
         </div>
       </div>
+
+      {/* ── Rejection / Revision Required Governance Banner ────── */}
+      {(quote.status === 'Rejected' || quote.status === 'RevisionRequired' || quote.approvalStatus === 'Rejected' || quote.approvalStatus === 'RevisionRequired') && (
+        <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/90 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
+          <div className="flex-1 text-xs">
+            <h3 className="font-bold text-rose-900 text-sm">
+              {quote.status === 'Rejected' || quote.approvalStatus === 'Rejected'
+                ? 'Quotation Rejected by Governance Authority'
+                : 'Revision Requested by Sales Management'}
+            </h3>
+            {quote.approvalSteps?.find((s) => s.reason && (s.status === 'Rejected' || s.status === 'RevisionRequired')) ? (
+              <p className="text-rose-800 mt-1">
+                <strong>Reviewer Remarks:</strong> {quote.approvalSteps.find((s) => s.reason && (s.status === 'Rejected' || s.status === 'RevisionRequired')).reason}
+              </p>
+            ) : quote.approvalSteps?.[0]?.reason ? (
+              <p className="text-rose-800 mt-1">
+                <strong>Reviewer Remarks:</strong> {quote.approvalSteps[0].reason}
+              </p>
+            ) : null}
+            <p className="text-rose-700 mt-1 font-medium">
+              Action required: Edit line items below to adjust quantities or reduce discount percentages within approved thresholds, then click "Submit for Approval" to restart governance verification.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── 2. Authoritative Financial Summary Strip ──────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -352,8 +470,18 @@ export const QuotationDetailPage = () => {
         <nav className="flex space-x-6 text-xs font-semibold">
           {[
             { id: 'lines', label: `Quotation Lines (${quote.lines?.length || 0})` },
-            { id: 'recommendations', label: `Live Upsell Engine (${recommendations.length})` },
+            {
+              id: 'negotiation',
+              label: `Customer Inquiries (${quote.lines?.reduce((acc, l) => acc + (l.comments?.length || 0), 0) || 0})`,
+            },
+            {
+              id: 'recommendations',
+              label: `Live Upsell Engine (${recommendations.filter((r) => !dismissedRecIds.includes(r.productId)).length})`,
+            },
             { id: 'approvals', label: 'Governance & Approval Steps' },
+            ...(isConverted || quote.orderId
+              ? [{ id: 'fulfillment', label: `Order Fulfillment (${quote.orderStatus || 'Confirmed'})` }]
+              : []),
           ].map((tab) => (
             <button
               key={tab.id}
@@ -436,14 +564,24 @@ export const QuotationDetailPage = () => {
                     </td>
                     {!isConverted && (
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveLine(line.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditLine(line)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                            title="Edit quantity or discount"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLine(line.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -451,6 +589,105 @@ export const QuotationDetailPage = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── 4. Customer Inquiries & Negotiation Tab ─────────── */}
+      {activeTab === 'negotiation' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <MessageSquare className="w-5 h-5 text-blue-600" />
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Customer Negotiation & Inquiry Hub
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Direct item comments, feedback, and counter-discount proposals submitted by client via the Secure Negotiation Portal.
+                </p>
+              </div>
+            </div>
+            <StatusBadge status={quote.status} />
+          </div>
+
+          {!quote.lines || quote.lines.every((l) => !l.comments || l.comments.length === 0) ? (
+            <div className="p-8 text-center text-slate-400 border border-dashed rounded-xl border-slate-200 text-xs">
+              No customer inquiries or counter-offers submitted yet. Generate and share the Client Portal Link to collaborate with your client.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {quote.lines
+                .filter((l) => l.comments && l.comments.length > 0)
+                .map((line) => (
+                  <div key={line.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                    <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                      <div>
+                        <span className="font-semibold text-xs text-slate-900">{line.productName}</span>
+                        <span className="font-mono text-[10px] text-slate-400 ml-2">SKU: {line.sku || line.productSKU}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-slate-500">Qty: <strong>{line.quantity}</strong></span>
+                        <span className="text-slate-500">Price: <strong>${(line.unitPrice || 0).toFixed(2)}</strong></span>
+                        <span className="text-blue-600 font-semibold">Discount: {line.discountPercent}%</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 space-y-3">
+                      {line.comments.map((c) => {
+                        const isCustomer = c.comment?.startsWith('Customer (');
+                        return (
+                          <div
+                            key={c.id}
+                            className={`p-3 rounded-lg text-xs ${
+                              isCustomer
+                                ? 'bg-blue-50/70 border border-blue-200 text-blue-900'
+                                : 'bg-slate-100/80 border border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-semibold text-[11px]">
+                                {isCustomer ? 'Client Portal Inquiry' : (c.userName || 'Sales Representative Response')}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {new Date(c.createdAtUtc).toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="whitespace-pre-wrap">{c.comment}</p>
+                          </div>
+                        );
+                      })}
+
+                      {/* Reply Box for Sales Rep */}
+                      {!isConverted && (
+                        <div className="pt-2 flex items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="Type your response to the customer..."
+                            value={lineReplyTexts[line.id] || ''}
+                            onChange={(e) =>
+                              setLineReplyTexts((prev) => ({ ...prev, [line.id]: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSendLineComment(line.id);
+                            }}
+                            className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            icon={Send}
+                            isLoading={isSubmittingReply}
+                            onClick={() => handleSendLineComment(line.id)}
+                          >
+                            Reply
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -470,47 +707,59 @@ export const QuotationDetailPage = () => {
             </div>
           </div>
 
-          {recommendations.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 border border-dashed rounded-xl border-slate-200">
+          {recommendations.filter((r) => !dismissedRecIds.includes(r.productId)).length === 0 ? (
+            <div className="p-8 text-center text-slate-400 border border-dashed rounded-xl border-slate-200 text-xs">
               No matching co-purchase recommendations for the current cart composition.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {recommendations.map((rec) => (
-                <div
-                  key={rec.productId}
-                  className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex items-start justify-between gap-4"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-xs text-slate-900">{rec.productName}</span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800">
-                        {rec.ruleType || 'Upsell'}
-                      </span>
-                    </div>
-                    <span className="font-mono text-[10px] text-slate-400">{rec.sku}</span>
-                    <p className="text-xs text-slate-500 mt-1">{rec.reason}</p>
+              {recommendations
+                .filter((r) => !dismissedRecIds.includes(r.productId))
+                .map((rec) => (
+                  <div
+                    key={rec.productId}
+                    className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex items-start justify-between gap-4"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs text-slate-900">{rec.productName}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800">
+                          {rec.ruleType || 'Upsell'}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[10px] text-slate-400">{rec.sku}</span>
+                      <p className="text-xs text-slate-500 mt-1">{rec.reason}</p>
 
-                    <div className="mt-3 flex items-center gap-3 text-xs">
-                      <span className="font-bold text-slate-900">${rec.unitPrice?.toFixed(2)}</span>
-                      <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        +{rec.marginDeltaPercent?.toFixed(1)}% Deal Margin
-                      </span>
+                      <div className="mt-3 flex items-center gap-3 text-xs">
+                        <span className="font-bold text-slate-900">${rec.unitPrice?.toFixed(2)}</span>
+                        <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          +{rec.marginDeltaPercent?.toFixed(1)}% Deal Margin
+                        </span>
+                      </div>
                     </div>
+
+                    {!isConverted && (
+                      <div className="flex flex-col gap-2 shrink-0">
+                        <Button
+                          variant="primary"
+                          size="xs"
+                          onClick={() => handleAcceptRecommendation(rec)}
+                        >
+                          Add to Quote
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => handleDismissRecommendation(rec.productId)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    )}
                   </div>
-
-                  {!isConverted && (
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      onClick={() => handleAcceptRecommendation(rec)}
-                    >
-                      Add to Quote
-                    </Button>
-                  )}
-                </div>
-              ))}
+                ))}
             </div>
           )}
         </div>
@@ -556,6 +805,115 @@ export const QuotationDetailPage = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── 5. Fulfillment & Warehouse Distribution Tab ────────── */}
+      {activeTab === 'fulfillment' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Truck className="w-5 h-5 text-blue-600" />
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Order Fulfillment & Warehouse Allocation
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Real-time stock depot distribution and shipment breakdown for confirmed deal.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-white border border-slate-200 text-slate-700">
+                {quote.orderNumber || `ORD-${quote.quotationNumber?.replace('QT-', '')}`}
+              </span>
+              <Button
+                variant="outline"
+                size="xs"
+                icon={ExternalLink}
+                onClick={() => navigate(`/workspace/fulfillment?orderId=${quote.orderId || quote.id}`)}
+              >
+                Open Fulfillment View
+              </Button>
+            </div>
+          </div>
+
+          {isLoadingFulfillment ? (
+            <LoadingSpinner message="Fetching live warehouse inventory allocations..." size="sm" />
+          ) : fulfillmentPreview ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Fulfillment Strategy</span>
+                  <span className={`text-sm font-bold mt-1 block ${fulfillmentPreview.isFullyAllocated ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {fulfillmentPreview.isFullyAllocated ? 'Fully Allocated (100% In Stock)' : 'Split Delivery / Backordered'}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Estimated Shipments</span>
+                  <span className="text-sm font-bold text-slate-900 mt-1 block font-mono">
+                    {fulfillmentPreview.totalShipments || 1} Separate Dispatches
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Logistics Surcharge</span>
+                  <span className="text-sm font-bold text-slate-900 mt-1 block font-mono">
+                    ${(fulfillmentPreview.totalShipmentCost || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Items Allocation Breakdown Table */}
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                <div className="p-3 bg-slate-50 border-b border-slate-200 font-semibold text-xs text-slate-700">
+                  Item Warehouse Allocation Details
+                </div>
+                <div className="divide-y divide-slate-100 text-xs">
+                  {fulfillmentPreview.allocations && fulfillmentPreview.allocations.length > 0 ? (
+                    fulfillmentPreview.allocations.map((alloc, idx) => (
+                      <div key={idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                          <span className="font-semibold text-slate-900 block">
+                            {alloc.productName || `Line Item #${alloc.orderLineId}`}
+                          </span>
+                          <div className="flex items-center gap-3 text-slate-500 mt-1">
+                            <span>Allocated Quantity: <strong className="text-slate-800">{alloc.quantity} units</strong></span>
+                            <span>Freight Surcharge: ${(alloc.shipmentCost || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-200 font-medium text-[11px]">
+                            {alloc.warehouseName || `Depot #${alloc.warehouseId}`}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-slate-400">No warehouse allocations found.</div>
+                  )}
+
+                  {fulfillmentPreview.backorders && fulfillmentPreview.backorders.length > 0 && (
+                    <div className="p-3 bg-amber-50/70 border-t border-amber-200">
+                      <span className="font-bold text-amber-900 text-xs block mb-2">Backordered Items Pending Replenishment:</span>
+                      <div className="space-y-1">
+                        {fulfillmentPreview.backorders.map((bo, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs text-amber-800">
+                            <span>{bo.productName}</span>
+                            <span className="font-bold text-rose-600">{bo.quantity} Units Deficit</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-slate-400 border border-dashed rounded-xl border-slate-200 text-xs">
+              Unable to load warehouse allocation data for Order #{quote.orderId}.
+            </div>
+          )}
         </div>
       )}
 
@@ -628,6 +986,72 @@ export const QuotationDetailPage = () => {
             </Button>
           </div>
         </form>
+      </Drawer>
+
+      {/* ── Edit Line Item Drawer ────────────────────────────── */}
+      <Drawer
+        isOpen={!!editingLine}
+        onClose={() => setEditingLine(null)}
+        title="Edit Line Item"
+        subtitle="Modifying items on an approved quote automatically resets status to Draft for governance verification."
+      >
+        {editingLine && (
+          <form onSubmit={handleUpdateLine} className="space-y-4">
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+              <span className="font-semibold text-slate-900 block text-sm">{editingLine.productName}</span>
+              <span className="font-mono text-slate-400 text-[10px]">SKU: {editingLine.sku || editingLine.productSKU}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Quantity"
+                type="number"
+                min="1"
+                required
+                value={editQty}
+                onChange={(e) => setEditQty(e.target.value)}
+              />
+
+              <Input
+                label="Unit Price ($)"
+                type="number"
+                step="0.01"
+                required
+                value={editPrice}
+                onChange={(e) => setEditPrice(e.target.value)}
+              />
+            </div>
+
+            <Input
+              label="Discount Percentage (%)"
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={editDiscount}
+              onChange={(e) => setEditDiscount(e.target.value)}
+              helperText="Exceeding client tier ceiling triggers approval workflow."
+            />
+
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingLine(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isUpdatingLine}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        )}
       </Drawer>
 
       {/* ── 6. Client Portal Magic Link Modal ─────────────────── */}

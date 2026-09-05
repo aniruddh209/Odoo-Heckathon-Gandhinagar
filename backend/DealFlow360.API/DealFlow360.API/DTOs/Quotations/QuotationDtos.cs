@@ -53,6 +53,8 @@ public class QuotationListResponse
     public decimal MarginPercent { get; set; }
     public decimal RiskScore { get; set; }
     public DateTime? ExpectedCloseDate { get; set; }
+    public int? OrderId { get; set; }
+    public string? OrderNumber { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
 }
@@ -88,6 +90,11 @@ public class QuotationDetailResponse
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
 
+    // Linked Order & Fulfillment
+    public int? OrderId { get; set; }
+    public string? OrderNumber { get; set; }
+    public string? OrderStatus { get; set; }
+
     // Children
     public List<QuotationLineResponse> Lines { get; set; } = new();
     public List<ApprovalStepResponse> ApprovalSteps { get; set; } = new();
@@ -113,6 +120,25 @@ public class QuotationLineResponse
     public decimal MarginAmount { get; set; }
     public int? SubscriptionPlanId { get; set; }
     public string? SubscriptionPlanName { get; set; }
+
+    // Negotiation & Customer Inquiries
+    public List<LineCommentResponse> Comments { get; set; } = new();
+}
+
+public class LineCommentResponse
+{
+    public int Id { get; set; }
+    public int QuotationLineId { get; set; }
+    public int? UserId { get; set; }
+    public string AuthorName { get; set; } = string.Empty;
+    public string AuthorRole { get; set; } = string.Empty;
+    public string Comment { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+}
+
+public class AddCommentRequest
+{
+    public string Comment { get; set; } = string.Empty;
 }
 
 public class ApprovalStepResponse

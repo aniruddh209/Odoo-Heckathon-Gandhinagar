@@ -22,6 +22,7 @@ public interface IQuotationService
     Task<List<RecommendationResponse>> GetUpsellRecommendationsAsync(int id);
     Task<string> GeneratePortalLinkAsync(int quotationId);
     Task<OrderDetailResponse> ConvertToOrderAsync(int quotationId, int userId);
+    Task<QuotationDetailResponse> AddLineCommentAsync(int quotationId, int lineId, string comment, int userId);
 }
 
 public class QuotationService : IQuotationService
@@ -79,6 +80,8 @@ public class QuotationService : IQuotationService
                 MarginPercent = q.MarginPercent,
                 RiskScore = q.RiskScore,
                 ApprovalStatus = q.ApprovalStatus.ToString(),
+                OrderId = _context.Orders.Where(o => o.QuotationId == q.Id).Select(o => (int?)o.Id).FirstOrDefault(),
+                OrderNumber = _context.Orders.Where(o => o.QuotationId == q.Id).Select(o => o.OrderNumber).FirstOrDefault(),
                 CreatedAtUtc = q.CreatedAtUtc,
                 UpdatedAtUtc = q.UpdatedAtUtc
             })
@@ -91,12 +94,16 @@ public class QuotationService : IQuotationService
             .Include(q => q.Customer).ThenInclude(c => c.Tier)
             .Include(q => q.SalesRep)
             .Include(q => q.Lines).ThenInclude(l => l.Product)
-            .Include(q => q.ApprovalRequests)
+            .Include(q => q.Lines).ThenInclude(l => l.Comments).ThenInclude(c => c.User)
+            .Include(q => q.ApprovalRequests).ThenInclude(a => a.ActedBy)
+            .Include(q => q.ApprovalRequests).ThenInclude(a => a.Actions)
             .FirstOrDefaultAsync(q => q.Id == id);
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {id} not found.");
 
-        return MapToDetailResponse(quotation);
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.QuotationId == id);
+
+        return MapToDetailResponse(quotation, order);
     }
 
     public async Task<QuotationDetailResponse> CreateQuotationAsync(CreateQuotationRequest request, int salesRepId)
@@ -147,7 +154,6 @@ public class QuotationService : IQuotationService
                         SubscriptionPlanId = lReq.SubscriptionPlanId
                     };
                     _marginEngine.CalculateLine(line, product);
-                    _context.QuotationLines.Add(line);
                     quotation.Lines.Add(line);
                 }
             }
@@ -197,6 +203,13 @@ public class QuotationService : IQuotationService
         _marginEngine.CalculateLine(line, product);
         quotation.Lines.Add(line);
 
+        // Invalidate previous approval on line changes
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+        {
+            quotation.Status = QuoteStatus.Draft;
+            quotation.ApprovalStatus = ApprovalStatus.None;
+        }
+
         await RecalculateAndSaveQuotationAsync(quotation);
         return await GetQuotationByIdAsync(quotationId);
     }
@@ -220,6 +233,14 @@ public class QuotationService : IQuotationService
         if (request.UnitPrice.HasValue) line.UnitPrice = request.UnitPrice.Value;
 
         _marginEngine.CalculateLine(line, product);
+
+        // Invalidate previous approval on line changes
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+        {
+            quotation.Status = QuoteStatus.Draft;
+            quotation.ApprovalStatus = ApprovalStatus.None;
+        }
+
         await RecalculateAndSaveQuotationAsync(quotation);
 
         return await GetQuotationByIdAsync(quotationId);
@@ -238,8 +259,54 @@ public class QuotationService : IQuotationService
         {
             _context.QuotationLines.Remove(line);
             quotation.Lines.Remove(line);
+
+            // Invalidate previous approval on line removal
+            if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+            {
+                quotation.Status = QuoteStatus.Draft;
+                quotation.ApprovalStatus = ApprovalStatus.None;
+            }
+
             await RecalculateAndSaveQuotationAsync(quotation);
         }
+
+        return await GetQuotationByIdAsync(quotationId);
+    }
+
+    public async Task<QuotationDetailResponse> AddLineCommentAsync(int quotationId, int lineId, string comment, int userId)
+    {
+        var quotation = await _context.Quotations
+            .Include(q => q.Lines)
+            .FirstOrDefaultAsync(q => q.Id == quotationId);
+
+        if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
+
+        var line = quotation.Lines.FirstOrDefault(l => l.Id == lineId);
+        if (line == null) throw new KeyNotFoundException($"Quotation line {lineId} not found.");
+
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            throw new ArgumentException("Comment text cannot be empty.");
+        }
+
+        var lineComment = new QuotationLineComment
+        {
+            QuotationLineId = lineId,
+            UserId = userId,
+            Comment = comment.Trim(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.QuotationLineComments.Add(lineComment);
+
+        if (quotation.Status == QuoteStatus.Draft || quotation.Status == QuoteStatus.Sent)
+        {
+            quotation.Status = QuoteStatus.UnderNegotiation;
+        }
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.Quotations.Update(quotation);
+        await _context.SaveChangesAsync();
 
         return await GetQuotationByIdAsync(quotationId);
     }
@@ -423,7 +490,7 @@ public class QuotationService : IQuotationService
         await _context.SaveChangesAsync();
     }
 
-    private static QuotationDetailResponse MapToDetailResponse(Quotation q)
+    private static QuotationDetailResponse MapToDetailResponse(Quotation q, Order? order = null)
     {
         return new QuotationDetailResponse
         {
@@ -450,6 +517,9 @@ public class QuotationService : IQuotationService
             CurrencyCode = q.CurrencyCode,
             CreatedAtUtc = q.CreatedAtUtc,
             UpdatedAtUtc = q.UpdatedAtUtc,
+            OrderId = order?.Id,
+            OrderNumber = order?.OrderNumber,
+            OrderStatus = order?.Status.ToString(),
             Lines = q.Lines.Select(l => new QuotationLineResponse
             {
                 Id = l.Id,
@@ -466,8 +536,29 @@ public class QuotationService : IQuotationService
                 TaxAmount = l.TaxAmount,
                 MarginAmount = l.MarginAmount,
                 CostPrice = l.CostPrice,
-                SubscriptionPlanId = l.SubscriptionPlanId
-            }).ToList()
+                SubscriptionPlanId = l.SubscriptionPlanId,
+                Comments = l.Comments?.OrderBy(c => c.CreatedAtUtc).Select(c => new LineCommentResponse
+                {
+                    Id = c.Id,
+                    QuotationLineId = c.QuotationLineId,
+                    UserId = c.UserId,
+                    AuthorName = c.User != null ? c.User.FullName : "Customer Representative",
+                    AuthorRole = c.User != null ? c.User.Role.ToString() : "Customer",
+                    Comment = c.Comment,
+                    CreatedAtUtc = c.CreatedAtUtc
+                }).ToList() ?? new List<LineCommentResponse>()
+            }).ToList(),
+            ApprovalSteps = q.ApprovalRequests?.OrderBy(a => a.Sequence).Select(a => new ApprovalStepResponse
+            {
+                Id = a.Id,
+                Level = a.Level.ToString(),
+                Status = a.Status.ToString(),
+                Sequence = a.Sequence,
+                RequestedAtUtc = a.RequestedAtUtc,
+                ActedAtUtc = a.ActedAtUtc,
+                ActedByName = a.ActedBy?.FullName,
+                Reason = a.Actions?.OrderByDescending(x => x.CreatedAtUtc).Select(x => x.Reason).FirstOrDefault(r => !string.IsNullOrEmpty(r)) ?? a.Reason
+            }).ToList() ?? new List<ApprovalStepResponse>()
         };
     }
 }

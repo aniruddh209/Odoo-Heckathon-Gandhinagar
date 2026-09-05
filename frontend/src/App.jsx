@@ -100,7 +100,7 @@ export function App() {
             <Route
               path="workspace/fulfillment"
               element={
-                <ProtectedRoute allowedRoles={['FinanceOperations', 'Admin']}>
+                <ProtectedRoute allowedRoles={['SalesRep', 'SalesManager', 'FinanceOperations', 'Admin']}>
                   <FulfillmentPage />
                 </ProtectedRoute>
               }
