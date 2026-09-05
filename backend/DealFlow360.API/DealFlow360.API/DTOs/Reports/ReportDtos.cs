@@ -40,3 +40,43 @@ public class ReportRow
 {
     public Dictionary<string, object?> Data { get; set; } = new();
 }
+
+public class PlatformOverviewResponse
+{
+    public int TotalCustomers { get; set; }
+    public int TotalSalesReps { get; set; }
+    public int TotalSalesManagers { get; set; }
+    public int TotalFinanceUsers { get; set; }
+    public int TotalQuotations { get; set; }
+    public Dictionary<string, int> QuoteStatusDistribution { get; set; } = new();
+    public int TotalOrders { get; set; }
+    public decimal TotalBookedRevenue { get; set; }
+    public decimal TotalQuotedRevenue { get; set; }
+    public decimal TotalInvoiced { get; set; }
+    public decimal TotalPaid { get; set; }
+    public int PendingApprovalsCount { get; set; }
+    public int ActiveFulfillmentsCount { get; set; }
+    public int BackordersCount { get; set; }
+    public int ActiveSubscriptionsCount { get; set; }
+    public decimal MonthlyRecurringRevenue { get; set; }
+    public decimal AnnualRecurringRevenue { get; set; }
+    public int AtRiskDealsCount { get; set; }
+    public int TotalWarehouses { get; set; }
+    public int TotalStockOnHand { get; set; }
+    public int TotalStockReserved { get; set; }
+}
+
+public class AdminAuditLogDto
+{
+    public int Id { get; set; }
+    public int? UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string UserRole { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public int EntityId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+    public string? OldValueJson { get; set; }
+    public string? NewValueJson { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+}

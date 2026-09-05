@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { quotationApi, reportApi, dealHealthApi, approvalApi, billingApi } from '../api';
+import { quotationApi, reportApi, dealHealthApi, approvalApi, billingApi, adminApi } from '../api';
 import {
   Button,
   StatusBadge,
   DataTable,
   LoadingSpinner,
   ErrorAlert,
+  Badge,
 } from '../components/ui';
 import {
   Plus,
@@ -24,6 +25,11 @@ import {
   Truck,
   FileText,
   Receipt,
+  Users,
+  Building2,
+  Layers,
+  Activity,
+  Package,
 } from 'lucide-react';
 
 export const DashboardPage = () => {
@@ -49,6 +55,8 @@ export const DashboardPage = () => {
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [recentQuotes, setRecentQuotes] = useState([]);
   const [financeSummary, setFinanceSummary] = useState(null);
+  const [adminOverview, setAdminOverview] = useState(null);
+  const [adminAuditLogs, setAdminAuditLogs] = useState([]);
 
   const calculateLocalMetrics = (quotes) => {
     const totalQuoted = quotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
@@ -137,7 +145,6 @@ export const DashboardPage = () => {
           const pipeRes = await reportApi.getPipelineOverview();
           setPipelineOverview(pipeRes);
         } catch {
-          // Fallback to quotation aggregation
           calculateLocalMetrics(quotes);
         }
 
@@ -167,8 +174,21 @@ export const DashboardPage = () => {
             console.warn('Finance summary unavailable:', e);
           }
         }
+
+        // Admin Platform Overview & Audit Trail
+        if (isAdmin) {
+          try {
+            const [overview, audit] = await Promise.all([
+              adminApi.getPlatformOverview(),
+              adminApi.getAuditLogs(6).catch(() => []),
+            ]);
+            setAdminOverview(overview);
+            setAdminAuditLogs(Array.isArray(audit) ? audit : audit?.value || []);
+          } catch (e) {
+            console.warn('Admin platform overview unavailable:', e);
+          }
+        }
       } else {
-        // Sales Rep view strictly derived from user's quotes
         calculateLocalMetrics(quotes);
       }
     } catch (err) {
@@ -252,6 +272,7 @@ export const DashboardPage = () => {
     switch (stageName) {
       case 'Draft': return 'bg-slate-100 text-slate-700 border-slate-200';
       case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'UnderNegotiation': return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'PendingApproval': return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'Approved': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'ConvertedToOrder': return 'bg-purple-50 text-purple-700 border-purple-200';
@@ -300,6 +321,159 @@ export const DashboardPage = () => {
         </div>
       </div>
 
+      {/* ── Admin Executive Platform Command Center (when user is Admin) ── */}
+      {isAdmin && adminOverview && (
+        <div className="p-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white shadow-md space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 text-blue-400 flex items-center justify-center">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                  Admin Executive Command Center
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                    Platform Telemetry
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  Global tenant health, organizational staffing, revenue realization, and catalog metrics
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="xs"
+                icon={Package}
+                onClick={() => navigate('/admin/catalog')}
+                className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-600"
+              >
+                Products &amp; Pricing
+              </Button>
+              <Button
+                variant="outline"
+                size="xs"
+                icon={Layers}
+                onClick={() => navigate('/admin/governance')}
+                className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-600"
+              >
+                Governance &amp; Warehouses
+              </Button>
+              <Button
+                variant="outline"
+                size="xs"
+                icon={FileText}
+                onClick={() => navigate('/admin/reports')}
+                className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-600"
+              >
+                Audit Reports
+              </Button>
+            </div>
+          </div>
+
+          {/* Key Admin Telemetry Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1">
+                <Users className="w-3 h-3 text-blue-400 inline" /> Platform Staffing
+              </span>
+              <div className="text-xl font-bold text-white font-mono mt-1">
+                {(adminOverview.totalSalesReps || 0) + (adminOverview.totalSalesManagers || 0) + (adminOverview.totalFinanceUsers || 0) + 1} <span className="text-xs font-normal text-slate-400">Users</span>
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-0.5">
+                {adminOverview.totalSalesReps} Reps · {adminOverview.totalSalesManagers} Mgrs · {adminOverview.totalFinanceUsers} Fin · {adminOverview.totalCustomers} Cust
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-emerald-400 inline" /> Realized / Collected
+              </span>
+              <div className="text-xl font-bold text-emerald-400 font-mono mt-1">
+                ${(adminOverview.totalCollectedRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-0.5">
+                ${(adminOverview.totalInvoicedRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })} invoiced
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1">
+                <TrendingUp className="w-3 h-3 text-purple-400 inline" /> Recurring Cadence
+              </span>
+              <div className="text-xl font-bold text-purple-300 font-mono mt-1">
+                ${(adminOverview.monthlyRecurringRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })} <span className="text-xs font-normal text-slate-400">MRR</span>
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-0.5">
+                ${(adminOverview.annualRecurringRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })} ARR run-rate
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1">
+                <Truck className="w-3 h-3 text-amber-400 inline" /> Inventory &amp; Risk
+              </span>
+              <div className="text-xl font-bold text-amber-300 font-mono mt-1">
+                {adminOverview.atRiskDealsCount} <span className="text-xs font-normal text-slate-400">At-Risk Deals</span>
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-0.5">
+                {adminOverview.backordersCount ?? adminOverview.openBackordersCount ?? 0} backorders · {adminOverview.totalWarehouses} depots · {adminOverview.totalProducts} products
+              </span>
+            </div>
+          </div>
+
+          {/* Status Breakdown & Audit Logs */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-1">
+            {/* Quotation Status Distribution (7 cols) */}
+            <div className="lg:col-span-7 bg-slate-800/40 border border-slate-700/60 rounded-xl p-3.5">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2.5">
+                Quotation Lifecycle Distribution ({adminOverview.totalQuotations} Total Proposals)
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {Object.entries(adminOverview.quoteStatusDistribution || adminOverview.quotationStatusDistribution || {}).map(([st, count]) => (
+                  <div key={st} className="p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 flex items-center justify-between">
+                    <span className="text-xs text-slate-300">{st}</span>
+                    <span className="text-xs font-bold font-mono text-blue-300">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Live Administrative Audit Stream (5 cols) */}
+            <div className="lg:col-span-5 bg-slate-800/40 border border-slate-700/60 rounded-xl p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  Recent Audit Trail
+                </h3>
+                <span className="text-[10px] text-slate-400">Live Governance</span>
+              </div>
+              {adminAuditLogs.length === 0 ? (
+                <div className="py-4 text-center text-xs text-slate-400">
+                  No administrative configuration changes recorded yet.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {adminAuditLogs.map((log) => (
+                    <div key={log.id} className="text-xs p-1.5 rounded bg-slate-900/60 border border-slate-700/40 flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-semibold text-blue-300 font-mono">[{log.entityType}]</span>{' '}
+                        <span className="text-slate-200">{log.action}</span>
+                        {log.details && <span className="text-[11px] text-slate-400 block truncate max-w-[200px]">{log.details}</span>}
+                      </div>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                        {new Date(log.timestampUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Finance & Operations Command Center (when user is FinanceOperations) ── */}
       {isFinance && financeSummary && (
         <div className="p-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 shadow-xs space-y-4">
@@ -309,7 +483,7 @@ export const DashboardPage = () => {
                 <Receipt className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-slate-900">Finance & Operations Command Center</h2>
+                <h2 className="text-sm font-bold text-slate-900">Finance &amp; Operations Command Center</h2>
                 <p className="text-[11px] text-slate-500">Live operational queues, inventory allocation deficits, and receivable balances</p>
               </div>
             </div>
@@ -336,7 +510,7 @@ export const DashboardPage = () => {
                 icon={FileText}
                 onClick={() => navigate('/workspace/billing')}
               >
-                Ledger & Invoices
+                Ledger &amp; Invoices
               </Button>
             </div>
           </div>
@@ -516,7 +690,6 @@ export const DashboardPage = () => {
                       >
                         Review
                       </Button>
-
                     </div>
                   </div>
                 ))}
@@ -622,7 +795,7 @@ export const DashboardPage = () => {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Recent Quotations & Deal Flow</h2>
+            <h2 className="text-base font-semibold text-slate-900">Recent Quotations &amp; Deal Flow</h2>
             <p className="text-xs text-slate-500">Live proposals tracked under automated margin governance.</p>
           </div>
           <Button

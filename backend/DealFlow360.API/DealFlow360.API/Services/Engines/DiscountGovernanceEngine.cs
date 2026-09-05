@@ -32,12 +32,14 @@ public class DiscountGovernanceEngine : IDiscountGovernanceEngine
             var grossLineAmount = line.UnitPrice * line.Quantity;
             totalGrossAmount += grossLineAmount;
 
-            var matchingRule = rulesList.FirstOrDefault(r =>
-                r.TierId == customer?.TierId &&
-                (!r.CategoryId.HasValue || (line.Product != null && r.CategoryId == line.Product.CategoryId)));
+            var matchingRule = rulesList
+                .Where(r => r.TierId == customer?.TierId && r.IsActive &&
+                    (!r.CategoryId.HasValue || (line.Product != null && r.CategoryId == line.Product.CategoryId)))
+                .OrderByDescending(r => r.CategoryId.HasValue)
+                .FirstOrDefault();
 
             decimal categoryLimit = matchingRule?.MaxDiscountPercent ?? tierMaxDiscount;
-            decimal maxAllowedDiscount = Math.Min(tierMaxDiscount, categoryLimit);
+            decimal maxAllowedDiscount = matchingRule != null ? matchingRule.MaxDiscountPercent : tierMaxDiscount;
 
             var excessDiscount = Math.Max(0, line.DiscountPercent - maxAllowedDiscount);
 

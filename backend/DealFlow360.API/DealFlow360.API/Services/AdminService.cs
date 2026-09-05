@@ -5,6 +5,7 @@ using DealFlow360.API.DTOs.CustomerTiers;
 using DealFlow360.API.DTOs.DiscountRules;
 using DealFlow360.API.DTOs.PriceLists;
 using DealFlow360.API.DTOs.Products;
+using DealFlow360.API.DTOs.Reports;
 using DealFlow360.API.DTOs.SalesTeams;
 using DealFlow360.API.DTOs.SubscriptionPlans;
 using DealFlow360.API.DTOs.UpsellRules;
@@ -13,6 +14,7 @@ using DealFlow360.API.DTOs.Warehouses;
 using DealFlow360.API.Models;
 using DealFlow360.API.Models.Enums;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace DealFlow360.API.Services;
 
@@ -20,56 +22,74 @@ public interface IAdminService
 {
     // Users
     Task<List<UserResponse>> GetUsersAsync();
-    Task<UserResponse> CreateUserAsync(CreateUserRequest request);
-    Task<UserResponse> UpdateUserAsync(int id, UpdateUserRequest request);
+    Task<UserResponse> CreateUserAsync(CreateUserRequest request, int? actingUserId = null);
+    Task<UserResponse> UpdateUserAsync(int id, UpdateUserRequest request, int? actingUserId = null);
 
     // Customer Tiers
     Task<List<CustomerTierResponse>> GetCustomerTiersAsync();
-    Task<CustomerTierResponse> CreateCustomerTierAsync(CreateCustomerTierRequest request);
-    Task<CustomerTierResponse> UpdateCustomerTierAsync(int id, UpdateCustomerTierRequest request);
+    Task<CustomerTierResponse> CreateCustomerTierAsync(CreateCustomerTierRequest request, int? actingUserId = null);
+    Task<CustomerTierResponse> UpdateCustomerTierAsync(int id, UpdateCustomerTierRequest request, int? actingUserId = null);
 
     // Categories
     Task<List<CategoryResponse>> GetCategoriesAsync();
-    Task<CategoryResponse> CreateCategoryAsync(CreateCategoryRequest request);
+    Task<CategoryResponse> CreateCategoryAsync(CreateCategoryRequest request, int? actingUserId = null);
 
     // Products
-    Task<List<ProductListResponse>> GetProductsAsync();
-    Task<ProductDetailResponse> CreateProductAsync(CreateProductRequest request);
-    Task<ProductDetailResponse> UpdateProductAsync(int id, UpdateProductRequest request);
+    Task<List<ProductListResponse>> GetProductsAsync(string? search = null, int? categoryId = null, bool? isActive = null);
+    Task<ProductDetailResponse> GetProductByIdAsync(int id);
+    Task<ProductDetailResponse> CreateProductAsync(CreateProductRequest request, int? actingUserId = null);
+    Task<ProductDetailResponse> UpdateProductAsync(int id, UpdateProductRequest request, int? actingUserId = null);
+    Task<ProductDetailResponse> ToggleProductStatusAsync(int id, int? actingUserId = null);
 
     // Price Lists
     Task<List<PriceListResponse>> GetPriceListsAsync();
-    Task<PriceListResponse> CreatePriceListAsync(CreatePriceListRequest request);
-    Task<PriceListItemResponse> UpsertPriceListItemAsync(int priceListId, UpsertPriceListItemRequest request);
+    Task<PriceListResponse> GetPriceListByIdAsync(int id);
+    Task<PriceListResponse> CreatePriceListAsync(CreatePriceListRequest request, int? actingUserId = null);
+    Task<PriceListResponse> UpdatePriceListAsync(int id, UpdatePriceListRequest request, int? actingUserId = null);
+    Task<PriceListResponse> TogglePriceListStatusAsync(int id, int? actingUserId = null);
+    Task<PriceListItemResponse> UpsertPriceListItemAsync(int priceListId, UpsertPriceListItemRequest request, int? actingUserId = null);
+    Task<bool> DeletePriceListItemAsync(int priceListId, int productId, int? actingUserId = null);
+    Task<bool> DeletePriceListAsync(int id, int? actingUserId = null);
 
     // Discount Rules
     Task<List<DiscountRuleResponse>> GetDiscountRulesAsync();
-    Task<DiscountRuleResponse> CreateDiscountRuleAsync(CreateDiscountRuleRequest request);
-    Task<DiscountRuleResponse> UpdateDiscountRuleAsync(int id, UpdateDiscountRuleRequest request);
-    Task<bool> DeleteDiscountRuleAsync(int id);
+    Task<DiscountRuleResponse> CreateDiscountRuleAsync(CreateDiscountRuleRequest request, int? actingUserId = null);
+    Task<DiscountRuleResponse> UpdateDiscountRuleAsync(int id, UpdateDiscountRuleRequest request, int? actingUserId = null);
+    Task<bool> DeleteDiscountRuleAsync(int id, int? actingUserId = null);
 
     // Approval Rules
     Task<List<ApprovalRuleResponse>> GetApprovalRulesAsync();
-    Task<ApprovalRuleResponse> CreateApprovalRuleAsync(CreateApprovalRuleRequest request);
-    Task<ApprovalRuleResponse> UpdateApprovalRuleAsync(int id, UpdateApprovalRuleRequest request);
-    Task<bool> DeleteApprovalRuleAsync(int id);
+    Task<ApprovalRuleResponse> CreateApprovalRuleAsync(CreateApprovalRuleRequest request, int? actingUserId = null);
+    Task<ApprovalRuleResponse> UpdateApprovalRuleAsync(int id, UpdateApprovalRuleRequest request, int? actingUserId = null);
+    Task<bool> DeleteApprovalRuleAsync(int id, int? actingUserId = null);
 
-    // Warehouses
+    // Warehouses & Stock
     Task<List<WarehouseResponse>> GetWarehousesAsync();
-    Task<WarehouseResponse> CreateWarehouseAsync(CreateWarehouseRequest request);
-    Task<StockResponse> AdjustStockAsync(int warehouseId, AdjustStockRequest request);
+    Task<WarehouseResponse> GetWarehouseByIdAsync(int id);
+    Task<WarehouseResponse> CreateWarehouseAsync(CreateWarehouseRequest request, int? actingUserId = null);
+    Task<WarehouseResponse> UpdateWarehouseAsync(int id, UpdateWarehouseRequest request, int? actingUserId = null);
+    Task<WarehouseResponse> ToggleWarehouseStatusAsync(int id, int? actingUserId = null);
+    Task<List<StockResponse>> GetWarehouseStocksAsync(int warehouseId);
+    Task<List<StockResponse>> GetAllInventoryStocksAsync();
+    Task<StockResponse> AdjustStockAsync(int warehouseId, AdjustStockRequest request, int? actingUserId = null);
 
     // Sales Teams
     Task<List<SalesTeamResponse>> GetSalesTeamsAsync();
-    Task<SalesTeamResponse> CreateSalesTeamAsync(CreateSalesTeamRequest request);
+    Task<SalesTeamResponse> CreateSalesTeamAsync(CreateSalesTeamRequest request, int? actingUserId = null);
 
     // Subscription Plans
     Task<List<SubscriptionPlanResponse>> GetSubscriptionPlansAsync();
-    Task<SubscriptionPlanResponse> CreateSubscriptionPlanAsync(CreateSubscriptionPlanRequest request);
+    Task<SubscriptionPlanResponse> CreateSubscriptionPlanAsync(CreateSubscriptionPlanRequest request, int? actingUserId = null);
+    Task<SubscriptionPlanResponse> UpdateSubscriptionPlanAsync(int id, UpdateSubscriptionPlanRequest request, int? actingUserId = null);
+    Task<SubscriptionPlanResponse> ToggleSubscriptionPlanStatusAsync(int id, int? actingUserId = null);
 
     // Upsell Rules
     Task<List<UpsellRuleResponse>> GetUpsellRulesAsync();
-    Task<UpsellRuleResponse> CreateUpsellRuleAsync(CreateUpsellRuleRequest request);
+    Task<UpsellRuleResponse> CreateUpsellRuleAsync(CreateUpsellRuleRequest request, int? actingUserId = null);
+
+    // Platform Analytics & Audit
+    Task<PlatformOverviewResponse> GetPlatformOverviewAsync();
+    Task<List<AdminAuditLogDto>> GetAuditLogsAsync(int take = 50);
 }
 
 public class AdminService : IAdminService
@@ -81,7 +101,31 @@ public class AdminService : IAdminService
         _context = context;
     }
 
-    // Users
+    private async Task LogAuditAsync(int? userId, string entityName, int entityId, string action, string? reason = null, object? oldValue = null, object? newValue = null)
+    {
+        try
+        {
+            var auditLog = new AuditLog
+            {
+                UserId = userId,
+                EntityName = entityName,
+                EntityId = entityId,
+                Action = action,
+                Reason = reason,
+                OldValueJson = oldValue != null ? JsonSerializer.Serialize(oldValue) : null,
+                NewValueJson = newValue != null ? JsonSerializer.Serialize(newValue) : null,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            _context.AuditLogs.Add(auditLog);
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            // Suppress non-critical audit log failure to preserve primary transaction
+        }
+    }
+
+    // ─── Users ──────────────────────────────────────────────────
     public async Task<List<UserResponse>> GetUsersAsync()
     {
         return await _context.Users
@@ -98,13 +142,21 @@ public class AdminService : IAdminService
             .ToListAsync();
     }
 
-    public async Task<UserResponse> CreateUserAsync(CreateUserRequest request)
+    public async Task<UserResponse> CreateUserAsync(CreateUserRequest request, int? actingUserId = null)
     {
+        if (string.IsNullOrWhiteSpace(request.Email)) throw new ArgumentException("Email is required.");
+        if (string.IsNullOrWhiteSpace(request.FullName)) throw new ArgumentException("Full name is required.");
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+            throw new ArgumentException("Password must be at least 6 characters.");
+
+        var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.Trim().ToLower());
+        if (existingUser != null) throw new InvalidOperationException($"User with email '{request.Email}' already exists.");
+
         var role = Enum.Parse<Role>(request.Role, true);
         var user = new User
         {
-            FullName = request.FullName,
-            Email = request.Email,
+            FullName = request.FullName.Trim(),
+            Email = request.Email.Trim(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = role,
             SalesTeamId = request.SalesTeamId,
@@ -117,6 +169,8 @@ public class AdminService : IAdminService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
+        await LogAuditAsync(actingUserId, "User", user.Id, "UserCreated", $"Created user {user.Email} with role {user.Role}", null, new { user.Id, user.Email, user.Role });
+
         return new UserResponse
         {
             Id = user.Id,
@@ -129,12 +183,14 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<UserResponse> UpdateUserAsync(int id, UpdateUserRequest request)
+    public async Task<UserResponse> UpdateUserAsync(int id, UpdateUserRequest request, int? actingUserId = null)
     {
         var user = await _context.Users.FindAsync(id);
         if (user == null) throw new KeyNotFoundException($"User {id} not found.");
 
-        user.FullName = request.FullName;
+        var oldSnapshot = new { user.FullName, Role = user.Role.ToString(), user.SalesTeamId, user.CustomerId, user.IsActive };
+
+        user.FullName = request.FullName.Trim();
         user.Role = Enum.Parse<Role>(request.Role, true);
         user.SalesTeamId = request.SalesTeamId;
         user.CustomerId = request.CustomerId;
@@ -144,6 +200,8 @@ public class AdminService : IAdminService
         _context.Users.Update(user);
         await _context.SaveChangesAsync();
 
+        await LogAuditAsync(actingUserId, "User", user.Id, "UserUpdated", $"Updated user {user.Email}", oldSnapshot, new { user.FullName, Role = user.Role.ToString(), user.IsActive });
+
         return new UserResponse
         {
             Id = user.Id,
@@ -156,7 +214,7 @@ public class AdminService : IAdminService
         };
     }
 
-    // Customer Tiers
+    // ─── Customer Tiers ─────────────────────────────────────────
     public async Task<List<CustomerTierResponse>> GetCustomerTiersAsync()
     {
         return await _context.CustomerTiers
@@ -168,11 +226,15 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<CustomerTierResponse> CreateCustomerTierAsync(CreateCustomerTierRequest request)
+    public async Task<CustomerTierResponse> CreateCustomerTierAsync(CreateCustomerTierRequest request, int? actingUserId = null)
     {
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Customer tier name is required.");
+        if (request.MaxDiscountPercent < 0 || request.MaxDiscountPercent > 100)
+            throw new ArgumentException("Max discount percent must be between 0% and 100%.");
+
         var tier = new CustomerTier
         {
-            Name = request.Name,
+            Name = request.Name.Trim(),
             MaxDiscountPercent = request.MaxDiscountPercent,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -180,6 +242,8 @@ public class AdminService : IAdminService
         _context.CustomerTiers.Add(tier);
         await _context.SaveChangesAsync();
 
+        await LogAuditAsync(actingUserId, "CustomerTier", tier.Id, "CustomerTierCreated", $"Created customer tier {tier.Name}", null, tier);
+
         return new CustomerTierResponse
         {
             Id = tier.Id,
@@ -188,16 +252,25 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<CustomerTierResponse> UpdateCustomerTierAsync(int id, UpdateCustomerTierRequest request)
+    public async Task<CustomerTierResponse> UpdateCustomerTierAsync(int id, UpdateCustomerTierRequest request, int? actingUserId = null)
     {
         var tier = await _context.CustomerTiers.FindAsync(id);
         if (tier == null) throw new KeyNotFoundException($"Customer tier {id} not found.");
 
-        tier.Name = request.Name;
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Customer tier name is required.");
+        if (request.MaxDiscountPercent < 0 || request.MaxDiscountPercent > 100)
+            throw new ArgumentException("Max discount percent must be between 0% and 100%.");
+
+        var oldSnapshot = new { tier.Name, tier.MaxDiscountPercent };
+
+        tier.Name = request.Name.Trim();
         tier.MaxDiscountPercent = request.MaxDiscountPercent;
+        tier.UpdatedAtUtc = DateTime.UtcNow;
 
         _context.CustomerTiers.Update(tier);
         await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "CustomerTier", tier.Id, "CustomerTierUpdated", $"Updated customer tier {tier.Name}", oldSnapshot, tier);
 
         return new CustomerTierResponse
         {
@@ -207,8 +280,7 @@ public class AdminService : IAdminService
         };
     }
 
-    // Categories
-
+    // ─── Categories ─────────────────────────────────────────────
     public async Task<List<CategoryResponse>> GetCategoriesAsync()
     {
         return await _context.ProductCategories
@@ -221,18 +293,22 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<CategoryResponse> CreateCategoryAsync(CreateCategoryRequest request)
+    public async Task<CategoryResponse> CreateCategoryAsync(CreateCategoryRequest request, int? actingUserId = null)
     {
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Category name is required.");
+
         var cat = new ProductCategory
         {
-            Name = request.Name,
-            Description = request.Description,
+            Name = request.Name.Trim(),
+            Description = request.Description?.Trim(),
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
 
         _context.ProductCategories.Add(cat);
         await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "Category", cat.Id, "CategoryCreated", $"Created category {cat.Name}", null, cat);
 
         return new CategoryResponse
         {
@@ -243,11 +319,31 @@ public class AdminService : IAdminService
         };
     }
 
-    // Products
-    public async Task<List<ProductListResponse>> GetProductsAsync()
+    // ─── Products ───────────────────────────────────────────────
+    public async Task<List<ProductListResponse>> GetProductsAsync(string? search = null, int? categoryId = null, bool? isActive = null)
     {
-        return await _context.Products
+        var query = _context.Products
             .Include(p => p.Category)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(p => p.Name.ToLower().Contains(term) || p.SKU.ToLower().Contains(term));
+        }
+
+        if (categoryId.HasValue)
+        {
+            query = query.Where(p => p.CategoryId == categoryId.Value);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(p => p.IsActive == isActive.Value);
+        }
+
+        return await query
+            .OrderBy(p => p.Name)
             .Select(p => new ProductListResponse
             {
                 Id = p.Id,
@@ -257,22 +353,68 @@ public class AdminService : IAdminService
                 ProductType = p.ProductType.ToString(),
                 BasePrice = p.BasePrice,
                 CostPrice = p.CostPrice,
+                TaxRate = p.TaxRate,
                 IsActive = p.IsActive
             }).ToListAsync();
     }
 
-    public async Task<ProductDetailResponse> CreateProductAsync(CreateProductRequest request)
+    public async Task<ProductDetailResponse> GetProductByIdAsync(int id)
     {
+        var product = await _context.Products
+            .Include(p => p.Category)
+            .Include(p => p.Variants)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (product == null) throw new KeyNotFoundException($"Product {id} not found.");
+
+        return new ProductDetailResponse
+        {
+            Id = product.Id,
+            SKU = product.SKU,
+            Name = product.Name,
+            CategoryId = product.CategoryId,
+            CategoryName = product.Category?.Name ?? string.Empty,
+            ProductType = product.ProductType.ToString(),
+            BasePrice = product.BasePrice,
+            CostPrice = product.CostPrice,
+            TaxRate = product.TaxRate,
+            Unit = product.Unit,
+            IsActive = product.IsActive,
+            Variants = product.Variants.Select(v => new VariantResponse
+            {
+                Id = v.Id,
+                Name = v.Name,
+                AdditionalPrice = v.AdditionalPrice,
+                IsActive = v.IsActive
+            }).ToList()
+        };
+    }
+
+    public async Task<ProductDetailResponse> CreateProductAsync(CreateProductRequest request, int? actingUserId = null)
+    {
+        if (string.IsNullOrWhiteSpace(request.SKU)) throw new ArgumentException("SKU is required.");
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Product name is required.");
+        if (request.BasePrice <= 0) throw new ArgumentException("Base price must be greater than 0.");
+        if (request.CostPrice < 0) throw new ArgumentException("Cost price cannot be negative.");
+        if (request.TaxRate < 0 || request.TaxRate > 100) throw new ArgumentException("Tax rate must be between 0% and 100%.");
+
+        var skuNormalized = request.SKU.Trim().ToUpperInvariant();
+        var skuExists = await _context.Products.AnyAsync(p => p.SKU.ToUpper() == skuNormalized);
+        if (skuExists) throw new InvalidOperationException($"Product with SKU '{request.SKU}' already exists.");
+
+        var category = await _context.ProductCategories.FindAsync(request.CategoryId);
+        if (category == null) throw new KeyNotFoundException($"Product category {request.CategoryId} not found.");
+
         var product = new Product
         {
-            SKU = request.SKU,
-            Name = request.Name,
+            SKU = skuNormalized,
+            Name = request.Name.Trim(),
             CategoryId = request.CategoryId,
             ProductType = Enum.Parse<ProductType>(request.ProductType, true),
             BasePrice = request.BasePrice,
             CostPrice = request.CostPrice,
             TaxRate = request.TaxRate,
-            Unit = request.Unit,
+            Unit = string.IsNullOrWhiteSpace(request.Unit) ? "Each" : request.Unit.Trim(),
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
@@ -281,7 +423,7 @@ public class AdminService : IAdminService
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
 
-        var category = await _context.ProductCategories.FindAsync(request.CategoryId);
+        await LogAuditAsync(actingUserId, "Product", product.Id, "ProductCreated", $"Created product {product.Name} [{product.SKU}]", null, product);
 
         return new ProductDetailResponse
         {
@@ -289,7 +431,7 @@ public class AdminService : IAdminService
             SKU = product.SKU,
             Name = product.Name,
             CategoryId = product.CategoryId,
-            CategoryName = category?.Name ?? string.Empty,
+            CategoryName = category.Name,
             ProductType = product.ProductType.ToString(),
             BasePrice = product.BasePrice,
             CostPrice = product.CostPrice,
@@ -299,25 +441,43 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<ProductDetailResponse> UpdateProductAsync(int id, UpdateProductRequest request)
+    public async Task<ProductDetailResponse> UpdateProductAsync(int id, UpdateProductRequest request, int? actingUserId = null)
     {
-        var product = await _context.Products.FindAsync(id);
+        var product = await _context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
         if (product == null) throw new KeyNotFoundException($"Product {id} not found.");
 
-        product.Name = request.Name;
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Product name is required.");
+        if (request.BasePrice <= 0) throw new ArgumentException("Base price must be greater than 0.");
+        if (request.CostPrice < 0) throw new ArgumentException("Cost price cannot be negative.");
+        if (request.TaxRate < 0 || request.TaxRate > 100) throw new ArgumentException("Tax rate must be between 0% and 100%.");
+
+        if (!string.IsNullOrWhiteSpace(request.SKU))
+        {
+            var skuNorm = request.SKU.Trim().ToUpperInvariant();
+            var skuExists = await _context.Products.AnyAsync(p => p.SKU.ToUpper() == skuNorm && p.Id != id);
+            if (skuExists) throw new InvalidOperationException($"Product with SKU '{request.SKU}' already exists.");
+            product.SKU = skuNorm;
+        }
+
+        var category = await _context.ProductCategories.FindAsync(request.CategoryId);
+        if (category == null) throw new KeyNotFoundException($"Product category {request.CategoryId} not found.");
+
+        var oldSnapshot = new { product.Name, product.SKU, product.BasePrice, product.CostPrice, product.TaxRate, product.IsActive };
+
+        product.Name = request.Name.Trim();
         product.CategoryId = request.CategoryId;
         product.ProductType = Enum.Parse<ProductType>(request.ProductType, true);
         product.BasePrice = request.BasePrice;
         product.CostPrice = request.CostPrice;
         product.TaxRate = request.TaxRate;
-        product.Unit = request.Unit;
+        product.Unit = string.IsNullOrWhiteSpace(request.Unit) ? product.Unit : request.Unit.Trim();
         product.IsActive = request.IsActive;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
         _context.Products.Update(product);
         await _context.SaveChangesAsync();
 
-        var category = await _context.ProductCategories.FindAsync(request.CategoryId);
+        await LogAuditAsync(actingUserId, "Product", product.Id, "ProductUpdated", $"Updated product {product.Name} [{product.SKU}]", oldSnapshot, product);
 
         return new ProductDetailResponse
         {
@@ -325,7 +485,7 @@ public class AdminService : IAdminService
             SKU = product.SKU,
             Name = product.Name,
             CategoryId = product.CategoryId,
-            CategoryName = category?.Name ?? string.Empty,
+            CategoryName = category.Name,
             ProductType = product.ProductType.ToString(),
             BasePrice = product.BasePrice,
             CostPrice = product.CostPrice,
@@ -335,26 +495,100 @@ public class AdminService : IAdminService
         };
     }
 
-    // Price Lists
+    public async Task<ProductDetailResponse> ToggleProductStatusAsync(int id, int? actingUserId = null)
+    {
+        var product = await _context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
+        if (product == null) throw new KeyNotFoundException($"Product {id} not found.");
+
+        product.IsActive = !product.IsActive;
+        product.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.Products.Update(product);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "Product", product.Id, product.IsActive ? "ProductActivated" : "ProductDeactivated", $"Product {product.Name} [{product.SKU}] active status toggled to {product.IsActive}");
+
+        return new ProductDetailResponse
+        {
+            Id = product.Id,
+            SKU = product.SKU,
+            Name = product.Name,
+            CategoryId = product.CategoryId,
+            CategoryName = product.Category?.Name ?? string.Empty,
+            ProductType = product.ProductType.ToString(),
+            BasePrice = product.BasePrice,
+            CostPrice = product.CostPrice,
+            TaxRate = product.TaxRate,
+            Unit = product.Unit,
+            IsActive = product.IsActive
+        };
+    }
+
+    // ─── Price Lists ────────────────────────────────────────────
     public async Task<List<PriceListResponse>> GetPriceListsAsync()
     {
         return await _context.PriceLists
+            .Include(pl => pl.Tier)
+            .Include(pl => pl.Items).ThenInclude(i => i.Product)
             .Select(pl => new PriceListResponse
             {
                 Id = pl.Id,
                 Name = pl.Name,
                 CurrencyCode = pl.CurrencyCode,
                 TierId = pl.TierId,
-                IsActive = pl.IsActive
+                TierName = pl.Tier != null ? pl.Tier.Name : null,
+                IsActive = pl.IsActive,
+                Items = pl.Items.Select(i => new PriceListItemResponse
+                {
+                    Id = i.Id,
+                    PriceListId = i.PriceListId,
+                    ProductId = i.ProductId,
+                    ProductName = i.Product != null ? i.Product.Name : string.Empty,
+                    ProductSKU = i.Product != null ? i.Product.SKU : string.Empty,
+                    CurrencyCode = pl.CurrencyCode,
+                    UnitPrice = i.UnitPrice
+                }).ToList()
             }).ToListAsync();
     }
 
-    public async Task<PriceListResponse> CreatePriceListAsync(CreatePriceListRequest request)
+    public async Task<PriceListResponse> GetPriceListByIdAsync(int id)
     {
+        var pl = await _context.PriceLists
+            .Include(p => p.Tier)
+            .Include(p => p.Items).ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (pl == null) throw new KeyNotFoundException($"Price list {id} not found.");
+
+        return new PriceListResponse
+        {
+            Id = pl.Id,
+            Name = pl.Name,
+            CurrencyCode = pl.CurrencyCode,
+            TierId = pl.TierId,
+            TierName = pl.Tier?.Name,
+            IsActive = pl.IsActive,
+            Items = pl.Items.Select(i => new PriceListItemResponse
+            {
+                Id = i.Id,
+                PriceListId = i.PriceListId,
+                ProductId = i.ProductId,
+                ProductName = i.Product?.Name ?? string.Empty,
+                ProductSKU = i.Product?.SKU ?? string.Empty,
+                CurrencyCode = pl.CurrencyCode,
+                UnitPrice = i.UnitPrice
+            }).ToList()
+        };
+    }
+
+    public async Task<PriceListResponse> CreatePriceListAsync(CreatePriceListRequest request, int? actingUserId = null)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Price list name is required.");
+
         var pl = new PriceList
         {
-            Name = request.Name,
-            CurrencyCode = request.CurrencyCode,
+            Name = request.Name.Trim(),
+            CurrencyCode = string.IsNullOrWhiteSpace(request.CurrencyCode) ? "USD" : request.CurrencyCode.Trim().ToUpperInvariant(),
             TierId = request.TierId,
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
@@ -363,19 +597,62 @@ public class AdminService : IAdminService
         _context.PriceLists.Add(pl);
         await _context.SaveChangesAsync();
 
-        return new PriceListResponse
-        {
-            Id = pl.Id,
-            Name = pl.Name,
-            CurrencyCode = pl.CurrencyCode,
-            TierId = pl.TierId,
-            IsActive = pl.IsActive
-        };
+        await LogAuditAsync(actingUserId, "PriceList", pl.Id, "PriceListCreated", $"Created price list {pl.Name} ({pl.CurrencyCode})", null, pl);
+
+        return await GetPriceListByIdAsync(pl.Id);
     }
 
-    public async Task<PriceListItemResponse> UpsertPriceListItemAsync(int priceListId, UpsertPriceListItemRequest request)
+    public async Task<PriceListResponse> UpdatePriceListAsync(int id, UpdatePriceListRequest request, int? actingUserId = null)
     {
+        var pl = await _context.PriceLists.FindAsync(id);
+        if (pl == null) throw new KeyNotFoundException($"Price list {id} not found.");
+
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Price list name is required.");
+
+        var oldSnapshot = new { pl.Name, pl.CurrencyCode, pl.TierId, pl.IsActive };
+
+        pl.Name = request.Name.Trim();
+        pl.CurrencyCode = string.IsNullOrWhiteSpace(request.CurrencyCode) ? pl.CurrencyCode : request.CurrencyCode.Trim().ToUpperInvariant();
+        pl.TierId = request.TierId;
+        pl.IsActive = request.IsActive;
+        pl.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.PriceLists.Update(pl);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "PriceList", pl.Id, "PriceListUpdated", $"Updated price list {pl.Name}", oldSnapshot, pl);
+
+        return await GetPriceListByIdAsync(id);
+    }
+
+    public async Task<PriceListResponse> TogglePriceListStatusAsync(int id, int? actingUserId = null)
+    {
+        var pl = await _context.PriceLists.FindAsync(id);
+        if (pl == null) throw new KeyNotFoundException($"Price list {id} not found.");
+
+        pl.IsActive = !pl.IsActive;
+        pl.UpdatedAtUtc = DateTime.UtcNow;
+        _context.PriceLists.Update(pl);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "PriceList", pl.Id, pl.IsActive ? "PriceListActivated" : "PriceListDeactivated", $"Price list {pl.Name} status toggled to {pl.IsActive}");
+
+        return await GetPriceListByIdAsync(id);
+    }
+
+    public async Task<PriceListItemResponse> UpsertPriceListItemAsync(int priceListId, UpsertPriceListItemRequest request, int? actingUserId = null)
+    {
+        if (request.UnitPrice <= 0) throw new ArgumentException("Price list unit price must be greater than 0.");
+
+        var priceList = await _context.PriceLists.FindAsync(priceListId);
+        if (priceList == null) throw new KeyNotFoundException($"Price list {priceListId} not found.");
+
+        var product = await _context.Products.FindAsync(request.ProductId);
+        if (product == null) throw new KeyNotFoundException($"Product {request.ProductId} not found.");
+
         var item = await _context.PriceListItems.FirstOrDefaultAsync(pli => pli.PriceListId == priceListId && pli.ProductId == request.ProductId);
+        decimal oldPrice = item?.UnitPrice ?? 0;
+
         if (item == null)
         {
             item = new PriceListItem
@@ -396,22 +673,47 @@ public class AdminService : IAdminService
 
         await _context.SaveChangesAsync();
 
-        var product = await _context.Products.FindAsync(request.ProductId);
-        var priceList = await _context.PriceLists.FindAsync(priceListId);
+        await LogAuditAsync(actingUserId, "PriceList", priceListId, "PriceListItemUpserted", $"Configured price for product '{product.Name}' in price list '{priceList.Name}': {oldPrice:F2} -> {request.UnitPrice:F2}");
 
         return new PriceListItemResponse
         {
             Id = item.Id,
             PriceListId = item.PriceListId,
             ProductId = item.ProductId,
-            ProductName = product?.Name ?? string.Empty,
-            ProductSKU = product?.SKU ?? string.Empty,
-            CurrencyCode = priceList?.CurrencyCode ?? "INR",
+            ProductName = product.Name,
+            ProductSKU = product.SKU,
+            CurrencyCode = priceList.CurrencyCode,
             UnitPrice = item.UnitPrice
         };
     }
 
-    // Discount Rules
+    public async Task<bool> DeletePriceListItemAsync(int priceListId, int productId, int? actingUserId = null)
+    {
+        var item = await _context.PriceListItems.FirstOrDefaultAsync(pli => pli.PriceListId == priceListId && pli.ProductId == productId);
+        if (item == null) return false;
+
+        _context.PriceListItems.Remove(item);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "PriceList", priceListId, "PriceListItemDeleted", $"Removed product {productId} from price list {priceListId}");
+        return true;
+    }
+
+    public async Task<bool> DeletePriceListAsync(int id, int? actingUserId = null)
+    {
+        var pl = await _context.PriceLists.FindAsync(id);
+        if (pl == null) throw new KeyNotFoundException($"Price list {id} not found.");
+
+        pl.IsActive = false;
+        pl.UpdatedAtUtc = DateTime.UtcNow;
+        _context.PriceLists.Update(pl);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "PriceList", id, "PriceListDeactivated", $"Soft-deactivated price list {pl.Name}");
+        return true;
+    }
+
+    // ─── Discount Rules ─────────────────────────────────────────
     public async Task<List<DiscountRuleResponse>> GetDiscountRulesAsync()
     {
         return await _context.DiscountRules
@@ -431,8 +733,24 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<DiscountRuleResponse> CreateDiscountRuleAsync(CreateDiscountRuleRequest request)
+    public async Task<DiscountRuleResponse> CreateDiscountRuleAsync(CreateDiscountRuleRequest request, int? actingUserId = null)
     {
+        if (request.MaxDiscountPercent < 0 || request.MaxDiscountPercent > 100)
+            throw new ArgumentException("Max discount percent must be between 0% and 100%.");
+        if (request.ManagerThreshold < 0 || request.ManagerThreshold > 100)
+            throw new ArgumentException("Manager threshold must be between 0% and 100%.");
+        if (request.FinanceThreshold < 0 || request.FinanceThreshold > 100)
+            throw new ArgumentException("Finance threshold must be between 0% and 100%.");
+
+        var tier = await _context.CustomerTiers.FindAsync(request.TierId);
+        if (tier == null) throw new KeyNotFoundException($"Customer tier {request.TierId} not found.");
+
+        if (request.CategoryId.HasValue && !await _context.ProductCategories.AnyAsync(c => c.Id == request.CategoryId.Value))
+            throw new KeyNotFoundException($"Category {request.CategoryId.Value} not found.");
+
+        var duplicate = await _context.DiscountRules.AnyAsync(r => r.TierId == request.TierId && r.CategoryId == request.CategoryId && r.IsActive);
+        if (duplicate) throw new InvalidOperationException("An active discount rule for this customer tier and product category already exists.");
+
         var rule = new DiscountRule
         {
             TierId = request.TierId,
@@ -447,14 +765,15 @@ public class AdminService : IAdminService
         _context.DiscountRules.Add(rule);
         await _context.SaveChangesAsync();
 
-        var tier = await _context.CustomerTiers.FindAsync(rule.TierId);
         var category = rule.CategoryId.HasValue ? await _context.ProductCategories.FindAsync(rule.CategoryId.Value) : null;
+
+        await LogAuditAsync(actingUserId, "DiscountRule", rule.Id, "DiscountRuleCreated", $"Created discount rule for tier '{tier.Name}' (Max: {rule.MaxDiscountPercent}%)", null, rule);
 
         return new DiscountRuleResponse
         {
             Id = rule.Id,
             TierId = rule.TierId,
-            TierName = tier?.Name ?? string.Empty,
+            TierName = tier.Name,
             CategoryId = rule.CategoryId,
             CategoryName = category?.Name,
             MaxDiscountPercent = rule.MaxDiscountPercent,
@@ -464,10 +783,19 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<DiscountRuleResponse> UpdateDiscountRuleAsync(int id, UpdateDiscountRuleRequest request)
+    public async Task<DiscountRuleResponse> UpdateDiscountRuleAsync(int id, UpdateDiscountRuleRequest request, int? actingUserId = null)
     {
         var rule = await _context.DiscountRules.FindAsync(id);
         if (rule == null) throw new KeyNotFoundException($"Discount rule {id} not found.");
+
+        if (request.MaxDiscountPercent < 0 || request.MaxDiscountPercent > 100)
+            throw new ArgumentException("Max discount percent must be between 0% and 100%.");
+        if (request.ManagerThreshold < 0 || request.ManagerThreshold > 100)
+            throw new ArgumentException("Manager threshold must be between 0% and 100%.");
+        if (request.FinanceThreshold < 0 || request.FinanceThreshold > 100)
+            throw new ArgumentException("Finance threshold must be between 0% and 100%.");
+
+        var oldSnapshot = new { rule.TierId, rule.CategoryId, rule.MaxDiscountPercent, rule.ManagerThreshold, rule.FinanceThreshold, rule.IsActive };
 
         rule.TierId = request.TierId;
         rule.CategoryId = request.CategoryId;
@@ -483,6 +811,8 @@ public class AdminService : IAdminService
         var tier = await _context.CustomerTiers.FindAsync(rule.TierId);
         var category = rule.CategoryId.HasValue ? await _context.ProductCategories.FindAsync(rule.CategoryId.Value) : null;
 
+        await LogAuditAsync(actingUserId, "DiscountRule", rule.Id, "DiscountRuleUpdated", $"Updated discount rule DR-{rule.Id}", oldSnapshot, rule);
+
         return new DiscountRuleResponse
         {
             Id = rule.Id,
@@ -497,17 +827,19 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<bool> DeleteDiscountRuleAsync(int id)
+    public async Task<bool> DeleteDiscountRuleAsync(int id, int? actingUserId = null)
     {
         var rule = await _context.DiscountRules.FindAsync(id);
         if (rule == null) throw new KeyNotFoundException($"Discount rule {id} not found.");
 
         _context.DiscountRules.Remove(rule);
         await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "DiscountRule", id, "DiscountRuleDeleted", $"Deleted discount rule DR-{id}");
         return true;
     }
 
-    // Approval Rules
+    // ─── Approval Rules ─────────────────────────────────────────
     public async Task<List<ApprovalRuleResponse>> GetApprovalRulesAsync()
     {
         return await _context.ApprovalRules
@@ -524,15 +856,18 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<ApprovalRuleResponse> CreateApprovalRuleAsync(CreateApprovalRuleRequest request)
+    public async Task<ApprovalRuleResponse> CreateApprovalRuleAsync(CreateApprovalRuleRequest request, int? actingUserId = null)
     {
+        if (request.MinRisk < 0 || request.MaxRisk > 100 || request.MinRisk > request.MaxRisk)
+            throw new ArgumentException("Invalid risk score range.");
+
         var rule = new ApprovalRule
         {
             Level = Enum.Parse<ApprovalLevel>(request.Level, true),
             MinRisk = request.MinRisk,
             MaxRisk = request.MaxRisk,
-            RequiredRole = request.RequiredRole,
-            Sequence = request.Sequence,
+            RequiredRole = string.IsNullOrWhiteSpace(request.RequiredRole) ? "SalesManager" : request.RequiredRole.Trim(),
+            Sequence = request.Sequence > 0 ? request.Sequence : 1,
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -540,6 +875,8 @@ public class AdminService : IAdminService
         _context.ApprovalRules.Add(rule);
         await _context.SaveChangesAsync();
 
+        await LogAuditAsync(actingUserId, "ApprovalRule", rule.Id, "ApprovalRuleCreated", $"Created approval rule level {rule.Level}", null, rule);
+
         return new ApprovalRuleResponse
         {
             Id = rule.Id,
@@ -552,22 +889,29 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<ApprovalRuleResponse> UpdateApprovalRuleAsync(int id, UpdateApprovalRuleRequest request)
+    public async Task<ApprovalRuleResponse> UpdateApprovalRuleAsync(int id, UpdateApprovalRuleRequest request, int? actingUserId = null)
     {
         var rule = await _context.ApprovalRules.FindAsync(id);
         if (rule == null) throw new KeyNotFoundException($"Approval rule {id} not found.");
 
+        if (request.MinRisk < 0 || request.MaxRisk > 100 || request.MinRisk > request.MaxRisk)
+            throw new ArgumentException("Invalid risk score range.");
+
+        var oldSnapshot = new { Level = rule.Level.ToString(), rule.MinRisk, rule.MaxRisk, rule.RequiredRole, rule.Sequence, rule.IsActive };
+
         rule.Level = Enum.Parse<ApprovalLevel>(request.Level, true);
         rule.MinRisk = request.MinRisk;
         rule.MaxRisk = request.MaxRisk;
-        rule.RequiredRole = request.RequiredRole;
-        rule.Sequence = request.Sequence;
+        rule.RequiredRole = string.IsNullOrWhiteSpace(request.RequiredRole) ? rule.RequiredRole : request.RequiredRole.Trim();
+        rule.Sequence = request.Sequence > 0 ? request.Sequence : rule.Sequence;
         rule.IsActive = request.IsActive;
         rule.UpdatedAtUtc = DateTime.UtcNow;
 
         _context.ApprovalRules.Update(rule);
         await _context.SaveChangesAsync();
 
+        await LogAuditAsync(actingUserId, "ApprovalRule", rule.Id, "ApprovalRuleUpdated", $"Updated approval rule level {rule.Level}", oldSnapshot, rule);
+
         return new ApprovalRuleResponse
         {
             Id = rule.Id,
@@ -580,18 +924,19 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<bool> DeleteApprovalRuleAsync(int id)
+    public async Task<bool> DeleteApprovalRuleAsync(int id, int? actingUserId = null)
     {
         var rule = await _context.ApprovalRules.FindAsync(id);
         if (rule == null) throw new KeyNotFoundException($"Approval rule {id} not found.");
 
         _context.ApprovalRules.Remove(rule);
         await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "ApprovalRule", id, "ApprovalRuleDeleted", $"Deleted approval rule #{id}");
         return true;
     }
 
-
-    // Warehouses
+    // ─── Warehouses & Stock ─────────────────────────────────────
     public async Task<List<WarehouseResponse>> GetWarehousesAsync()
     {
         return await _context.Warehouses
@@ -604,18 +949,10 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<WarehouseResponse> CreateWarehouseAsync(CreateWarehouseRequest request)
+    public async Task<WarehouseResponse> GetWarehouseByIdAsync(int id)
     {
-        var w = new Warehouse
-        {
-            Name = request.Name,
-            ShippingCostWeight = request.ShippingCostWeight,
-            IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        _context.Warehouses.Add(w);
-        await _context.SaveChangesAsync();
+        var w = await _context.Warehouses.FindAsync(id);
+        if (w == null) throw new KeyNotFoundException($"Warehouse {id} not found.");
 
         return new WarehouseResponse
         {
@@ -626,9 +963,136 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<StockResponse> AdjustStockAsync(int warehouseId, AdjustStockRequest request)
+    public async Task<WarehouseResponse> CreateWarehouseAsync(CreateWarehouseRequest request, int? actingUserId = null)
     {
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Warehouse name is required.");
+        if (request.ShippingCostWeight < 0) throw new ArgumentException("Shipping cost weight multiplier cannot be negative.");
+
+        var w = new Warehouse
+        {
+            Name = request.Name.Trim(),
+            ShippingCostWeight = request.ShippingCostWeight,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.Warehouses.Add(w);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "Warehouse", w.Id, "WarehouseCreated", $"Created warehouse hub {w.Name} (multiplier: {w.ShippingCostWeight}x)", null, w);
+
+        return new WarehouseResponse
+        {
+            Id = w.Id,
+            Name = w.Name,
+            ShippingCostWeight = w.ShippingCostWeight,
+            IsActive = w.IsActive
+        };
+    }
+
+    public async Task<WarehouseResponse> UpdateWarehouseAsync(int id, UpdateWarehouseRequest request, int? actingUserId = null)
+    {
+        var w = await _context.Warehouses.FindAsync(id);
+        if (w == null) throw new KeyNotFoundException($"Warehouse {id} not found.");
+
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Warehouse name is required.");
+        if (request.ShippingCostWeight < 0) throw new ArgumentException("Shipping cost weight multiplier cannot be negative.");
+
+        var oldSnapshot = new { w.Name, w.ShippingCostWeight, w.IsActive };
+
+        w.Name = request.Name.Trim();
+        w.ShippingCostWeight = request.ShippingCostWeight;
+        w.IsActive = request.IsActive;
+        w.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.Warehouses.Update(w);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "Warehouse", w.Id, "WarehouseUpdated", $"Updated warehouse {w.Name}", oldSnapshot, w);
+
+        return new WarehouseResponse
+        {
+            Id = w.Id,
+            Name = w.Name,
+            ShippingCostWeight = w.ShippingCostWeight,
+            IsActive = w.IsActive
+        };
+    }
+
+    public async Task<WarehouseResponse> ToggleWarehouseStatusAsync(int id, int? actingUserId = null)
+    {
+        var w = await _context.Warehouses.FindAsync(id);
+        if (w == null) throw new KeyNotFoundException($"Warehouse {id} not found.");
+
+        w.IsActive = !w.IsActive;
+        w.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.Warehouses.Update(w);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "Warehouse", w.Id, w.IsActive ? "WarehouseActivated" : "WarehouseDeactivated", $"Warehouse {w.Name} status toggled to {w.IsActive}");
+
+        return new WarehouseResponse
+        {
+            Id = w.Id,
+            Name = w.Name,
+            ShippingCostWeight = w.ShippingCostWeight,
+            IsActive = w.IsActive
+        };
+    }
+
+    public async Task<List<StockResponse>> GetWarehouseStocksAsync(int warehouseId)
+    {
+        return await _context.InventoryStocks
+            .Include(s => s.Warehouse)
+            .Include(s => s.Product)
+            .Where(s => s.WarehouseId == warehouseId)
+            .Select(s => new StockResponse
+            {
+                Id = s.Id,
+                WarehouseId = s.WarehouseId,
+                WarehouseName = s.Warehouse.Name,
+                ProductId = s.ProductId,
+                ProductName = s.Product.Name,
+                ProductSKU = s.Product.SKU,
+                OnHand = s.OnHand,
+                Reserved = s.Reserved,
+                Available = s.OnHand - s.Reserved
+            }).ToListAsync();
+    }
+
+    public async Task<List<StockResponse>> GetAllInventoryStocksAsync()
+    {
+        return await _context.InventoryStocks
+            .Include(s => s.Warehouse)
+            .Include(s => s.Product)
+            .Select(s => new StockResponse
+            {
+                Id = s.Id,
+                WarehouseId = s.WarehouseId,
+                WarehouseName = s.Warehouse.Name,
+                ProductId = s.ProductId,
+                ProductName = s.Product.Name,
+                ProductSKU = s.Product.SKU,
+                OnHand = s.OnHand,
+                Reserved = s.Reserved,
+                Available = s.OnHand - s.Reserved
+            }).ToListAsync();
+    }
+
+    public async Task<StockResponse> AdjustStockAsync(int warehouseId, AdjustStockRequest request, int? actingUserId = null)
+    {
+        if (request.OnHand < 0) throw new ArgumentException("Stock on-hand cannot be negative.");
+
+        var warehouse = await _context.Warehouses.FindAsync(warehouseId);
+        if (warehouse == null) throw new KeyNotFoundException($"Warehouse {warehouseId} not found.");
+
+        var product = await _context.Products.FindAsync(request.ProductId);
+        if (product == null) throw new KeyNotFoundException($"Product {request.ProductId} not found.");
+
         var stock = await _context.InventoryStocks.FirstOrDefaultAsync(s => s.WarehouseId == warehouseId && s.ProductId == request.ProductId);
+        int oldOnHand = stock?.OnHand ?? 0;
+
         if (stock == null)
         {
             stock = new InventoryStock
@@ -643,6 +1107,11 @@ public class AdminService : IAdminService
         }
         else
         {
+            if (request.OnHand < stock.Reserved)
+            {
+                throw new InvalidOperationException($"Cannot reduce stock on-hand ({request.OnHand}) below currently reserved quantity ({stock.Reserved}).");
+            }
+
             stock.OnHand = request.OnHand;
             stock.UpdatedAtUtc = DateTime.UtcNow;
             _context.InventoryStocks.Update(stock);
@@ -650,24 +1119,23 @@ public class AdminService : IAdminService
 
         await _context.SaveChangesAsync();
 
-        var warehouse = await _context.Warehouses.FindAsync(warehouseId);
-        var product = await _context.Products.FindAsync(request.ProductId);
+        await LogAuditAsync(actingUserId, "InventoryStock", stock.Id, "StockAdjusted", $"Adjusted stock for '{product.Name}' in '{warehouse.Name}': {oldOnHand} -> {request.OnHand} (Reserved: {stock.Reserved})");
 
         return new StockResponse
         {
             Id = stock.Id,
             WarehouseId = stock.WarehouseId,
-            WarehouseName = warehouse?.Name ?? string.Empty,
+            WarehouseName = warehouse.Name,
             ProductId = stock.ProductId,
-            ProductName = product?.Name ?? string.Empty,
-            ProductSKU = product?.SKU ?? string.Empty,
+            ProductName = product.Name,
+            ProductSKU = product.SKU,
             OnHand = stock.OnHand,
             Reserved = stock.Reserved,
             Available = stock.OnHand - stock.Reserved
         };
     }
 
-    // Sales Teams
+    // ─── Sales Teams ────────────────────────────────────────────
     public async Task<List<SalesTeamResponse>> GetSalesTeamsAsync()
     {
         return await _context.SalesTeams
@@ -679,17 +1147,21 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<SalesTeamResponse> CreateSalesTeamAsync(CreateSalesTeamRequest request)
+    public async Task<SalesTeamResponse> CreateSalesTeamAsync(CreateSalesTeamRequest request, int? actingUserId = null)
     {
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Sales team name is required.");
+
         var st = new SalesTeam
         {
-            Name = request.Name,
+            Name = request.Name.Trim(),
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
 
         _context.SalesTeams.Add(st);
         await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "SalesTeam", st.Id, "SalesTeamCreated", $"Created sales team {st.Name}", null, st);
 
         return new SalesTeamResponse
         {
@@ -699,7 +1171,7 @@ public class AdminService : IAdminService
         };
     }
 
-    // Subscription Plans
+    // ─── Subscription Plans ─────────────────────────────────────
     public async Task<List<SubscriptionPlanResponse>> GetSubscriptionPlansAsync()
     {
         return await _context.SubscriptionPlans
@@ -713,12 +1185,15 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<SubscriptionPlanResponse> CreateSubscriptionPlanAsync(CreateSubscriptionPlanRequest request)
+    public async Task<SubscriptionPlanResponse> CreateSubscriptionPlanAsync(CreateSubscriptionPlanRequest request, int? actingUserId = null)
     {
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Subscription plan name is required.");
+        if (request.BillingIntervalMonths <= 0) throw new ArgumentException("Billing interval months must be at least 1.");
+
         var sp = new SubscriptionPlan
         {
-            Name = request.Name,
-            BillingFrequency = request.BillingFrequency,
+            Name = request.Name.Trim(),
+            BillingFrequency = string.IsNullOrWhiteSpace(request.BillingFrequency) ? "Monthly" : request.BillingFrequency.Trim(),
             BillingIntervalMonths = request.BillingIntervalMonths,
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
@@ -726,6 +1201,8 @@ public class AdminService : IAdminService
 
         _context.SubscriptionPlans.Add(sp);
         await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "SubscriptionPlan", sp.Id, "SubscriptionPlanCreated", $"Created subscription plan '{sp.Name}' ({sp.BillingFrequency}, {sp.BillingIntervalMonths} mo)", null, sp);
 
         return new SubscriptionPlanResponse
         {
@@ -737,7 +1214,61 @@ public class AdminService : IAdminService
         };
     }
 
-    // Upsell Rules
+    public async Task<SubscriptionPlanResponse> UpdateSubscriptionPlanAsync(int id, UpdateSubscriptionPlanRequest request, int? actingUserId = null)
+    {
+        var sp = await _context.SubscriptionPlans.FindAsync(id);
+        if (sp == null) throw new KeyNotFoundException($"Subscription plan {id} not found.");
+
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Subscription plan name is required.");
+        if (request.BillingIntervalMonths <= 0) throw new ArgumentException("Billing interval months must be at least 1.");
+
+        var oldSnapshot = new { sp.Name, sp.BillingFrequency, sp.BillingIntervalMonths, sp.IsActive };
+
+        sp.Name = request.Name.Trim();
+        sp.BillingFrequency = string.IsNullOrWhiteSpace(request.BillingFrequency) ? sp.BillingFrequency : request.BillingFrequency.Trim();
+        sp.BillingIntervalMonths = request.BillingIntervalMonths;
+        sp.IsActive = request.IsActive;
+        sp.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.SubscriptionPlans.Update(sp);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "SubscriptionPlan", sp.Id, "SubscriptionPlanUpdated", $"Updated subscription plan '{sp.Name}'", oldSnapshot, sp);
+
+        return new SubscriptionPlanResponse
+        {
+            Id = sp.Id,
+            Name = sp.Name,
+            BillingFrequency = sp.BillingFrequency,
+            BillingIntervalMonths = sp.BillingIntervalMonths,
+            IsActive = sp.IsActive
+        };
+    }
+
+    public async Task<SubscriptionPlanResponse> ToggleSubscriptionPlanStatusAsync(int id, int? actingUserId = null)
+    {
+        var sp = await _context.SubscriptionPlans.FindAsync(id);
+        if (sp == null) throw new KeyNotFoundException($"Subscription plan {id} not found.");
+
+        sp.IsActive = !sp.IsActive;
+        sp.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.SubscriptionPlans.Update(sp);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "SubscriptionPlan", sp.Id, sp.IsActive ? "SubscriptionPlanActivated" : "SubscriptionPlanDeactivated", $"Subscription plan '{sp.Name}' status toggled to {sp.IsActive}");
+
+        return new SubscriptionPlanResponse
+        {
+            Id = sp.Id,
+            Name = sp.Name,
+            BillingFrequency = sp.BillingFrequency,
+            BillingIntervalMonths = sp.BillingIntervalMonths,
+            IsActive = sp.IsActive
+        };
+    }
+
+    // ─── Upsell Rules ───────────────────────────────────────────
     public async Task<List<UpsellRuleResponse>> GetUpsellRulesAsync()
     {
         return await _context.UpsellCrossSellRules
@@ -753,7 +1284,7 @@ public class AdminService : IAdminService
             }).ToListAsync();
     }
 
-    public async Task<UpsellRuleResponse> CreateUpsellRuleAsync(CreateUpsellRuleRequest request)
+    public async Task<UpsellRuleResponse> CreateUpsellRuleAsync(CreateUpsellRuleRequest request, int? actingUserId = null)
     {
         var ur = new UpsellCrossSellRule
         {
@@ -769,6 +1300,8 @@ public class AdminService : IAdminService
         _context.UpsellCrossSellRules.Add(ur);
         await _context.SaveChangesAsync();
 
+        await LogAuditAsync(actingUserId, "UpsellRule", ur.Id, "UpsellRuleCreated", $"Created upsell rule for product {ur.TriggerProductId} -> {ur.SuggestedProductId}", null, ur);
+
         return new UpsellRuleResponse
         {
             Id = ur.Id,
@@ -779,5 +1312,75 @@ public class AdminService : IAdminService
             IsPromoted = ur.IsPromoted,
             IsActive = ur.IsActive
         };
+    }
+
+    // ─── Platform Analytics & Audit ─────────────────────────────
+    public async Task<PlatformOverviewResponse> GetPlatformOverviewAsync()
+    {
+        var users = await _context.Users.ToListAsync();
+        var customersCount = await _context.Customers.CountAsync();
+        var quotes = await _context.Quotations.ToListAsync();
+        var orders = await _context.Orders.ToListAsync();
+        var invoices = await _context.Invoices.ToListAsync();
+        var schedules = await _context.BillingSchedules.Include(s => s.SubscriptionPlan).ToListAsync();
+        var backorders = await _context.Backorders.ToListAsync();
+        var warehouses = await _context.Warehouses.ToListAsync();
+        var stocks = await _context.InventoryStocks.ToListAsync();
+
+        var statusDist = quotes
+            .GroupBy(q => q.Status.ToString())
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var mrr = schedules.Where(s => s.Status == SubscriptionStatus.Active)
+            .Sum(s => (s.SubscriptionPlan != null && s.SubscriptionPlan.BillingIntervalMonths > 0)
+                ? (s.UnitPrice * s.Quantity) / s.SubscriptionPlan.BillingIntervalMonths
+                : (s.UnitPrice * s.Quantity));
+
+        return new PlatformOverviewResponse
+        {
+            TotalCustomers = customersCount,
+            TotalSalesReps = users.Count(u => u.Role == Role.SalesRep),
+            TotalSalesManagers = users.Count(u => u.Role == Role.SalesManager),
+            TotalFinanceUsers = users.Count(u => u.Role == Role.FinanceOperations),
+            TotalQuotations = quotes.Count,
+            QuoteStatusDistribution = statusDist,
+            TotalOrders = orders.Count,
+            TotalBookedRevenue = orders.Sum(o => o.Total),
+            TotalQuotedRevenue = quotes.Sum(q => q.GrandTotal),
+            TotalInvoiced = invoices.Sum(i => i.Total),
+            TotalPaid = invoices.Sum(i => i.PaidAmount),
+            PendingApprovalsCount = quotes.Count(q => q.Status == QuoteStatus.PendingApproval),
+            ActiveFulfillmentsCount = orders.Count(o => o.Status != OrderStatus.Fulfilled && o.Status != OrderStatus.Cancelled),
+            BackordersCount = backorders.Count(b => b.Status != "Cancelled" && b.Status != "Fulfilled"),
+            ActiveSubscriptionsCount = schedules.Count(s => s.Status == SubscriptionStatus.Active),
+            MonthlyRecurringRevenue = Math.Round(mrr, 2),
+            AnnualRecurringRevenue = Math.Round(mrr * 12, 2),
+            AtRiskDealsCount = quotes.Count(q => q.RiskScore >= 40.00m || q.MarginPercent < 20.00m),
+            TotalWarehouses = warehouses.Count,
+            TotalStockOnHand = stocks.Sum(s => s.OnHand),
+            TotalStockReserved = stocks.Sum(s => s.Reserved)
+        };
+    }
+
+    public async Task<List<AdminAuditLogDto>> GetAuditLogsAsync(int take = 50)
+    {
+        return await _context.AuditLogs
+            .Include(a => a.User)
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .Take(take)
+            .Select(a => new AdminAuditLogDto
+            {
+                Id = a.Id,
+                UserId = a.UserId,
+                UserName = a.User != null ? a.User.FullName : "System / Automated",
+                UserRole = a.User != null ? a.User.Role.ToString() : "Platform",
+                EntityName = a.EntityName,
+                EntityId = a.EntityId,
+                Action = a.Action,
+                Reason = a.Reason,
+                OldValueJson = a.OldValueJson,
+                NewValueJson = a.NewValueJson,
+                CreatedAtUtc = a.CreatedAtUtc
+            }).ToListAsync();
     }
 }

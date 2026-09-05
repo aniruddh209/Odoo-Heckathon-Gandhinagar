@@ -14,6 +14,7 @@ public class CreateProductRequest
 
 public class UpdateProductRequest
 {
+    public string? SKU { get; set; }
     public string Name { get; set; } = string.Empty;
     public int CategoryId { get; set; }
     public string ProductType { get; set; } = "OneTime";

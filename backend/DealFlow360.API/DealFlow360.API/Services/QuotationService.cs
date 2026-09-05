@@ -143,13 +143,19 @@ public class QuotationService : IQuotationService
                 var product = await _context.Products.FindAsync(lReq.ProductId);
                 if (product != null)
                 {
+                    if (!product.IsActive)
+                    {
+                        throw new InvalidOperationException($"Product '{product.Name}' is inactive/deactivated and cannot be added to new quotes.");
+                    }
+
+                    decimal resolvedPrice = lReq.UnitPrice > 0 ? lReq.UnitPrice : await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, product);
                     var line = new QuotationLine
                     {
                         QuotationId = quotation.Id,
                         ProductId = lReq.ProductId,
                         VariantId = lReq.VariantId,
                         Quantity = lReq.Quantity,
-                        UnitPrice = lReq.UnitPrice > 0 ? lReq.UnitPrice : product.BasePrice,
+                        UnitPrice = resolvedPrice,
                         DiscountPercent = lReq.DiscountPercent,
                         SubscriptionPlanId = lReq.SubscriptionPlanId
                     };
@@ -189,13 +195,20 @@ public class QuotationService : IQuotationService
         var product = await _context.Products.FindAsync(request.ProductId);
         if (product == null) throw new KeyNotFoundException($"Product {request.ProductId} not found.");
 
+        if (!product.IsActive)
+        {
+            throw new InvalidOperationException($"Product '{product.Name}' is inactive/deactivated and cannot be added to new quotes.");
+        }
+
+        decimal resolvedPrice = request.UnitPrice > 0 ? request.UnitPrice : await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, product);
+
         var line = new QuotationLine
         {
             QuotationId = quotationId,
             ProductId = request.ProductId,
             VariantId = request.VariantId,
             Quantity = request.Quantity,
-            UnitPrice = request.UnitPrice > 0 ? request.UnitPrice : product.BasePrice,
+            UnitPrice = resolvedPrice,
             DiscountPercent = request.DiscountPercent,
             SubscriptionPlanId = request.SubscriptionPlanId
         };
@@ -314,10 +327,20 @@ public class QuotationService : IQuotationService
     public async Task<QuotationDetailResponse> RecalculateQuotationAsync(int id)
     {
         var quotation = await _context.Quotations
-            .Include(q => q.Lines)
+            .Include(q => q.Lines).ThenInclude(l => l.Product)
             .FirstOrDefaultAsync(q => q.Id == id);
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {id} not found.");
+
+        foreach (var line in quotation.Lines)
+        {
+            if (line.Product != null)
+            {
+                var currentPrice = await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, line.Product);
+                line.UnitPrice = currentPrice;
+                _marginEngine.CalculateLine(line, line.Product);
+            }
+        }
 
         await RecalculateAndSaveQuotationAsync(quotation);
         return await GetQuotationByIdAsync(id);
@@ -480,7 +503,7 @@ public class QuotationService : IQuotationService
 
         _marginEngine.CalculateQuotationTotals(quotation);
 
-        var discountRules = await _context.DiscountRules.ToListAsync();
+        var discountRules = await _context.DiscountRules.Where(r => r.IsActive).ToListAsync();
         var evalResult = _governanceEngine.EvaluateDiscounts(quotation.Customer, quotation.Lines, discountRules);
         var riskResult = _riskEngine.CalculateRiskScore(evalResult.PeakLineViolation, evalResult.WeightedMarginLoss, quotation.MarginPercent);
 
@@ -489,6 +512,29 @@ public class QuotationService : IQuotationService
 
         _context.Quotations.Update(quotation);
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<decimal> ResolveProductPriceAsync(int? priceListId, int customerId, Product product)
+    {
+        if (priceListId.HasValue)
+        {
+            var pli = await _context.PriceListItems.FirstOrDefaultAsync(p => p.PriceListId == priceListId.Value && p.ProductId == product.Id);
+            if (pli != null && pli.UnitPrice > 0) return pli.UnitPrice;
+        }
+        else
+        {
+            var customer = await _context.Customers.FindAsync(customerId);
+            if (customer?.TierId != null)
+            {
+                var tierPriceList = await _context.PriceLists.FirstOrDefaultAsync(pl => pl.TierId == customer.TierId && pl.IsActive);
+                if (tierPriceList != null)
+                {
+                    var pli = await _context.PriceListItems.FirstOrDefaultAsync(p => p.PriceListId == tierPriceList.Id && p.ProductId == product.Id);
+                    if (pli != null && pli.UnitPrice > 0) return pli.UnitPrice;
+                }
+            }
+        }
+        return product.BasePrice;
     }
 
     private static QuotationDetailResponse MapToDetailResponse(Quotation q, Order? order = null)

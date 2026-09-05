@@ -9,20 +9,28 @@ import {
   Select,
   LoadingSpinner,
   ErrorAlert,
+  Badge,
 } from '../components/ui';
-import { Shield, Layers, Truck, Plus, RefreshCw, Settings, Edit2, Trash2 } from 'lucide-react';
+import { Shield, Layers, Truck, Plus, RefreshCw, Settings, Edit2, Trash2, Box, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 
-export const AdminGovernancePage = () => {
+export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('tiers'); // tiers, discounts, approvals, warehouses, plans
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [tiers, setTiers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [discountRules, setDiscountRules] = useState([]);
   const [approvalRules, setApprovalRules] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [plans, setPlans] = useState([]);
+  const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
 
   // Edit Tier Modal State
   const [isTierModalOpen, setIsTierModalOpen] = useState(false);
@@ -51,6 +59,32 @@ export const AdminGovernancePage = () => {
   const [approvalMaxRisk, setApprovalMaxRisk] = useState('69.99');
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
 
+  // Warehouse Modal State (Create & Edit)
+  const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState(null);
+  const [warehouseName, setWarehouseName] = useState('');
+  const [warehouseShippingWeight, setWarehouseShippingWeight] = useState('1.0');
+  const [warehouseIsActive, setWarehouseIsActive] = useState(true);
+  const [isSubmittingWarehouse, setIsSubmittingWarehouse] = useState(false);
+
+  // Warehouse Stocks Modal State
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [selectedWarehouseForStock, setSelectedWarehouseForStock] = useState(null);
+  const [warehouseStocks, setWarehouseStocks] = useState([]);
+  const [isLoadingStocks, setIsLoadingStocks] = useState(false);
+  const [adjustProductId, setAdjustProductId] = useState('');
+  const [adjustOnHand, setAdjustOnHand] = useState('0');
+  const [isSubmittingStock, setIsSubmittingStock] = useState(false);
+
+  // Subscription Plan Modal State
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [planName, setPlanName] = useState('');
+  const [planBillingFrequency, setPlanBillingFrequency] = useState('Monthly');
+  const [planIntervalMonths, setPlanIntervalMonths] = useState('1');
+  const [planIsActive, setPlanIsActive] = useState(true);
+  const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
+
   useEffect(() => {
     loadGovernanceData();
   }, []);
@@ -59,13 +93,14 @@ export const AdminGovernancePage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [tRes, cRes, dRes, aRes, wRes, pRes] = await Promise.all([
+      const [tRes, cRes, dRes, aRes, wRes, pRes, prodRes] = await Promise.all([
         adminApi.getCustomerTiers(),
         adminApi.getCategories().catch(() => []),
         adminApi.getDiscountRules(),
         adminApi.getApprovalRules(),
         adminApi.getWarehouses(),
         adminApi.getSubscriptionPlans(),
+        adminApi.getProducts().catch(() => []),
       ]);
 
       const tList = Array.isArray(tRes) ? tRes : tRes?.value || [];
@@ -74,6 +109,7 @@ export const AdminGovernancePage = () => {
       const aList = Array.isArray(aRes) ? aRes : aRes?.value || [];
       const wList = Array.isArray(wRes) ? wRes : wRes?.value || [];
       const pList = Array.isArray(pRes) ? pRes : pRes?.value || [];
+      const prodList = Array.isArray(prodRes) ? prodRes : prodRes?.value || [];
 
       setTiers(tList);
       setCategories(cList);
@@ -81,6 +117,7 @@ export const AdminGovernancePage = () => {
       setApprovalRules(aList);
       setWarehouses(wList);
       setPlans(pList);
+      setProducts(prodList);
       if (tList.length > 0 && !discountTierId) setDiscountTierId(tList[0].id.toString());
     } catch (err) {
       setError(err.message || 'Failed to load governance matrix.');
@@ -242,6 +279,160 @@ export const AdminGovernancePage = () => {
     }
   };
 
+  // Warehouse Handlers
+  const handleOpenCreateWarehouse = () => {
+    setEditingWarehouse(null);
+    setWarehouseName('');
+    setWarehouseShippingWeight('1.0');
+    setWarehouseIsActive(true);
+    setIsWarehouseModalOpen(true);
+  };
+
+  const handleOpenEditWarehouse = (warehouse) => {
+    setEditingWarehouse(warehouse);
+    setWarehouseName(warehouse.name);
+    setWarehouseShippingWeight(warehouse.shippingCostWeight?.toString() || '1.0');
+    setWarehouseIsActive(warehouse.isActive !== false);
+    setIsWarehouseModalOpen(true);
+  };
+
+  const handleSaveWarehouse = async (e) => {
+    e.preventDefault();
+    setIsSubmittingWarehouse(true);
+    try {
+      const payload = {
+        name: warehouseName,
+        shippingCostWeight: parseFloat(warehouseShippingWeight) || 1.0,
+      };
+
+      if (editingWarehouse) {
+        await adminApi.updateWarehouse(editingWarehouse.id, {
+          ...payload,
+          isActive: warehouseIsActive,
+        });
+        toast.success('Warehouse Updated', `Warehouse "${warehouseName}" updated successfully.`);
+      } else {
+        await adminApi.createWarehouse(payload);
+        toast.success('Warehouse Created', `Warehouse "${warehouseName}" added to system.`);
+      }
+      setIsWarehouseModalOpen(false);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to save warehouse', err.message);
+    } finally {
+      setIsSubmittingWarehouse(false);
+    }
+  };
+
+  const handleToggleWarehouseStatus = async (warehouse) => {
+    try {
+      await adminApi.toggleWarehouseStatus(warehouse.id);
+      toast.success('Warehouse Status Updated', `${warehouse.name} is now ${warehouse.isActive ? 'Inactive' : 'Active'}.`);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to toggle warehouse status', err.message);
+    }
+  };
+
+  // Warehouse Stock Handlers
+  const handleOpenStockModal = async (warehouse) => {
+    setSelectedWarehouseForStock(warehouse);
+    setIsStockModalOpen(true);
+    setIsLoadingStocks(true);
+    try {
+      const res = await adminApi.getWarehouseStocks(warehouse.id);
+      const stockList = Array.isArray(res) ? res : res?.value || [];
+      setWarehouseStocks(stockList);
+      if (products.length > 0) {
+        setAdjustProductId(products[0].id.toString());
+      }
+      setAdjustOnHand('0');
+    } catch (err) {
+      toast.error('Failed to load warehouse stock', err.message);
+    } finally {
+      setIsLoadingStocks(false);
+    }
+  };
+
+  const handleAdjustStock = async (e) => {
+    e.preventDefault();
+    if (!selectedWarehouseForStock || !adjustProductId) return;
+    setIsSubmittingStock(true);
+    try {
+      await adminApi.adjustStock(selectedWarehouseForStock.id, {
+        productId: parseInt(adjustProductId, 10),
+        onHand: parseInt(adjustOnHand, 10) || 0,
+      });
+      toast.success('Stock Level Adjusted', 'Inventory balances updated successfully.');
+      // Refresh warehouse stock list
+      const res = await adminApi.getWarehouseStocks(selectedWarehouseForStock.id);
+      const stockList = Array.isArray(res) ? res : res?.value || [];
+      setWarehouseStocks(stockList);
+    } catch (err) {
+      toast.error('Stock adjustment failed', err.message);
+    } finally {
+      setIsSubmittingStock(false);
+    }
+  };
+
+  // Subscription Plan Handlers
+  const handleOpenCreatePlan = () => {
+    setEditingPlan(null);
+    setPlanName('');
+    setPlanBillingFrequency('Monthly');
+    setPlanIntervalMonths('1');
+    setPlanIsActive(true);
+    setIsPlanModalOpen(true);
+  };
+
+  const handleOpenEditPlan = (plan) => {
+    setEditingPlan(plan);
+    setPlanName(plan.name);
+    setPlanBillingFrequency(plan.billingFrequency || 'Monthly');
+    setPlanIntervalMonths(plan.billingIntervalMonths?.toString() || '1');
+    setPlanIsActive(plan.isActive !== false);
+    setIsPlanModalOpen(true);
+  };
+
+  const handleSavePlan = async (e) => {
+    e.preventDefault();
+    setIsSubmittingPlan(true);
+    try {
+      const payload = {
+        name: planName,
+        billingFrequency: planBillingFrequency,
+        billingIntervalMonths: parseInt(planIntervalMonths, 10) || 1,
+      };
+
+      if (editingPlan) {
+        await adminApi.updateSubscriptionPlan(editingPlan.id, {
+          ...payload,
+          isActive: planIsActive,
+        });
+        toast.success('Plan Updated', `Plan "${planName}" updated successfully.`);
+      } else {
+        await adminApi.createSubscriptionPlan(payload);
+        toast.success('Plan Created', `Subscription plan "${planName}" created.`);
+      }
+      setIsPlanModalOpen(false);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to save subscription plan', err.message);
+    } finally {
+      setIsSubmittingPlan(false);
+    }
+  };
+
+  const handleTogglePlanStatus = async (plan) => {
+    try {
+      await adminApi.toggleSubscriptionPlanStatus(plan.id);
+      toast.success('Plan Status Updated', `${plan.name} is now ${plan.isActive ? 'Inactive' : 'Active'}.`);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to toggle plan status', err.message);
+    }
+  };
+
   if (isLoading) {
     return <LoadingSpinner message="Querying governance matrices and approval engines..." size="lg" />;
   }
@@ -273,7 +464,7 @@ export const AdminGovernancePage = () => {
   const discountCols = [
     { header: 'Rule #', accessor: 'id', render: (r) => <span className="font-mono font-bold text-slate-700">DR-{r.id}</span> },
     { header: 'Target Tier', accessor: 'tierName', render: (r) => <span className="font-semibold text-slate-900">{r.tierName || `Tier #${r.tierId}`}</span> },
-    { header: 'Category', accessor: 'categoryName', render: (r) => <span className="text-slate-600">{r.categoryName || 'Global Order'}</span> },
+    { header: 'Category', accessor: 'categoryName', render: (r) => <span className="text-slate-600 font-medium">{r.categoryName || 'Global Order'}</span> },
     { header: 'Max Ceiling', accessor: 'maxDiscountPercent', render: (r) => <span className="font-mono font-bold text-slate-900">{r.maxDiscountPercent}%</span> },
     { header: 'Manager Escalate', accessor: 'managerThreshold', render: (r) => <span className="font-mono font-semibold text-amber-700">&gt; {r.managerThreshold}%</span> },
     { header: 'Finance Escalate', accessor: 'financeThreshold', render: (r) => <span className="font-mono font-semibold text-rose-700">&gt; {r.financeThreshold}%</span> },
@@ -341,12 +532,124 @@ export const AdminGovernancePage = () => {
   const warehouseCols = [
     { header: 'Warehouse Name', accessor: 'name', render: (w) => <span className="font-bold text-slate-900">{w.name}</span> },
     { header: 'Shipping Cost Weight', accessor: 'shippingCostWeight', render: (w) => <span className="font-mono text-slate-700">{w.shippingCostWeight}x Multiplier</span> },
+    {
+      header: 'Status',
+      accessor: 'isActive',
+      render: (w) => (
+        <Badge variant={w.isActive ? 'success' : 'neutral'}>
+          {w.isActive ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (w) => (
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Box}
+            onClick={() => handleOpenStockModal(w)}
+            className="text-xs py-1 px-2 h-7 text-indigo-600 hover:text-indigo-700"
+          >
+            Manage Stock
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Edit2}
+            onClick={() => handleOpenEditWarehouse(w)}
+            className="text-xs py-1 px-2 h-7"
+          >
+            Edit
+          </Button>
+          <Button
+            variant={w.isActive ? 'outline' : 'primary'}
+            size="sm"
+            icon={w.isActive ? XCircle : CheckCircle2}
+            onClick={() => handleToggleWarehouseStatus(w)}
+            className="text-xs py-1 px-2 h-7"
+          >
+            {w.isActive ? 'Deactivate' : 'Activate'}
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   const planCols = [
     { header: 'Plan Name', accessor: 'name', render: (p) => <span className="font-bold text-slate-900">{p.name}</span> },
     { header: 'Billing Cadence', accessor: 'billingFrequency', render: (p) => <span className="font-semibold text-purple-700">{p.billingFrequency}</span> },
     { header: 'Interval (Months)', accessor: 'billingIntervalMonths', render: (p) => <span className="font-mono text-slate-700">{p.billingIntervalMonths} Month(s)</span> },
+    {
+      header: 'Status',
+      accessor: 'isActive',
+      render: (p) => (
+        <Badge variant={p.isActive ? 'success' : 'neutral'}>
+          {p.isActive ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (p) => (
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Edit2}
+            onClick={() => handleOpenEditPlan(p)}
+            className="text-xs py-1 px-2 h-7"
+          >
+            Edit
+          </Button>
+          <Button
+            variant={p.isActive ? 'outline' : 'primary'}
+            size="sm"
+            icon={p.isActive ? XCircle : CheckCircle2}
+            onClick={() => handleTogglePlanStatus(p)}
+            className="text-xs py-1 px-2 h-7"
+          >
+            {p.isActive ? 'Deactivate' : 'Activate'}
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  const stockCols = [
+    { header: 'SKU', accessor: 'productSKU', render: (s) => <span className="font-mono font-bold text-slate-800">{s.productSKU}</span> },
+    { header: 'Product Name', accessor: 'productName', render: (s) => <span className="font-medium text-slate-900">{s.productName}</span> },
+    { header: 'On Hand', accessor: 'onHand', render: (s) => <span className="font-mono font-bold text-slate-900">{s.onHand}</span> },
+    { header: 'Reserved', accessor: 'reserved', render: (s) => <span className="font-mono font-semibold text-amber-700">{s.reserved}</span> },
+    {
+      header: 'Available',
+      accessor: 'available',
+      render: (s) => (
+        <span className={`font-mono font-bold ${s.available < 5 ? 'text-rose-600' : 'text-emerald-700'}`}>
+          {s.available}
+        </span>
+      ),
+    },
+    {
+      header: 'Quick Action',
+      accessor: 'actions',
+      render: (s) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setAdjustProductId(s.productId.toString());
+            setAdjustOnHand(s.onHand.toString());
+          }}
+          className="text-xs py-0.5 px-2 h-6"
+        >
+          Select to Adjust
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -356,7 +659,7 @@ export const AdminGovernancePage = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Governance Matrices &amp; Business Rules</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Configure automated discount ceilings, approval routing chains, and pricing parameters.
+            Configure automated discount ceilings, approval routing chains, warehouses, and subscription plans.
           </p>
         </div>
 
@@ -372,6 +675,16 @@ export const AdminGovernancePage = () => {
           {activeTab === 'approvals' && (
             <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateApprovalRule}>
               Add Approval Rule
+            </Button>
+          )}
+          {activeTab === 'warehouses' && (
+            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateWarehouse}>
+              Add Warehouse
+            </Button>
+          )}
+          {activeTab === 'plans' && (
+            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreatePlan}>
+              Add Subscription Plan
             </Button>
           )}
         </div>
@@ -596,9 +909,205 @@ export const AdminGovernancePage = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Warehouse Modal (Create & Edit) */}
+      <Modal
+        isOpen={isWarehouseModalOpen}
+        onClose={() => setIsWarehouseModalOpen(false)}
+        title={editingWarehouse ? `Edit Warehouse: ${editingWarehouse.name}` : 'Add New Warehouse'}
+        description="Configure warehouse fulfillment location and shipping weight multiplier."
+      >
+        <form onSubmit={handleSaveWarehouse} className="space-y-4">
+          <Input
+            label="Warehouse Name"
+            type="text"
+            required
+            value={warehouseName}
+            onChange={(e) => setWarehouseName(e.target.value)}
+            placeholder="e.g. Central Distribution Hub"
+          />
+          <Input
+            label="Shipping Cost Weight Multiplier"
+            type="number"
+            step="0.1"
+            min="0.1"
+            required
+            value={warehouseShippingWeight}
+            onChange={(e) => setWarehouseShippingWeight(e.target.value)}
+            helperText="Multiplier applied during dynamic shipping rate estimation (default 1.0)."
+          />
+          {editingWarehouse && (
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="warehouseIsActive"
+                checked={warehouseIsActive}
+                onChange={(e) => setWarehouseIsActive(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="warehouseIsActive" className="text-xs font-medium text-slate-700">
+                Warehouse is active and accepting order fulfillment allocations
+              </label>
+            </div>
+          )}
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsWarehouseModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" isLoading={isSubmittingWarehouse}>
+              {editingWarehouse ? 'Save Changes' : 'Create Warehouse'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Warehouse Stock Inventory Modal */}
+      <Modal
+        isOpen={isStockModalOpen}
+        onClose={() => setIsStockModalOpen(false)}
+        title={`Stock Inventory: ${selectedWarehouseForStock?.name || ''}`}
+        description="Inspect inventory levels, view reserved quantities, and execute manual stock adjustments."
+        maxWidth="max-w-3xl"
+      >
+        <div className="space-y-6">
+          {/* Stock Adjustment Card */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Box className="w-4 h-4 text-blue-600" />
+              Adjust Product Inventory
+            </h3>
+            <form onSubmit={handleAdjustStock} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Product</label>
+                <select
+                  className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={adjustProductId}
+                  onChange={(e) => setAdjustProductId(e.target.value)}
+                  required
+                >
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      [{p.sku}] {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">New On-Hand Level</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  value={adjustOnHand}
+                  onChange={(e) => setAdjustOnHand(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Button type="submit" variant="primary" size="sm" isLoading={isSubmittingStock} className="w-full h-9">
+                  Update Stock
+                </Button>
+              </div>
+            </form>
+            <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 text-amber-500 inline" />
+              On-Hand balance cannot be set below currently reserved units.
+            </p>
+          </div>
+
+          {/* Current Stocks Table */}
+          <div>
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
+              Current Warehouse Stock Allocations
+            </h3>
+            {isLoadingStocks ? (
+              <LoadingSpinner message="Loading warehouse stock balances..." size="sm" />
+            ) : warehouseStocks.length === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-500 border border-dashed border-slate-200 rounded">
+                No product inventory recorded for this warehouse yet. Use the form above to add initial stock.
+              </div>
+            ) : (
+              <DataTable columns={stockCols} data={warehouseStocks} />
+            )}
+          </div>
+
+          <div className="pt-3 flex justify-end border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsStockModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Subscription Plan Modal (Create & Edit) */}
+      <Modal
+        isOpen={isPlanModalOpen}
+        onClose={() => setIsPlanModalOpen(false)}
+        title={editingPlan ? `Edit Subscription Plan: ${editingPlan.name}` : 'Add Subscription Plan'}
+        description="Configure subscription intervals for recurring billing schedules."
+      >
+        <form onSubmit={handleSavePlan} className="space-y-4">
+          <Input
+            label="Plan Name"
+            type="text"
+            required
+            value={planName}
+            onChange={(e) => setPlanName(e.target.value)}
+            placeholder="e.g. Enterprise Annual, Starter Monthly"
+          />
+
+          <Select
+            label="Billing Cadence"
+            required
+            value={planBillingFrequency}
+            onChange={(e) => setPlanBillingFrequency(e.target.value)}
+            options={[
+              { value: 'Monthly', label: 'Monthly' },
+              { value: 'Quarterly', label: 'Quarterly' },
+              { value: 'SemiAnnual', label: 'Semi-Annual' },
+              { value: 'Yearly', label: 'Yearly / Annual' },
+            ]}
+          />
+
+          <Input
+            label="Billing Interval (Months)"
+            type="number"
+            min="1"
+            max="60"
+            required
+            value={planIntervalMonths}
+            onChange={(e) => setPlanIntervalMonths(e.target.value)}
+            helperText="Cycle duration in months (e.g., 1 for Monthly, 3 for Quarterly, 12 for Annual)."
+          />
+
+          {editingPlan && (
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="planIsActive"
+                checked={planIsActive}
+                onChange={(e) => setPlanIsActive(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="planIsActive" className="text-xs font-medium text-slate-700">
+                Plan is active and eligible for quotation subscription billing lines
+              </label>
+            </div>
+          )}
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsPlanModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" isLoading={isSubmittingPlan}>
+              {editingPlan ? 'Save Changes' : 'Create Plan'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
 
 export default AdminGovernancePage;
-
