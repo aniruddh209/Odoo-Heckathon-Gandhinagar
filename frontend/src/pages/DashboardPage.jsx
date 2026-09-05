@@ -176,7 +176,7 @@ export const DashboardPage = () => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  if (isLoading) {
+  if (isLoading || isRefreshing) {
     return <SkeletonDashboard />;
   }
 
@@ -557,9 +557,9 @@ export const DashboardPage = () => {
         <MetricCard
           label="Average Gross Margin"
           value={formatPercent(metrics.averageMarginPercent)}
-          subtext={metrics.averageMarginPercent >= 25 ? 'Target Exceeded (>=25%)' : 'Margin Attention Required'}
+          subtext={metrics.totalQuotes === 0 ? 'No active proposals' : (metrics.averageMarginPercent >= 25 ? 'Target Exceeded (>=25%)' : 'Margin Attention Required')}
           icon={Percent}
-          variant={metrics.averageMarginPercent >= 25 ? 'purple' : 'warning'}
+          variant={metrics.totalQuotes === 0 ? 'default' : (metrics.averageMarginPercent >= 25 ? 'purple' : 'warning')}
         />
 
         <MetricCard
@@ -713,7 +713,14 @@ export const DashboardPage = () => {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {pipelineOverview.stages.map((st) => (
+            {(pipelineOverview.stages.length > 0 ? pipelineOverview.stages : [
+              { stageName: 'Draft', count: 0, totalValue: 0 },
+              { stageName: 'Sent', count: 0, totalValue: 0 },
+              { stageName: 'UnderNegotiation', count: 0, totalValue: 0 },
+              { stageName: 'PendingApproval', count: 0, totalValue: 0 },
+              { stageName: 'Approved', count: 0, totalValue: 0 },
+              { stageName: 'ConvertedToOrder', count: 0, totalValue: 0 },
+            ]).map((st) => (
               <div
                 key={st.stageName}
                 onClick={() => navigate('/workspace/pipeline')}
