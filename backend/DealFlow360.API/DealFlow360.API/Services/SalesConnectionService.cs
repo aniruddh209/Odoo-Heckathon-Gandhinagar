@@ -60,8 +60,10 @@ public class SalesConnectionService : ISalesConnectionService
 
     public async Task<List<CompanyDto>> GetAvailableCompaniesAsync(int? productId = null)
     {
+        var excludedCodes = new[] { "CISCO", "DELL", "HPE", "SAMSUNG", "LENOVO_TEST" };
         var query = _context.Companies
-            .Where(c => c.IsActive)
+            .Where(c => c.IsActive && !c.Name.StartsWith("Audit") && !c.Code.StartsWith("AUD_") && !excludedCodes.Contains(c.Code.ToUpper()))
+            .Where(c => c.Products.Any(p => p.IsActive && !p.SKU.StartsWith("SKU-AUD") && !p.SKU.StartsWith("PROD-TEST") && !p.Name.StartsWith("Audit")))
             .AsNoTracking();
 
         if (productId.HasValue)
@@ -85,7 +87,7 @@ public class SalesConnectionService : ISalesConnectionService
                 ContactEmail = c.ContactEmail,
                 ContactPhone = c.ContactPhone,
                 IsActive = c.IsActive,
-                ProductCount = c.Products.Count(p => p.IsActive),
+                ProductCount = c.Products.Count(p => p.IsActive && !p.SKU.StartsWith("SKU-AUD") && !p.SKU.StartsWith("PROD-TEST") && !p.Name.StartsWith("Audit")),
                 ActiveAssignmentsCount = c.SalesAssignments.Count(a => a.IsActive),
                 CreatedAtUtc = c.CreatedAtUtc
             })
@@ -95,10 +97,13 @@ public class SalesConnectionService : ISalesConnectionService
 
     public async Task<List<ProductCatalogItemDto>> GetAvailableProductsAsync(int? companyId = null, int? categoryId = null, string? search = null)
     {
+        var excludedCompanyCodes = new[] { "CISCO", "DELL", "HPE", "SAMSUNG", "LENOVO_TEST" };
         var query = _context.Products
             .Include(p => p.Category)
             .Include(p => p.Company)
-            .Where(p => p.IsActive)
+            .Where(p => p.IsActive && p.Company != null && p.Company.IsActive)
+            .Where(p => p.Company != null && !excludedCompanyCodes.Contains(p.Company.Code.ToUpper()))
+            .Where(p => !p.SKU.StartsWith("SKU-AUD") && !p.SKU.StartsWith("PROD-TEST") && !p.Name.StartsWith("Audit"))
             .AsNoTracking();
 
         if (companyId.HasValue)

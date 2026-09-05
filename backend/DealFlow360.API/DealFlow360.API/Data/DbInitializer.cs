@@ -259,6 +259,17 @@ public static class DbInitializer
         }
         await context.SaveChangesAsync();
 
+        // Deactivate legacy mock/dummy companies
+        var legacyCompanyCodes = new[] { "CISCO", "DELL", "HPE", "SAMSUNG", "LENOVO_TEST" };
+        var legacyCompanies = await context.Companies
+            .Where(c => legacyCompanyCodes.Contains(c.Code.ToUpper()) || c.Code.StartsWith("AUD_") || c.Name.StartsWith("Audit"))
+            .ToListAsync();
+        foreach (var lc in legacyCompanies)
+        {
+            lc.IsActive = false;
+        }
+        await context.SaveChangesAsync();
+
         var tbs = await context.Companies.FirstAsync(c => c.Code == "TBS");
         var ict = await context.Companies.FirstAsync(c => c.Code == "ICT");
         var nsn = await context.Companies.FirstAsync(c => c.Code == "NSN");
@@ -358,6 +369,19 @@ public static class DbInitializer
                 prod.Unit = p.Unit;
                 prod.IsActive = true;
             }
+        }
+        await context.SaveChangesAsync();
+
+        // Deactivate legacy mock/test products
+        var legacyCompanyIds = legacyCompanies.Select(c => c.Id).ToList();
+        var legacyProducts = await context.Products
+            .Where(p => p.SKU.StartsWith("SKU-AUD") || p.SKU.StartsWith("PROD-TEST") || p.Name.StartsWith("Audit") ||
+                        (p.CompanyId != null && legacyCompanyIds.Contains(p.CompanyId.Value)) ||
+                        p.CompanyId == null)
+            .ToListAsync();
+        foreach (var lp in legacyProducts)
+        {
+            lp.IsActive = false;
         }
         await context.SaveChangesAsync();
 

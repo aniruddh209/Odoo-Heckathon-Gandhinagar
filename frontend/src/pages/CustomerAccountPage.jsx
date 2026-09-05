@@ -720,6 +720,7 @@ export const CustomerAccountPage = () => {
         {/* Tab Content: Connect with Sales */}
         {activeTab === 'connect' && (
           <ConnectSalesSection
+            profile={profile}
             onConnectionCreated={() => {
               loadCustomerData();
               setActiveTab('inquiries');
