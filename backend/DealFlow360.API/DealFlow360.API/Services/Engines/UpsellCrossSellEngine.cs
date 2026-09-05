@@ -37,7 +37,16 @@ public class UpsellCrossSellEngine : IUpsellCrossSellEngine
             var newMarginPercent = newTotalRevenue > 0 ? (newTotalMarginAmount / newTotalRevenue) * 100m : 0m;
             var marginDelta = newMarginPercent - currentMarginPercent;
 
-            var rankScore = (rule.Score * 0.6m) + (marginDelta * 0.4m);
+            var rankScore = 0m;
+            if (rule.IsPromoted) rankScore += 30;
+            if (rule.RuleType == "CrossSell" || rule.RuleType == "Upsell" || rule.RuleType == "Historical" || rule.RuleType == "CoPurchase") rankScore += 20;
+            if (newMarginPercent > 20m) rankScore += 20;
+            
+            if (productsDict.TryGetValue(rule.TriggerProductId, out var triggerProduct) && 
+                triggerProduct.CategoryId == suggestedProduct.CategoryId)
+            {
+                rankScore += 10;
+            }
 
             recommendations.Add(new RecommendationResponse
             {
@@ -57,6 +66,6 @@ public class UpsellCrossSellEngine : IUpsellCrossSellEngine
             });
         }
 
-        return recommendations.OrderByDescending(r => r.Score).ThenByDescending(r => r.IsPromoted).ToList();
+        return recommendations.OrderByDescending(r => r.Score).ThenByDescending(r => r.IsPromoted).Take(5).ToList();
     }
 }
