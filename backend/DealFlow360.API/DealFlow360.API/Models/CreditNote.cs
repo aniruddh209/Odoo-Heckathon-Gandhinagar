@@ -11,7 +11,7 @@ public class CreditNote
 
     public int? OrderLineId { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal Amount { get; set; }
 
     [Required, MaxLength(500)]

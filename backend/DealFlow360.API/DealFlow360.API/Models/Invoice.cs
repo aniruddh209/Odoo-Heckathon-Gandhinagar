@@ -20,16 +20,16 @@ public class Invoice
 
     public InvoiceStatus Status { get; set; } = InvoiceStatus.Draft;
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal SubTotal { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal TaxTotal { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal Total { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal PaidAmount { get; set; }
 
     public DateTime DueDate { get; set; }

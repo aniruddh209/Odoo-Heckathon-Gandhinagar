@@ -12,7 +12,7 @@ public class ProductVariant
     [Required, MaxLength(200)]
     public string Name { get; set; } = string.Empty;
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal AdditionalPrice { get; set; }
 
     public bool IsActive { get; set; } = true;

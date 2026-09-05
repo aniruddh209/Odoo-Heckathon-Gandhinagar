@@ -23,6 +23,7 @@ import {
   History,
   Clock,
 } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 import { portalApi } from '../../api/portalApi';
 import { customerApi } from '../../api/customerApi';
 import { useToast } from '../../context/ToastContext';
@@ -99,14 +100,8 @@ export const CustomerProposalView = ({
   const canConfirm = !isFinalized && !isRejected && !isPendingApproval;
 
   // Formatting helpers
-  const currency = quote.currencyCode || 'USD';
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount || 0);
-  };
+  const currency = quote.currencyCode || quote.currency || 'INR';
+  const formatMoney = (amount) => formatCurrency(amount, currency);
 
   const toggleComments = (lineId) => {
     setExpandedComments((prev) => ({

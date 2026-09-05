@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Users,
 } from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const CustomerDetailPage = () => {
   const { id } = useParams();
@@ -132,31 +133,31 @@ export const CustomerDetailPage = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
           label="Lifetime Value"
-          value={`$${(overview?.totalLifetimeValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={formatCurrency(overview?.totalLifetimeValue || 0)}
           icon={TrendingUp}
-          variant="emerald"
-          description="Total revenue generated"
+          variant="success"
+          subtext="Total revenue generated"
         />
         <MetricCard
           label="Active Pipeline"
-          value={`$${(overview?.activeQuotationsValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={formatCurrency(overview?.activeQuotationsValue || 0)}
           icon={FileText}
-          variant="indigo"
-          description={`${overview?.activeQuotationsCount || 0} open quote(s)`}
+          variant="primary"
+          subtext={`${overview?.activeQuotationsCount || 0} open quote(s)`}
         />
         <MetricCard
           label="Confirmed Orders"
           value={overview?.confirmedOrdersCount || 0}
           icon={ShoppingCart}
           variant="purple"
-          description={`$${(overview?.confirmedOrdersValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} closed`}
+          subtext={`${formatCurrency(overview?.confirmedOrdersValue || 0)} closed`}
         />
         <MetricCard
           label="Outstanding AR"
-          value={`$${(overview?.totalOutstandingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={formatCurrency(overview?.totalOutstandingBalance || 0)}
           icon={Receipt}
-          variant="amber"
-          description={`${overview?.totalInvoicesCount || 0} total invoice(s)`}
+          variant="warning"
+          subtext={`${overview?.totalInvoicesCount || 0} total invoice(s)`}
         />
       </div>
 
@@ -348,7 +349,7 @@ export const CustomerDetailPage = () => {
                 accessor: 'totalAmount',
                 render: (q) => (
                   <span className="font-bold text-slate-900 font-mono">
-                    ${(q.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(q.totalAmount || 0)}
                   </span>
                 ),
               },
@@ -406,7 +407,7 @@ export const CustomerDetailPage = () => {
                 accessor: 'totalAmount',
                 render: (o) => (
                   <span className="font-bold text-slate-900 font-mono">
-                    ${(o.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(o.totalAmount || 0)}
                   </span>
                 ),
               },
@@ -451,7 +452,7 @@ export const CustomerDetailPage = () => {
                 accessor: 'amount',
                 render: (inv) => (
                   <span className="font-bold text-slate-900 font-mono">
-                    ${(inv.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(inv.amount || 0)}
                   </span>
                 ),
               },
@@ -460,7 +461,7 @@ export const CustomerDetailPage = () => {
                 accessor: 'paidAmount',
                 render: (inv) => (
                   <span className="font-mono text-xs text-emerald-600 font-medium">
-                    ${(inv.paidAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(inv.paidAmount || 0)}
                   </span>
                 ),
               },
@@ -506,7 +507,7 @@ export const CustomerDetailPage = () => {
                 accessor: 'totalRevenue',
                 render: (p) => (
                   <span className="font-bold text-slate-900 font-mono">
-                    ${(p.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(p.totalRevenue || 0)}
                   </span>
                 ),
               },

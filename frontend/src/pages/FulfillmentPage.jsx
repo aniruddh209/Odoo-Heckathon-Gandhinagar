@@ -25,6 +25,7 @@ import {
   Trash2,
   Boxes,
 } from 'lucide-react';
+import { formatCurrency } from '../utils/formatters';
 
 export const FulfillmentPage = () => {
   const [searchParams] = useSearchParams();
@@ -335,7 +336,7 @@ export const FulfillmentPage = () => {
               onChange={(e) => setSelectedOrderId(e.target.value)}
               options={orders.map((o) => ({
                 value: o.id,
-                label: `${o.orderNumber} - ${o.customerName} ($${o.total?.toFixed(2)})`,
+                label: `${o.orderNumber} - ${o.customerName} (${formatCurrency(o.total || 0)})`,
               }))}
             />
           </div>
@@ -401,7 +402,7 @@ export const FulfillmentPage = () => {
                 {preview.totalShipments || 1} Separate Dispatches
               </span>
               <span className="text-xs text-slate-500 mt-1 block">
-                Logistics Surcharge: ${(preview.totalShipmentCost || 0).toFixed(2)}
+                Logistics Surcharge: {formatCurrency(preview.totalShipmentCost || 0)}
               </span>
             </div>
 
@@ -445,7 +446,7 @@ export const FulfillmentPage = () => {
                         {al.quantity} Units
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono">
-                        ${(al.shipmentCost || 0).toFixed(2)}
+                        {formatCurrency(al.shipmentCost || 0)}
                       </td>
                     </tr>
                   ))}

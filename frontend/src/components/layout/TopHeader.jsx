@@ -62,15 +62,15 @@ export const TopHeader = ({ onOpenMobile }) => {
   const getRoleBadge = (role) => {
     switch (role) {
       case 'Admin':
-        return { label: 'Administrator', bg: 'bg-purple-50 text-purple-700 border-purple-200' };
+        return { label: 'Administrator', bg: 'bg-purple-50 text-purple-700 border-purple-200/80' };
       case 'SalesManager':
-        return { label: 'Sales Manager', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+        return { label: 'Sales Manager', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200/80' };
       case 'FinanceOperations':
-        return { label: 'Finance & Ops', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+        return { label: 'Finance & Ops', bg: 'bg-amber-50 text-amber-700 border-amber-200/80' };
       case 'SalesRep':
-        return { label: 'Sales Rep', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
+        return { label: 'Sales Rep', bg: 'bg-blue-50 text-blue-700 border-blue-200/80' };
       default:
-        return { label: role || 'Staff', bg: 'bg-slate-100 text-slate-700 border-slate-200' };
+        return { label: role || 'Staff', bg: 'bg-slate-100 text-slate-700 border-slate-200/80' };
     }
   };
 
@@ -113,7 +113,7 @@ export const TopHeader = ({ onOpenMobile }) => {
             placeholder="Quick search quotes, customers, SKU..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-slate-200 bg-slate-50/75 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all"
+            className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-slate-200 bg-slate-50/70 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all shadow-2xs"
           />
         </form>
       </div>
@@ -121,17 +121,17 @@ export const TopHeader = ({ onOpenMobile }) => {
       {/* Right: Section 4 B1 Top Menu Actions, Role Badge, Quick Action, Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Section 4 B1 Workspace Top Menu */}
-        <div className="hidden lg:flex items-center gap-1 border-r border-slate-200 pr-2 sm:pr-3">
+        <div className="hidden lg:flex items-center gap-1 border-r border-slate-200/80 pr-2 sm:pr-3">
           <Link
             to="/workspace/quotations"
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${location.pathname.includes('/quotations') ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${location.pathname.includes('/quotations') ? 'bg-blue-50 text-blue-700 border border-blue-200/60' : 'text-slate-600 hover:bg-slate-100'}`}
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Quotations</span>
           </Link>
           <Link
             to="/workspace/pipeline"
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${location.pathname.includes('/pipeline') ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${location.pathname.includes('/pipeline') ? 'bg-blue-50 text-blue-700 border border-blue-200/60' : 'text-slate-600 hover:bg-slate-100'}`}
           >
             <Kanban className="w-3.5 h-3.5" />
             <span>Pipeline</span>
@@ -195,10 +195,10 @@ export const TopHeader = ({ onOpenMobile }) => {
           <button
             type="button"
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
+            className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
             aria-label="User profile menu"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-800 to-slate-700 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
               {user?.fullName?.slice(0, 1) || 'U'}
             </div>
           </button>
@@ -210,7 +210,7 @@ export const TopHeader = ({ onOpenMobile }) => {
                 className="fixed inset-0 z-40"
                 onClick={() => setUserMenuOpen(false)}
               />
-              <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-200 bg-white shadow-lg z-50 p-2 space-y-2">
+              <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-200/80 bg-white shadow-lg z-50 p-2 space-y-2">
                 <div className="p-3 border-b border-slate-100">
                   <p className="text-xs font-bold text-slate-900 truncate">
                     {user?.fullName || 'User'}

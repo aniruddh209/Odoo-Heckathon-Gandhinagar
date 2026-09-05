@@ -10,10 +10,10 @@ public class ApprovalRule
 
     public ApprovalLevel Level { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal MinRisk { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal MaxRisk { get; set; }
 
     [Required, MaxLength(50)]

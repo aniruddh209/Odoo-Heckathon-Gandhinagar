@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldCheck, ShieldAlert, AlertTriangle, Info } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
 export const RiskScoreCard = ({
   score = 0,
@@ -67,7 +68,7 @@ export const RiskScoreCard = ({
         </div>
         <div>
           <span className="text-slate-500 block">Contract Size</span>
-          <span className="font-semibold text-slate-800">${(totalAmount || 0).toLocaleString()}</span>
+          <span className="font-semibold text-slate-800">{formatCurrency(totalAmount || 0)}</span>
         </div>
       </div>
 

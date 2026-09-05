@@ -1,5 +1,6 @@
 import React from 'react';
-import { AlertTriangle, TrendingDown, DollarSign, ShieldAlert, Award } from 'lucide-react';
+import { AlertTriangle, TrendingDown, IndianRupee, ShieldAlert, Award } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
 export const RiskDetailBreakdown = ({
   request,
@@ -47,11 +48,11 @@ export const RiskDetailBreakdown = ({
 
         <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200/80">
           <div className="flex items-center space-x-1.5 text-xs text-slate-500 mb-1">
-            <DollarSign className="w-3.5 h-3.5 text-blue-500" />
+            <IndianRupee className="w-3.5 h-3.5 text-blue-500" />
             <span>Requested Value</span>
           </div>
           <div className="text-xl font-black font-mono text-slate-900">
-            ${(quotation?.TotalAmount ?? quotation?.totalNetAmount ?? request?.TotalAmount ?? 0).toLocaleString()}
+            {formatCurrency(quotation?.TotalAmount ?? quotation?.totalNetAmount ?? request?.TotalAmount ?? 0)}
           </div>
           <span className="text-[11px] text-slate-400">Net Contract Total</span>
         </div>
@@ -62,7 +63,7 @@ export const RiskDetailBreakdown = ({
             <span>Total Discount</span>
           </div>
           <div className="text-xl font-black font-mono text-amber-600">
-            {quotation ? `$${totalDiscount.toLocaleString()}` : `${request?.DiscountPercentage ?? 0}%`}
+            {quotation ? formatCurrency(totalDiscount) : `${request?.DiscountPercentage ?? 0}%`}
           </div>
           <span className="text-[11px] text-slate-400">
             {totalDiscount > 0 ? `Avg ${((totalDiscount / (subtotal || 1)) * 100).toFixed(1)}%` : 'Off List Price'}

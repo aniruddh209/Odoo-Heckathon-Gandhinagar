@@ -21,13 +21,13 @@ public class Product
 
     public ProductType ProductType { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal BasePrice { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal CostPrice { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal TaxRate { get; set; }
 
     [MaxLength(20)]

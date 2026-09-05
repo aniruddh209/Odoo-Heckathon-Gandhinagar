@@ -27,9 +27,31 @@ public class WarehouseAllocationEngine : IWarehouseAllocationEngine
 
         foreach (var line in order.Lines)
         {
+            if (line.Product?.ProductType == ProductType.Subscription) continue;
+
             var remainingQty = line.Quantity;
 
-            // Greedy allocation across warehouses
+            // Single-Depot Feasibility (Hop Minimization)
+            var optimalSingleWarehouse = sortedWarehouses.FirstOrDefault(w =>
+                stockMap.TryGetValue((w.Id, line.ProductId), out var s) && (s.OnHand - s.Reserved) >= remainingQty);
+
+            if (optimalSingleWarehouse != null)
+            {
+                var stock = stockMap[(optimalSingleWarehouse.Id, line.ProductId)];
+                stock.Reserved += remainingQty;
+                
+                result.Allocations.Add(new WarehouseAllocation
+                {
+                    OrderLineId = line.Id,
+                    WarehouseId = optimalSingleWarehouse.Id,
+                    Quantity = remainingQty,
+                    ShipmentCost = remainingQty * optimalSingleWarehouse.ShippingCostWeight
+                });
+                
+                continue; // Next line
+            }
+
+            // Multi-Depot Greedy Split (Fallback)
             foreach (var warehouse in sortedWarehouses)
             {
                 if (remainingQty <= 0) break;
@@ -48,7 +70,7 @@ public class WarehouseAllocationEngine : IWarehouseAllocationEngine
                             OrderLineId = line.Id,
                             WarehouseId = warehouse.Id,
                             Quantity = allocateQty,
-                            ShipmentCost = Math.Round(allocateQty * warehouse.ShippingCostWeight, 2)
+                            ShipmentCost = allocateQty * warehouse.ShippingCostWeight
                         });
                     }
                 }

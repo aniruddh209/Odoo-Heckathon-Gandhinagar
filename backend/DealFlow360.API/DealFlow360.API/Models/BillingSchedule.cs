@@ -19,7 +19,7 @@ public class BillingSchedule
 
     public int Quantity { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal UnitPrice { get; set; }
 
     public SubscriptionStatus Status { get; set; } = SubscriptionStatus.Active;

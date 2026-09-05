@@ -1,12 +1,14 @@
 import React from 'react';
 import { Button } from '../common/Button.jsx';
 import { Sparkles, Plus, TrendingUp } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
 export const RecommendationPanel = ({
   recommendations = [],
   isLoading = false,
   onAddRecommendation,
   isAddingId = null,
+  currency = 'INR',
 }) => {
   if (isLoading) {
     return (
@@ -76,7 +78,7 @@ export const RecommendationPanel = ({
                   </span>
                   <span className="text-slate-400">•</span>
                   <span className="font-mono text-slate-800 font-semibold">
-                    ${estPrice.toFixed(2)}
+                    {formatCurrency(estPrice, currency)}
                   </span>
                   {marginDelta !== undefined && (
                     <>

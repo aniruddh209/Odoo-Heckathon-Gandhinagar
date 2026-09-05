@@ -1,12 +1,14 @@
 import React from 'react';
 import { Button } from '../common/Button.jsx';
 import { RefreshCw, TrendingUp, ShieldAlert } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
 export const QuoteSummaryBar = ({
   quotation,
   onRecalculate,
   isRecalculating = false,
 }) => {
+  const currency = quotation.CurrencyCode ?? quotation.currency ?? 'INR';
   const subtotal = quotation.SubtotalAmount ?? quotation.totalGrossAmount ?? 0;
   const discount = quotation.TotalDiscountAmount ?? quotation.totalDiscountAmount ?? 0;
   const tax = quotation.TaxAmount ?? quotation.taxAmount ?? 0;
@@ -18,35 +20,35 @@ export const QuoteSummaryBar = ({
   const isDangerousMargin = marginPct < 15;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+    <div className="bg-white rounded-xl shadow-xs border border-slate-200/80 p-5">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
         {/* Financial Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 w-full lg:w-auto">
           <div>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider block">List Subtotal</span>
             <span className="text-lg font-semibold text-slate-800 font-mono">
-              ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(subtotal, currency)}
             </span>
           </div>
 
           <div>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider block">Total Discount</span>
             <span className="text-lg font-semibold text-amber-600 font-mono">
-              -${discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              -{formatCurrency(discount, currency)}
             </span>
           </div>
 
           <div>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider block">Tax ({tax > 0 ? 'Applied' : '0%'})</span>
             <span className="text-lg font-semibold text-slate-700 font-mono">
-              ${tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(tax, currency)}
             </span>
           </div>
 
           <div>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider block">Net Grand Total</span>
             <span className="text-2xl font-black text-blue-950 font-mono">
-              ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(total, currency)}
             </span>
           </div>
         </div>
@@ -57,7 +59,7 @@ export const QuoteSummaryBar = ({
             <div className="text-left">
               <span className="text-xs text-slate-400 block font-medium">Standard Cost</span>
               <span className="text-sm font-mono text-slate-600">
-                ${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(cost, currency)}
               </span>
             </div>
 
@@ -66,7 +68,7 @@ export const QuoteSummaryBar = ({
             <div className="text-left">
               <span className="text-xs text-slate-400 block font-medium">Gross Margin</span>
               <span className="text-sm font-mono font-semibold text-slate-800">
-                ${(marginAmt ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(marginAmt ?? 0, currency)}
               </span>
             </div>
 

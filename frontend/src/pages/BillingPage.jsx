@@ -26,6 +26,7 @@ import {
   XCircle,
   PlusCircle,
 } from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const BillingPage = () => {
   const { isFinance, isAdmin } = useAuth();
@@ -228,7 +229,7 @@ export const BillingPage = () => {
 
       toast.success(
         'Subscription Prorated',
-        `Adjusted to ${res.quantity} seats. Prorated difference: $${(res.proratedAdjustmentAmount || 0).toFixed(2)}`
+        `Adjusted to ${res.quantity} seats. Prorated difference: ${formatCurrency(res.proratedAdjustmentAmount || 0)}`
       );
       setIsSeatModalOpen(false);
       await loadBillingData();
@@ -278,7 +279,7 @@ export const BillingPage = () => {
       accessor: 'total',
       render: (inv) => (
         <span className="font-bold text-slate-900 font-mono">
-          ${(inv.total || 0).toFixed(2)}
+          {formatCurrency(inv.total || 0)}
         </span>
       ),
     },
@@ -287,7 +288,7 @@ export const BillingPage = () => {
       accessor: 'paidAmount',
       render: (inv) => (
         <span className="font-mono text-emerald-600 font-medium">
-          ${(inv.paidAmount || 0).toFixed(2)}
+          {formatCurrency(inv.paidAmount || 0)}
         </span>
       ),
     },
@@ -296,7 +297,7 @@ export const BillingPage = () => {
       accessor: 'outstanding',
       render: (inv) => (
         <span className={`font-mono font-semibold ${inv.outstanding > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-          ${(inv.outstanding || 0).toFixed(2)}
+          {formatCurrency(inv.outstanding || 0)}
         </span>
       ),
     },
@@ -381,7 +382,7 @@ export const BillingPage = () => {
     {
       header: 'Unit Rate',
       accessor: 'unitPrice',
-      render: (s) => <span className="font-mono text-slate-700">${(s.unitPrice || 0).toFixed(2)}/seat</span>,
+      render: (s) => <span className="font-mono text-slate-700">{formatCurrency(s.unitPrice || 0)}/seat</span>,
     },
     {
       header: 'Next Billing',
@@ -457,7 +458,7 @@ export const BillingPage = () => {
     {
       header: 'Credit Amount',
       accessor: 'amount',
-      render: (cn) => <span className="font-mono font-bold text-rose-600">-${(cn.amount || 0).toFixed(2)}</span>,
+      render: (cn) => <span className="font-mono font-bold text-rose-600">-{formatCurrency(cn.amount || 0)}</span>,
     },
     {
       header: 'Business Reason',
@@ -517,22 +518,22 @@ export const BillingPage = () => {
           label="Commercial Invoices"
           value={invoices.length}
           icon={Receipt}
-          variant="indigo"
-          description={`Outstanding balance: $${invoices.reduce((acc, i) => acc + (i.outstanding || 0), 0).toFixed(2)}`}
+          variant="primary"
+          subtext={`Outstanding balance: ${formatCurrency(invoices.reduce((acc, i) => acc + (i.outstanding || 0), 0))}`}
         />
         <MetricCard
           label="Active Subscriptions"
           value={schedules.filter((s) => s.status === 'Active').length}
           icon={Calendar}
           variant="purple"
-          description="Automated recurring schedules"
+          subtext="Automated recurring schedules"
         />
         <MetricCard
           label="Issued Credit Notes"
           value={creditNotes.length}
-          icon={DollarSign}
-          variant="rose"
-          description={`Total adjustments: -$${creditNotes.reduce((acc, c) => acc + (c.amount || 0), 0).toFixed(2)}`}
+          icon={Receipt}
+          variant="danger"
+          subtext={`Total adjustments: -${formatCurrency(creditNotes.reduce((acc, c) => acc + (c.amount || 0), 0))}`}
         />
       </div>
 
@@ -621,15 +622,15 @@ export const BillingPage = () => {
               </div>
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Total</span>
-                <span className="font-bold text-slate-900 font-mono">${(selectedDetailInvoice.total || 0).toFixed(2)}</span>
+                <span className="font-bold text-slate-900 font-mono">{formatCurrency(selectedDetailInvoice.total || 0)}</span>
               </div>
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Paid</span>
-                <span className="font-bold text-emerald-600 font-mono">${(selectedDetailInvoice.paidAmount || 0).toFixed(2)}</span>
+                <span className="font-bold text-emerald-600 font-mono">{formatCurrency(selectedDetailInvoice.paidAmount || 0)}</span>
               </div>
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Outstanding</span>
-                <span className="font-bold text-rose-600 font-mono">${(selectedDetailInvoice.outstanding || 0).toFixed(2)}</span>
+                <span className="font-bold text-rose-600 font-mono">{formatCurrency(selectedDetailInvoice.outstanding || 0)}</span>
               </div>
             </div>
 
@@ -652,9 +653,9 @@ export const BillingPage = () => {
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="p-2 font-medium text-slate-900">{line.productName}</td>
                         <td className="p-2 text-right">{line.quantity}</td>
-                        <td className="p-2 text-right font-mono">${(line.unitPrice || 0).toFixed(2)}</td>
-                        <td className="p-2 text-right font-mono">${(line.taxAmount || 0).toFixed(2)}</td>
-                        <td className="p-2 text-right font-bold font-mono">${(line.netAmount || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right font-mono">{formatCurrency(line.unitPrice || 0)}</td>
+                        <td className="p-2 text-right font-mono">{formatCurrency(line.taxAmount || 0)}</td>
+                        <td className="p-2 text-right font-bold font-mono">{formatCurrency(line.netAmount || 0)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -682,7 +683,7 @@ export const BillingPage = () => {
                           <td className="p-2">{new Date(p.paidAtUtc).toLocaleDateString()}</td>
                           <td className="p-2">{p.paymentMethod}</td>
                           <td className="p-2 font-mono">{p.reference || 'N/A'}</td>
-                          <td className="p-2 text-right font-bold font-mono text-emerald-600">${(p.amount || 0).toFixed(2)}</td>
+                          <td className="p-2 text-right font-bold font-mono text-emerald-600">{formatCurrency(p.amount || 0)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -709,7 +710,7 @@ export const BillingPage = () => {
                         <tr key={idx}>
                           <td className="p-2 font-mono font-bold text-rose-600">CN-{c.id}</td>
                           <td className="p-2">{c.reason}</td>
-                          <td className="p-2 text-right font-bold font-mono text-rose-600">-${(c.amount || 0).toFixed(2)}</td>
+                          <td className="p-2 text-right font-bold font-mono text-rose-600">-{formatCurrency(c.amount || 0)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -789,7 +790,7 @@ export const BillingPage = () => {
       >
         <form onSubmit={handleCreateCreditNote} className="space-y-4">
           <Input
-            label="Credit Amount ($)"
+            label="Credit Amount (₹)"
             type="number"
             step="0.01"
             min="0.01"

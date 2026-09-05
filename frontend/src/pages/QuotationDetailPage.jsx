@@ -36,6 +36,7 @@ import {
   Truck,
   AlertTriangle,
 } from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const QuotationDetailPage = () => {
   const { id } = useParams();
@@ -522,38 +523,38 @@ export const QuotationDetailPage = () => {
 
       {/* ── 2. Authoritative Financial Summary Strip ──────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+        <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Subtotal</span>
-          <span className="text-base font-bold text-slate-900 mt-0.5 block">
-            ${(quote.subTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <span className="text-base font-bold text-slate-900 mt-0.5 block font-mono">
+            {formatCurrency(quote.subTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+        <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Discounts</span>
-          <span className="text-base font-bold text-rose-600 mt-0.5 block">
-            -${(quote.discountTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <span className="text-base font-bold text-rose-600 mt-0.5 block font-mono">
+            -{formatCurrency(quote.discountTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+        <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Taxes (18%)</span>
-          <span className="text-base font-bold text-slate-700 mt-0.5 block">
-            ${(quote.taxTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <span className="text-base font-bold text-slate-700 mt-0.5 block font-mono">
+            {formatCurrency(quote.taxTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/40 shadow-xs">
+        <div className="p-3.5 rounded-xl border border-blue-200/80 bg-blue-50/40 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block">Grand Total</span>
-          <span className="text-base font-extrabold text-blue-900 mt-0.5 block">
-            ${(quote.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <span className="text-base font-extrabold text-blue-900 mt-0.5 block font-mono">
+            {formatCurrency(quote.grandTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+        <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Internal Cost</span>
-          <span className="text-base font-bold text-slate-700 mt-0.5 block">
-            ${(quote.costTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <span className="text-base font-bold text-slate-700 mt-0.5 block font-mono">
+            {formatCurrency(quote.costTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
@@ -651,22 +652,22 @@ export const QuotationDetailPage = () => {
                       {line.quantity}
                     </td>
                     <td className="py-3.5 px-3 text-right font-mono">
-                      ${(line.unitPrice || 0).toFixed(2)}
+                      {formatCurrency(line.unitPrice || 0, quote.currency || 'INR')}
                     </td>
                     <td className="py-3.5 px-3 text-right">
                       <span className={`font-semibold ${line.discountPercent > 10 ? 'text-rose-600' : 'text-slate-700'}`}>
                         {line.discountPercent}%
                       </span>
                     </td>
-                    <td className="py-3.5 px-3 text-right font-bold text-slate-900">
-                      ${(line.netAmount || 0).toFixed(2)}
+                    <td className="py-3.5 px-3 text-right font-bold text-slate-900 font-mono">
+                      {formatCurrency(line.netAmount || 0, quote.currency || 'INR')}
                     </td>
                     <td className="py-3.5 px-3 text-right font-mono text-slate-500">
-                      ${(line.costPrice || 0).toFixed(2)}
+                      {formatCurrency(line.costPrice || 0, quote.currency || 'INR')}
                     </td>
-                    <td className="py-3.5 px-3 text-right">
+                    <td className="py-3.5 px-3 text-right font-mono">
                       <span className={`font-semibold ${line.marginAmount >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        ${(line.marginAmount || 0).toFixed(2)}
+                        {formatCurrency(line.marginAmount || 0, quote.currency || 'INR')}
                       </span>
                     </td>
                     {!isConverted && (
@@ -734,7 +735,7 @@ export const QuotationDetailPage = () => {
                       </div>
                       <div className="flex items-center gap-3 text-xs">
                         <span className="text-slate-500">Qty: <strong>{line.quantity}</strong></span>
-                        <span className="text-slate-500">Price: <strong>${(line.unitPrice || 0).toFixed(2)}</strong></span>
+                        <span className="text-slate-500">Price: <strong>{formatCurrency(line.unitPrice || 0, quote.currency || 'INR')}</strong></span>
                         <span className="text-blue-600 font-semibold">Discount: {line.discountPercent}%</span>
                       </div>
                     </div>
@@ -838,7 +839,7 @@ export const QuotationDetailPage = () => {
                       <p className="text-xs text-slate-500 mt-1">{rec.reason}</p>
 
                       <div className="mt-3 flex items-center gap-3 text-xs">
-                        <span className="font-bold text-slate-900">${rec.unitPrice?.toFixed(2)}</span>
+                        <span className="font-bold text-slate-900 font-mono">{formatCurrency(rec.unitPrice || 0, quote.currency || 'INR')}</span>
                         <span className="text-emerald-600 font-semibold flex items-center gap-1">
                           <TrendingUp className="w-3.5 h-3.5" />
                           +{rec.marginDeltaPercent?.toFixed(1)}% Deal Margin
@@ -962,17 +963,17 @@ export const QuotationDetailPage = () => {
                     {fulfillmentPreview.totalShipments || 1} Separate Dispatches
                   </span>
                 </div>
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
                   <span className="text-[10px] font-bold uppercase text-slate-400 block">Logistics Surcharge</span>
                   <span className="text-sm font-bold text-slate-900 mt-1 block font-mono">
-                    ${(fulfillmentPreview.totalShipmentCost || 0).toFixed(2)}
+                    {formatCurrency(fulfillmentPreview.totalShipmentCost || 0, quote.currency || 'INR')}
                   </span>
                 </div>
               </div>
 
               {/* Items Allocation Breakdown Table */}
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
-                <div className="p-3 bg-slate-50 border-b border-slate-200 font-semibold text-xs text-slate-700">
+              <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-xs">
+                <div className="p-3 bg-slate-50 border-b border-slate-200/80 font-semibold text-xs text-slate-700">
                   Item Warehouse Allocation Details
                 </div>
                 <div className="divide-y divide-slate-100 text-xs">
@@ -985,7 +986,7 @@ export const QuotationDetailPage = () => {
                           </span>
                           <div className="flex items-center gap-3 text-slate-500 mt-1">
                             <span>Allocated Quantity: <strong className="text-slate-800">{alloc.quantity} units</strong></span>
-                            <span>Freight Surcharge: ${(alloc.shipmentCost || 0).toFixed(2)}</span>
+                            <span>Freight Surcharge: {formatCurrency(alloc.shipmentCost || 0, quote.currency || 'INR')}</span>
                           </div>
                         </div>
 
@@ -1040,7 +1041,7 @@ export const QuotationDetailPage = () => {
             placeholder="-- Choose from catalog --"
             options={products.map((p) => ({
               value: p.id,
-              label: `${p.name} ($${p.basePrice?.toFixed(2)}) [${p.sku}]`,
+              label: `${p.name} (${formatCurrency(p.basePrice, quote?.currency || 'INR')}) [${p.sku}]`,
             }))}
           />
 
@@ -1055,7 +1056,7 @@ export const QuotationDetailPage = () => {
             />
 
             <Input
-              label="Unit Price ($)"
+              label={`Unit Price (${quote?.currency === 'USD' ? '$' : '₹'})`}
               type="number"
               step="0.01"
               required
@@ -1120,7 +1121,7 @@ export const QuotationDetailPage = () => {
               />
 
               <Input
-                label="Unit Price ($)"
+                label={`Unit Price (${quote?.currency === 'USD' ? '$' : '₹'})`}
                 type="number"
                 step="0.01"
                 required

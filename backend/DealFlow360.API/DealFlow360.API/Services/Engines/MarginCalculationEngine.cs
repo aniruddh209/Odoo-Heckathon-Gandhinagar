@@ -15,11 +15,11 @@ public class MarginCalculationEngine : IMarginCalculationEngine
         line.CostPrice = product.CostPrice;
         var unitRevenue = line.UnitPrice * (1m - (line.DiscountPercent / 100m));
         
-        line.NetAmount = Math.Round(unitRevenue * line.Quantity, 2);
-        line.TaxAmount = Math.Round(line.NetAmount * (product.TaxRate / 100m), 2);
+        line.NetAmount = unitRevenue * line.Quantity;
+        line.TaxAmount = line.NetAmount * (product.TaxRate / 100m);
         
         var totalCost = line.CostPrice * line.Quantity;
-        line.MarginAmount = Math.Round(line.NetAmount - totalCost, 2);
+        line.MarginAmount = line.NetAmount - totalCost;
     }
 
     public void CalculateQuotationTotals(Quotation quotation)
@@ -40,14 +40,25 @@ public class MarginCalculationEngine : IMarginCalculationEngine
             marginAmount += line.MarginAmount;
         }
 
-        quotation.SubTotal = Math.Round(subTotal, 2);
-        quotation.DiscountTotal = Math.Round(discountTotal, 2);
-        quotation.TaxTotal = Math.Round(taxTotal, 2);
-        quotation.GrandTotal = Math.Round(quotation.SubTotal - quotation.DiscountTotal + quotation.TaxTotal, 2);
-        quotation.CostTotal = Math.Round(costTotal, 2);
-        quotation.MarginAmount = Math.Round(marginAmount, 2);
+        quotation.SubTotal = subTotal;
+        quotation.DiscountTotal = discountTotal;
+        quotation.TaxTotal = taxTotal;
+        quotation.GrandTotal = quotation.SubTotal - quotation.DiscountTotal + quotation.TaxTotal;
+        quotation.CostTotal = costTotal;
+        quotation.MarginAmount = marginAmount;
 
         var netRevenue = quotation.SubTotal - quotation.DiscountTotal;
-        quotation.MarginPercent = netRevenue > 0 ? Math.Round((quotation.MarginAmount / netRevenue) * 100m, 2) : 0m;
+        if (netRevenue > 0)
+        {
+            quotation.MarginPercent = (quotation.MarginAmount / netRevenue) * 100m;
+        }
+        else if (quotation.CostTotal > 0)
+        {
+            quotation.MarginPercent = -100.00m;
+        }
+        else
+        {
+            quotation.MarginPercent = 0m;
+        }
     }
 }

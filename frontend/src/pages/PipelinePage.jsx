@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { quotationApi } from '../api';
 import { Button, StatusBadge, PageHeader, SkeletonDashboard, ErrorAlert } from '../components/ui';
 import { RefreshCw } from 'lucide-react';
+import { formatCurrency } from '../utils/formatters';
 
 export const PipelinePage = () => {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ export const PipelinePage = () => {
       <PageHeader
         title="CRM Deal Pipeline"
         subtitle="Stage-by-stage deal velocity, margin preservation, and conversion tracking."
-        badge={`Total: $${totalPipeline.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+        badge={`Total: ${formatCurrency(totalPipeline)}`}
         badgeVariant="indigo"
         actions={
           <Button
@@ -73,18 +74,18 @@ export const PipelinePage = () => {
           return (
             <div
               key={stage.key}
-              className="bg-slate-100/70 rounded-xl p-3 border border-slate-200/80 min-w-[240px] flex flex-col max-h-[75vh]"
+              className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/80 min-w-[240px] flex flex-col max-h-[75vh] shadow-2xs"
             >
               {/* Column Header */}
-              <div className="pb-3 mb-3 border-b border-slate-200">
+              <div className="pb-3 mb-3 border-b border-slate-200/80">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-900 truncate">{stage.title}</span>
-                  <span className="text-xs font-semibold px-2 py-0.2 rounded-full bg-white text-slate-600 border border-slate-200">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200/80 shadow-2xs">
                     {stageQuotes.length}
                   </span>
                 </div>
                 <div className="mt-1 text-[11px] font-mono text-slate-500 font-medium">
-                  ${stageTotal.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                  {formatCurrency(stageTotal)}
                 </div>
               </div>
 
@@ -99,7 +100,7 @@ export const PipelinePage = () => {
                     <div
                       key={q.id}
                       onClick={() => navigate(`/workspace/quotations/${q.id}`)}
-                      className="p-3 bg-white rounded-lg border border-slate-200/80 hover:border-blue-400 hover:shadow-sm transition-all cursor-pointer space-y-2"
+                      className="p-3.5 bg-white rounded-xl border border-slate-200/80 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer space-y-2 shadow-2xs"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-[11px] font-bold text-blue-600 truncate">
@@ -119,7 +120,7 @@ export const PipelinePage = () => {
 
                       <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-900 font-mono">
-                          ${(q.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                          {formatCurrency(q.grandTotal || 0, q.currency || 'INR')}
                         </span>
                         {q.riskScore > 0 ? (
                           <StatusBadge type="risk" value={q.riskScore} size="sm" />

@@ -17,7 +17,7 @@ public class Order
 
     public OrderStatus Status { get; set; } = OrderStatus.Confirmed;
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal Total { get; set; }
 
     [Timestamp]

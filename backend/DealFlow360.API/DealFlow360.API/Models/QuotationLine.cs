@@ -15,22 +15,22 @@ public class QuotationLine
 
     public int Quantity { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal UnitPrice { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal DiscountPercent { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal NetAmount { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal TaxAmount { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal CostPrice { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal MarginAmount { get; set; }
 
     public int? SubscriptionPlanId { get; set; }

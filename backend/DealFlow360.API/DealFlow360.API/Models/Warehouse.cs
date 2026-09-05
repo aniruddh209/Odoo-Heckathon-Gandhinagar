@@ -10,7 +10,7 @@ public class Warehouse
     [Required, MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal ShippingCostWeight { get; set; }
 
     public bool IsActive { get; set; } = true;

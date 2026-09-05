@@ -35,6 +35,7 @@ import {
   Truck,
   Layers,
 } from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const CustomerAccountPage = () => {
   const { user, logout } = useAuth();
@@ -166,13 +167,7 @@ export const CustomerAccountPage = () => {
     0
   );
 
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount || 0);
-  };
+  const formatMoney = (amount, currency = 'INR') => formatCurrency(amount, currency);
 
   if (isLoading && quotes.length === 0) {
     return <SkeletonPortal />;

@@ -12,16 +12,14 @@ public class RiskEvaluationResult
 
 public interface IBlendedDiscountRiskEngine
 {
-    RiskEvaluationResult CalculateRiskScore(decimal peakViolation, decimal weightedLoss, decimal orderGrossMarginPercent, IEnumerable<ApprovalRule>? approvalRules = null);
+    RiskEvaluationResult CalculateRiskScore(decimal peakViolation, decimal weightedLoss, decimal orderGrossMarginPercent, IEnumerable<ApprovalRule>? approvalRules = null, decimal targetMargin = 30.00m);
 }
 
 public class BlendedDiscountRiskEngine : IBlendedDiscountRiskEngine
 {
-    private const decimal TargetGrossMargin = 30.00m;
-
-    public RiskEvaluationResult CalculateRiskScore(decimal peakViolation, decimal weightedLoss, decimal orderGrossMarginPercent, IEnumerable<ApprovalRule>? approvalRules = null)
+    public RiskEvaluationResult CalculateRiskScore(decimal peakViolation, decimal weightedLoss, decimal orderGrossMarginPercent, IEnumerable<ApprovalRule>? approvalRules = null, decimal targetMargin = 30.00m)
     {
-        var marginDeficit = Math.Max(0m, TargetGrossMargin - orderGrossMarginPercent);
+        var marginDeficit = Math.Max(0m, targetMargin - orderGrossMarginPercent);
 
         var rawScore = (0.40m * peakViolation) + (0.35m * weightedLoss) + (0.25m * marginDeficit);
         var boundedScore = Math.Min(100.00m, Math.Max(0.00m, rawScore));

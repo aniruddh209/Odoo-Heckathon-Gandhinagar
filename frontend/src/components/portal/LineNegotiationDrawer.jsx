@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../common/Button';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { X, Send, MessageSquare, User, Shield } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
 export const LineNegotiationDrawer = ({
   isOpen,
@@ -55,7 +56,7 @@ export const LineNegotiationDrawer = ({
           </div>
           <div className="flex justify-between">
             <span className="text-slate-500">Net Unit Price:</span>
-            <span className="font-mono font-bold text-slate-900">${(line.UnitNetPrice ?? line.unitPrice ?? 0).toFixed(2)}</span>
+            <span className="font-mono font-bold text-slate-900">{formatCurrency(line.UnitNetPrice ?? line.unitPrice ?? 0, line.Currency || 'INR')}</span>
           </div>
         </div>
 

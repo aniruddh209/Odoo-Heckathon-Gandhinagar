@@ -19,7 +19,7 @@ import {
   RefreshCw,
   Search,
   Filter,
-  DollarSign,
+  IndianRupee,
   Edit2,
   CheckCircle,
   XCircle,
@@ -27,6 +27,7 @@ import {
   Trash2,
   ExternalLink,
 } from 'lucide-react';
+import { formatCurrency } from '../utils/formatters';
 
 export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   const toast = useToast();
@@ -70,7 +71,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   const [isPriceListModalOpen, setIsPriceListModalOpen] = useState(false);
   const [editingPriceList, setEditingPriceList] = useState(null);
   const [plName, setPlName] = useState('');
-  const [plCurrency, setPlCurrency] = useState('USD');
+  const [plCurrency, setPlCurrency] = useState('INR');
   const [plTierId, setPlTierId] = useState('');
   const [isPlSubmitting, setIsPlSubmitting] = useState(false);
 
@@ -268,7 +269,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
       await adminApi.upsertPriceListItem(selectedPriceList.id, {
         productId: parseInt(overrideProductId, 10),
         unitPrice: parseFloat(overrideUnitPrice),
-        currencyCode: selectedPriceList.currencyCode || 'USD',
+        currencyCode: selectedPriceList.currencyCode || 'INR',
       });
 
       toast.success('Price Override Saved', 'Contracted product price override saved in price list.');
@@ -349,7 +350,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
       accessor: 'basePrice',
       render: (p) => (
         <span className="font-bold text-slate-900 font-mono">
-          ${(p.basePrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {formatCurrency(p.basePrice || 0)}
         </span>
       ),
     },
@@ -358,7 +359,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
       accessor: 'costPrice',
       render: (p) => (
         <span className="font-mono text-slate-500 text-xs">
-          ${(p.costPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {formatCurrency(p.costPrice || 0)}
         </span>
       ),
     },
@@ -555,7 +556,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <DollarSign className="w-4 h-4" />
+          <IndianRupee className="w-4 h-4" />
           Contracted Price Lists ({priceLists.length})
         </button>
       </div>
@@ -709,7 +710,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
                           <td className="py-2 px-3 font-mono font-bold text-blue-600">{item.productSKU}</td>
                           <td className="py-2 px-3 font-semibold text-slate-900">{item.productName}</td>
                           <td className="py-2 px-3 font-mono font-bold text-slate-900 text-right">
-                            ${item.unitPrice?.toFixed(2)}
+                            {formatCurrency(item.unitPrice, selectedPriceList.currencyCode || 'INR')}
                           </td>
                           <td className="py-2 px-3 text-right">
                             <Button
@@ -795,7 +796,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
 
           <div className="grid grid-cols-3 gap-3">
             <Input
-              label="Base Price ($)"
+              label="Base Price (₹)"
               type="number"
               step="0.01"
               min="0.01"
@@ -804,7 +805,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
               onChange={(e) => setProductBasePrice(e.target.value)}
             />
             <Input
-              label="Cost Price ($)"
+              label="Cost Price (₹)"
               type="number"
               step="0.01"
               min="0"
@@ -901,7 +902,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex justify-between items-center">
             <div>
               <span className="font-bold text-slate-800">SKU: {selectedProductForVariants?.sku}</span>
-              <span className="text-slate-500 ml-3">Base Price: ${selectedProductForVariants?.basePrice?.toFixed(2)}</span>
+              <span className="text-slate-500 ml-3">Base Price: {formatCurrency(selectedProductForVariants?.basePrice || 0)}</span>
             </div>
             <span className="text-slate-500 text-[11px]">Storage/RAM/tier modifiers</span>
           </div>
@@ -918,7 +919,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
                 required
               />
               <Input
-                label="Additional Price ($)"
+                label="Additional Price (₹)"
                 type="number"
                 step="0.01"
                 placeholder="0.00"
@@ -950,10 +951,10 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
                     <div>
                       <span className="font-semibold text-slate-900">{v.name}</span>
                       <span className="ml-2 font-mono text-emerald-700 font-bold">
-                        (+${v.additionalPrice?.toFixed(2)})
+                        (+{formatCurrency(v.additionalPrice || 0)})
                       </span>
                       <span className="ml-2 text-slate-400">
-                        Total: ${((selectedProductForVariants?.basePrice || 0) + (v.additionalPrice || 0)).toFixed(2)}
+                        Total: {formatCurrency((selectedProductForVariants?.basePrice || 0) + (v.additionalPrice || 0))}
                       </span>
                     </div>
                     <Button

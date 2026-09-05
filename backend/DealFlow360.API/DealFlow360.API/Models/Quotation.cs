@@ -21,28 +21,28 @@ public class Quotation
 
     public ApprovalStatus ApprovalStatus { get; set; } = ApprovalStatus.None;
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal SubTotal { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal DiscountTotal { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal TaxTotal { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal GrandTotal { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal CostTotal { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal MarginAmount { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal MarginPercent { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal RiskScore { get; set; }
 
     [MaxLength(10)]

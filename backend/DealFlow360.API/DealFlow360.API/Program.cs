@@ -24,6 +24,7 @@ public class Program
 
         builder.Services.AddDbContext<AppDbContext>(options =>
         {
+            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             if (useInMemory || string.IsNullOrEmpty(connStr))
             {
                 options.UseInMemoryDatabase("DealFlow360Db");

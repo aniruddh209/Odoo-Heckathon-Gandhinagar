@@ -10,7 +10,7 @@ public class PriceListItem
 
     public int ProductId { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal UnitPrice { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -39,7 +39,7 @@ public class BackorderConsolidationEngine : IBackorderConsolidationEngine
                 OrderLineId = backorder.OrderLineId,
                 WarehouseId = warehouse.Id,
                 Quantity = fulfillQty,
-                ShipmentCost = Math.Round(fulfillQty * warehouse.ShippingCostWeight, 2)
+                ShipmentCost = fulfillQty * warehouse.ShippingCostWeight
             });
 
             if (fulfillQty == backorder.Quantity)

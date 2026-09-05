@@ -15,7 +15,6 @@ import {
   Plus,
   TrendingUp,
   AlertCircle,
-  DollarSign,
   Percent,
   ShieldAlert,
   Zap,
@@ -30,7 +29,9 @@ import {
   Layers,
   Activity,
   Package,
+  IndianRupee,
 } from 'lucide-react';
+import { formatCurrency, formatNumber, formatPercent, formatDate } from '../utils/formatters';
 
 export const DashboardPage = () => {
   const { user, isSalesRep, isSalesManager, isFinance, isAdmin } = useAuth();
@@ -102,8 +103,8 @@ export const DashboardPage = () => {
     setMetrics({
       totalQuotedRevenue: totalQuoted,
       totalBookedRevenue: bookedRevenue,
-      averageMarginPercent: Math.round(avgMargin * 10) / 10,
-      averageRiskScore: Math.round(avgRisk * 10) / 10,
+      averageMarginPercent: parseFloat(avgMargin.toFixed(1)),
+      averageRiskScore: parseFloat(avgRisk.toFixed(1)),
       pendingApprovalsCount: pendingCount,
       activeOrdersCount: activeOrders,
       totalQuotes: quotes.length,
@@ -116,88 +117,119 @@ export const DashboardPage = () => {
     setError(null);
 
     try {
-      // 1. Fetch real quotations
-      const quotesRes = await quotationApi.getQuotations(
-        isSalesRep && !isAdmin && !isSalesManager ? { salesRepId: user?.id } : {}
-      );
-      const quotes = Array.isArray(quotesRes) ? quotesRes : quotesRes?.value || [];
-      setRecentQuotes(quotes.slice(0, 6));
+      // 1. Core Quotations stream
+      const quotesRes = await quotationApi.getQuotations({ take: 20 });
+      const quotesList = quotesRes.items || quotesRes.data || (Array.isArray(quotesRes) ? quotesRes : []);
+      setRecentQuotes(quotesList.slice(0, 7));
 
-      // 2. Fetch authoritative report metrics if authorized
+      // 2. Telemetry and Overview from Reports API
+      try {
+        const overviewRes = await reportApi.getPlatformOverview();
+        if (overviewRes) {
+          setMetrics((prev) => ({
+            ...prev,
+            totalQuotedRevenue: overviewRes.totalQuotedRevenue ?? prev.totalQuotedRevenue,
+            totalBookedRevenue: overviewRes.totalBookedRevenue ?? prev.totalBookedRevenue,
+            averageMarginPercent: overviewRes.averageGrossMarginPercent ?? prev.averageMarginPercent,
+            pendingApprovalsCount: overviewRes.pendingApprovalsCount ?? prev.pendingApprovalsCount,
+            activeOrdersCount: overviewRes.confirmedOrdersCount ?? prev.activeOrdersCount,
+            totalQuotes: overviewRes.totalQuotationsCount ?? quotesList.length,
+          }));
+        }
+      } catch {
+        calculateLocalMetrics(quotesList);
+      }
+
+      // 3. Pipeline Stages
+      try {
+        const pipeRes = await reportApi.getPipelineOverview();
+        if (pipeRes && pipeRes.stages) {
+          setPipelineOverview(pipeRes);
+        } else if (!pipelineOverview) {
+          calculateLocalMetrics(quotesList);
+        }
+      } catch {
+        if (!pipelineOverview) calculateLocalMetrics(quotesList);
+      }
+
+      // 4. Deal Health Radar
+      if (isSalesManager || isAdmin) {
+        try {
+          const healthRes = await dealHealthApi.getHealthSummary();
+          setHealthSummary(healthRes);
+        } catch {
+          // Soft fail
+        }
+      }
+
+      // 5. Approvals Attention Queue
       if (isSalesManager || isFinance || isAdmin) {
         try {
-          const reportData = await reportApi.getDashboardMetrics();
-          setMetrics({
-            totalQuotedRevenue: reportData.totalQuotedRevenue || 0,
-            totalBookedRevenue: reportData.totalBookedRevenue || 0,
-            averageMarginPercent: reportData.averageMarginPercent || 0,
-            averageRiskScore: reportData.averageRiskScore || 0,
-            pendingApprovalsCount: reportData.pendingApprovalsCount || 0,
-            activeOrdersCount: reportData.activeOrdersCount || 0,
-            totalQuotes: reportData.totalQuotationsCount || quotes.length,
+          const approvRes = await approvalApi.getPendingApprovals();
+          const items = approvRes.items || approvRes.data || (Array.isArray(approvRes) ? approvRes : []);
+          setPendingApprovals(items.slice(0, 4));
+        } catch {
+          // Soft fail
+        }
+      }
+
+      // 6. Finance Specific Summary
+      if (isFinance) {
+        try {
+          const [invRes, schRes, orderRes] = await Promise.allSettled([
+            billingApi.getInvoices({ take: 100 }),
+            billingApi.getSubscriptionSchedules(),
+            billingApi.getOrders({ take: 100 }),
+          ]);
+
+          const invoices = invRes.status === 'fulfilled' && invRes.value ? (invRes.value.items || invRes.value.data || (Array.isArray(invRes.value) ? invRes.value : [])) : [];
+          const schedules = schRes.status === 'fulfilled' && schRes.value ? (schRes.value.items || schRes.value.data || (Array.isArray(schRes.value) ? schRes.value : [])) : [];
+          const orders = orderRes.status === 'fulfilled' && orderRes.value ? (orderRes.value.items || orderRes.value.data || (Array.isArray(orderRes.value) ? orderRes.value : [])) : [];
+
+          const totalOutstanding = invoices.reduce((s, inv) => s + (inv.amountOutstanding || inv.outstanding || 0), 0);
+          const unallocatedCount = orders.filter((o) => o.status === 'Confirmed' || o.status === 'PartiallyAllocated').length;
+
+          setFinanceSummary({
+            totalInvoicesCount: invoices.length,
+            totalOutstandingInvoicesAmount: totalOutstanding,
+            activeSchedulesCount: schedules.filter((s) => s.status === 'Active' || s.isActive).length,
+            unallocatedOrdersCount: unallocatedCount,
+            openBackordersCount: 0,
+            pendingFinanceApprovalsCount: pendingApprovals.length,
+            pendingFinanceApprovalsValue: pendingApprovals.reduce((s, a) => s + (a.grandTotal || 0), 0),
           });
         } catch {
-          calculateLocalMetrics(quotes);
+          // Soft fail
         }
+      }
 
-        // Pipeline Overview
+      // 7. Admin Executive Platform Overview & Live Audit Log
+      if (isAdmin) {
         try {
-          const pipeRes = await reportApi.getPipelineOverview();
-          setPipelineOverview(pipeRes);
+          const [adminRes, auditRes] = await Promise.allSettled([
+            adminApi.getAdminOverview(),
+            adminApi.getAuditLogs(10),
+          ]);
+
+          if (adminRes.status === 'fulfilled' && adminRes.value) {
+            setAdminOverview(adminRes.value);
+          }
+          if (auditRes.status === 'fulfilled' && auditRes.value) {
+            const logs = auditRes.value.items || auditRes.value.data || (Array.isArray(auditRes.value) ? auditRes.value : []);
+            setAdminAuditLogs(logs);
+          }
         } catch {
-          calculateLocalMetrics(quotes);
+          // Soft fail
         }
-
-        // Deal Health Radar
-        try {
-          const healthData = await dealHealthApi.getDealHealthSummary();
-          setHealthSummary(healthData);
-        } catch (e) {
-          console.warn('Deal health unavailable:', e);
-        }
-
-        // Pending Approvals Queue
-        try {
-          const pendingRes = await approvalApi.getPendingApprovals();
-          const pList = Array.isArray(pendingRes) ? pendingRes : pendingRes?.value || [];
-          setPendingApprovals(pList.slice(0, 4));
-        } catch (e) {
-          console.warn('Pending approvals unavailable:', e);
-        }
-
-        // Finance & Operations Telemetry
-        if (isFinance || isAdmin) {
-          try {
-            const finSummary = await billingApi.getFinanceDashboardSummary();
-            setFinanceSummary(finSummary);
-          } catch (e) {
-            console.warn('Finance summary unavailable:', e);
-          }
-        }
-
-        // Admin Platform Overview & Audit Trail
-        if (isAdmin) {
-          try {
-            const [overview, audit] = await Promise.all([
-              adminApi.getPlatformOverview(),
-              adminApi.getAuditLogs(6).catch(() => []),
-            ]);
-            setAdminOverview(overview);
-            setAdminAuditLogs(Array.isArray(audit) ? audit : audit?.value || []);
-          } catch (e) {
-            console.warn('Admin platform overview unavailable:', e);
-          }
-        }
-      } else {
-        calculateLocalMetrics(quotes);
       }
     } catch (err) {
-      setError(err.message || 'Failed to load live sales operations telemetry.');
+      console.error('Failed to load dashboard metrics:', err);
+      setError('Unable to synchronize operational telemetry. Viewing cached local calculations.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user, isSalesRep, isSalesManager, isFinance, isAdmin]);
+  }, [isSalesManager, isFinance, isAdmin, pendingApprovals.length]);
 
   useEffect(() => {
     loadDashboardData();
@@ -207,32 +239,27 @@ export const DashboardPage = () => {
     return <SkeletonDashboard />;
   }
 
-  if (error) {
-    return (
-      <div className="py-8">
-        <ErrorAlert message={error} onRetry={() => loadDashboardData(true)} />
-      </div>
-    );
-  }
-
   const quoteColumns = [
     {
-      header: 'Quotation #',
+      header: 'Quote #',
       accessor: 'quotationNumber',
       render: (q) => (
-        <span className="font-semibold text-blue-600 hover:text-blue-700 font-mono">
+        <span
+          onClick={() => navigate(`/workspace/quotations/${q.id}`)}
+          className="font-bold text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-mono"
+        >
           {q.quotationNumber}
         </span>
       ),
     },
     {
-      header: 'Customer Account',
+      header: 'Customer',
       accessor: 'customerName',
       render: (q) => (
         <div>
           <span className="font-semibold text-slate-900 block">{q.customerName}</span>
           <span className="text-[11px] text-slate-400 font-medium">
-            Created: {new Date(q.createdAtUtc).toLocaleDateString()}
+            Created: {formatDate(q.createdAtUtc)}
           </span>
         </div>
       ),
@@ -243,7 +270,7 @@ export const DashboardPage = () => {
       align: 'right',
       render: (q) => (
         <span className="font-bold text-slate-900 font-mono tracking-tight">
-          ${(q.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {formatCurrency(q.grandTotal || 0)}
         </span>
       ),
     },
@@ -276,14 +303,14 @@ export const DashboardPage = () => {
 
   const getStageBadgeColor = (stageName) => {
     switch (stageName) {
-      case 'Draft': return 'bg-slate-100 text-slate-700 border-slate-200';
-      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'UnderNegotiation': return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'PendingApproval': return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'Approved': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'ConvertedToOrder': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-      case 'Rejected': return 'bg-rose-50 text-rose-700 border-rose-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'Draft': return 'bg-slate-50 text-slate-700 border-slate-200/80';
+      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200/80';
+      case 'UnderNegotiation': return 'bg-purple-50 text-purple-700 border-purple-200/80';
+      case 'PendingApproval': return 'bg-amber-50 text-amber-700 border-amber-200/80';
+      case 'Approved': return 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
+      case 'ConvertedToOrder': return 'bg-indigo-50 text-indigo-700 border-indigo-200/80';
+      case 'Rejected': return 'bg-rose-50 text-rose-700 border-rose-200/80';
+      default: return 'bg-slate-50 text-slate-700 border-slate-200/80';
     }
   };
 
@@ -294,7 +321,7 @@ export const DashboardPage = () => {
         title={`${getGreeting()}, ${user?.fullName?.split(' ')[0] || 'Team'}`}
         subtitle="Real-time margin governance, automated discount ceilings, and multi-depot fulfillment."
         badge={
-          <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+          <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
             {user?.role || 'Live Governance'}
           </span>
         }
@@ -323,22 +350,24 @@ export const DashboardPage = () => {
         }
       />
 
-      {/* ── 2. Admin Executive Platform Command Center (when user is Admin) ── */}
+      {error && <ErrorAlert message={error} />}
+
+      {/* ── 2. Admin Executive Platform Command Center (Rich White) ── */}
       {isAdmin && adminOverview && (
-        <div className="p-6 rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-xl space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+        <div className="p-6 rounded-2xl border border-slate-200/80 bg-white shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/80 text-blue-600 flex items-center justify-center shadow-2xs">
                 <Activity className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                <h2 className="text-sm font-bold tracking-tight text-slate-900 flex items-center gap-2">
                   Admin Executive Command Center
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 font-semibold">
                     Platform Telemetry
                   </span>
                 </h2>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   Global tenant health, organizational staffing, revenue realization, and catalog metrics
                 </p>
               </div>
@@ -350,7 +379,6 @@ export const DashboardPage = () => {
                 size="xs"
                 icon={Package}
                 onClick={() => navigate('/admin/products')}
-                className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border-slate-700"
               >
                 Products &amp; Pricing
               </Button>
@@ -359,7 +387,6 @@ export const DashboardPage = () => {
                 size="xs"
                 icon={Layers}
                 onClick={() => navigate('/admin/discounts')}
-                className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border-slate-700"
               >
                 Governance Matrices
               </Button>
@@ -368,7 +395,6 @@ export const DashboardPage = () => {
                 size="xs"
                 icon={FileText}
                 onClick={() => navigate('/workspace/reports')}
-                className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border-slate-700"
               >
                 Revenue Reports
               </Button>
@@ -377,53 +403,53 @@ export const DashboardPage = () => {
 
           {/* Key Admin Telemetry Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-blue-400" /> Platform Staffing
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-blue-600" /> Platform Staffing
               </span>
-              <div className="text-xl font-bold text-white font-mono mt-1">
+              <div className="text-xl font-bold text-slate-900 font-mono mt-1">
                 {(adminOverview.totalSalesReps || 0) + (adminOverview.totalSalesManagers || 0) + (adminOverview.totalFinanceUsers || 0) + 1}{' '}
-                <span className="text-xs font-normal text-slate-400">Staff Members</span>
+                <span className="text-xs font-normal text-slate-500">Staff Members</span>
               </div>
-              <span className="text-[11px] text-slate-400 block mt-0.5">
+              <span className="text-[11px] text-slate-500 block mt-0.5">
                 {adminOverview.totalSalesReps} Reps · {adminOverview.totalSalesManagers} Mgrs · {adminOverview.totalFinanceUsers} Fin · {adminOverview.totalCustomers} Cust
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> Realized Revenue
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block flex items-center gap-1.5">
+                <IndianRupee className="w-3.5 h-3.5 text-emerald-600" /> Realized Revenue
               </span>
-              <div className="text-xl font-bold text-emerald-400 font-mono mt-1">
-                ${(adminOverview.totalPaid ?? adminOverview.totalCollectedRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+              <div className="text-xl font-bold text-emerald-700 font-mono mt-1">
+                {formatCurrency(adminOverview.totalPaid ?? adminOverview.totalCollectedRevenue ?? 0)}
               </div>
-              <span className="text-[11px] text-slate-400 block mt-0.5">
-                ${(adminOverview.totalInvoiced ?? adminOverview.totalInvoicedRevenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0 })} invoiced to date
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                {formatCurrency(adminOverview.totalInvoiced ?? adminOverview.totalInvoicedRevenue ?? 0)} invoiced to date
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-purple-400" /> Recurring Cadence
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-purple-600" /> Recurring Cadence
               </span>
-              <div className="text-xl font-bold text-purple-300 font-mono mt-1">
-                ${(adminOverview.monthlyRecurringRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}{' '}
-                <span className="text-xs font-normal text-slate-400">MRR</span>
+              <div className="text-xl font-bold text-purple-700 font-mono mt-1">
+                {formatCurrency(adminOverview.monthlyRecurringRevenue || 0)}{' '}
+                <span className="text-xs font-normal text-slate-500">MRR</span>
               </div>
-              <span className="text-[11px] text-slate-400 block mt-0.5">
-                ${(adminOverview.annualRecurringRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })} ARR run-rate
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                {formatCurrency(adminOverview.annualRecurringRevenue || 0)} ARR run-rate
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-amber-400" /> Fulfillment &amp; Risk
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-amber-600" /> Fulfillment &amp; Risk
               </span>
-              <div className="text-xl font-bold text-amber-300 font-mono mt-1">
+              <div className="text-xl font-bold text-amber-800 font-mono mt-1">
                 {adminOverview.atRiskDealsCount}{' '}
-                <span className="text-xs font-normal text-slate-400">At-Risk Deals</span>
+                <span className="text-xs font-normal text-slate-500">At-Risk Deals</span>
               </div>
-              <span className="text-[11px] text-slate-400 block mt-0.5">
+              <span className="text-[11px] text-slate-500 block mt-0.5">
                 {adminOverview.backordersCount ?? adminOverview.openBackordersCount ?? 0} backorders · {adminOverview.totalWarehouses} depots
               </span>
             </div>
@@ -431,45 +457,45 @@ export const DashboardPage = () => {
 
           {/* Status Breakdown & Audit Stream */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-1">
-            <div className="lg:col-span-7 bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3">
+            <div className="lg:col-span-7 bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3">
                 Global Quotation Lifecycle ({adminOverview.totalQuotations} Proposals)
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {Object.entries(adminOverview.quoteStatusDistribution || adminOverview.quotationStatusDistribution || {}).map(([st, count]) => (
-                  <div key={st} className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-                    <span className="text-xs text-slate-300 font-medium">{st}</span>
-                    <span className="text-xs font-bold font-mono text-blue-400">{count}</span>
+                  <div key={st} className="p-2.5 rounded-lg bg-slate-50/80 border border-slate-200/70 flex items-center justify-between">
+                    <span className="text-xs text-slate-700 font-medium">{st}</span>
+                    <span className="text-xs font-bold font-mono text-blue-600">{count}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="lg:col-span-5 bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+            <div className="lg:col-span-5 bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs">
               <div className="flex items-center justify-between mb-2.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                   Audit Trail
                 </h3>
-                <span className="text-[10px] text-slate-500 font-mono">Live</span>
+                <span className="text-[10px] text-emerald-600 font-semibold px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200/60">Live</span>
               </div>
               {adminAuditLogs.length === 0 ? (
-                <div className="py-4 text-center text-xs text-slate-500">
+                <div className="py-4 text-center text-xs text-slate-400">
                   No administrative configuration changes recorded yet.
                 </div>
               ) : (
                 <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                   {adminAuditLogs.map((log) => (
-                    <div key={log.id} className="text-xs p-2 rounded-lg bg-slate-950/80 border border-slate-800/80 flex items-start justify-between gap-2">
+                    <div key={log.id} className="text-xs p-2 rounded-lg bg-slate-50/80 border border-slate-200/70 flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="font-semibold text-blue-400 font-mono">[{log.entityName || log.entityType}]</span>{' '}
-                        <span className="text-slate-200">{log.action}</span>
+                        <span className="font-semibold text-blue-700 font-mono">[{log.entityName || log.entityType}]</span>{' '}
+                        <span className="text-slate-800">{log.action}</span>
                         {(log.reason || log.details) && (
-                          <span className="text-[11px] text-slate-400 block truncate max-w-[220px]">
+                          <span className="text-[11px] text-slate-500 block truncate max-w-[220px]">
                             {log.reason || log.details}
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-500 font-mono whitespace-nowrap shrink-0">
+                      <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap shrink-0">
                         {new Date(log.createdAtUtc || log.timestampUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -481,12 +507,12 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* ── 3. Finance & Operations Command Center (when user is FinanceOperations) ── */}
+      {/* ── 3. Finance & Operations Command Center (Rich White) ── */}
       {isFinance && financeSummary && (
-        <div className="p-6 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100">
+        <div className="p-6 rounded-2xl border border-slate-200/80 bg-white shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/80 text-blue-600 flex items-center justify-center shadow-2xs">
                 <Receipt className="w-5 h-5" />
               </div>
               <div>
@@ -523,18 +549,18 @@ export const DashboardPage = () => {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="p-4 rounded-xl bg-white border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-amber-600 block">Pending Finance Approvals</span>
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold text-amber-700 block">Pending Finance Approvals</span>
               <div className="text-xl font-bold text-slate-900 font-mono mt-1">
                 {financeSummary.pendingFinanceApprovalsCount}
               </div>
               <span className="text-[11px] text-slate-500 block mt-0.5">
-                ${(financeSummary.pendingFinanceApprovalsValue || 0).toFixed(2)} exposure
+                {formatCurrency(financeSummary.pendingFinanceApprovalsValue || 0)} exposure
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-blue-600 block">Unallocated Orders</span>
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold text-blue-700 block">Unallocated Orders</span>
               <div className="text-xl font-bold text-slate-900 font-mono mt-1">
                 {financeSummary.unallocatedOrdersCount}
               </div>
@@ -543,8 +569,8 @@ export const DashboardPage = () => {
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-rose-600 block">Open Backorders</span>
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold text-rose-700 block">Open Backorders</span>
               <div className="text-xl font-bold text-slate-900 font-mono mt-1">
                 {financeSummary.openBackordersCount}
               </div>
@@ -553,10 +579,10 @@ export const DashboardPage = () => {
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-purple-600 block">Net Outstanding A/R</span>
+            <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-bold text-purple-700 block">Net Outstanding A/R</span>
               <div className="text-xl font-bold text-slate-900 font-mono mt-1">
-                ${(financeSummary.totalOutstandingInvoicesAmount || 0).toFixed(2)}
+                {formatCurrency(financeSummary.totalOutstandingInvoicesAmount || 0)}
               </div>
               <span className="text-[11px] text-slate-500 block mt-0.5">
                 {financeSummary.activeSchedulesCount} active subscription(s)
@@ -566,20 +592,20 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* ── 4. Standard Financial & Governance KPI Ribbon ─────── */}
+      {/* ── 4. Standard Financial & Governance KPI Ribbon (Rich White & ₹ INR) ── */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Total Pipeline"
-          value={`$${metrics.totalQuotedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          value={formatCurrency(metrics.totalQuotedRevenue)}
           subtext={`${metrics.totalQuotes} active proposals`}
-          icon={DollarSign}
+          icon={IndianRupee}
           variant="primary"
           onClick={() => navigate('/workspace/quotations')}
         />
 
         <MetricCard
           label="Booked Revenue"
-          value={`$${metrics.totalBookedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          value={formatCurrency(metrics.totalBookedRevenue)}
           subtext={`${metrics.activeOrdersCount} orders confirmed`}
           icon={TrendingUp}
           variant="success"
@@ -589,7 +615,7 @@ export const DashboardPage = () => {
 
         <MetricCard
           label="Average Gross Margin"
-          value={`${metrics.averageMarginPercent}%`}
+          value={formatPercent(metrics.averageMarginPercent)}
           subtext={metrics.averageMarginPercent >= 25 ? 'Target Exceeded (>=25%)' : 'Margin Attention Required'}
           icon={Percent}
           variant={metrics.averageMarginPercent >= 25 ? 'purple' : 'warning'}
@@ -610,7 +636,7 @@ export const DashboardPage = () => {
         {/* Pending Approvals Triage */}
         <div className={healthSummary ? 'lg:col-span-7 space-y-4' : 'lg:col-span-12 space-y-4'}>
           <div className="rounded-xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-            <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between">
+            <div className="px-5 py-4 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600" />
                 <h2 className="text-sm font-bold text-slate-900">Attention Required: Pending Approvals</h2>
@@ -655,7 +681,7 @@ export const DashboardPage = () => {
                     <div className="flex items-center gap-3 self-end sm:self-center">
                       <div className="text-right">
                         <span className="block font-bold text-xs text-slate-900 font-mono">
-                          ${(req.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {formatCurrency(req.grandTotal || 0)}
                         </span>
                         <StatusBadge type="risk" value={req.riskScore || 0} />
                       </div>
@@ -678,14 +704,14 @@ export const DashboardPage = () => {
         {healthSummary && (
           <div className="lg:col-span-5">
             <div className="rounded-xl border border-slate-200/80 bg-white shadow-xs overflow-hidden h-full flex flex-col">
-              <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between">
+              <div className="px-5 py-4 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-blue-600" />
                   <h2 className="text-sm font-bold text-slate-900">Deal Health Radar</h2>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-slate-400">Score:</span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                     {healthSummary.healthScore}%
                   </span>
                 </div>
@@ -750,7 +776,7 @@ export const DashboardPage = () => {
               <div
                 key={st.stageName}
                 onClick={() => navigate('/workspace/pipeline')}
-                className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-blue-50/40 hover:border-blue-200 cursor-pointer transition-all duration-150"
+                className="p-3.5 rounded-xl border border-slate-200/70 bg-slate-50/60 hover:bg-blue-50/40 hover:border-blue-200/80 cursor-pointer transition-all duration-150 shadow-2xs"
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${getStageBadgeColor(st.stageName)}`}>
@@ -759,7 +785,7 @@ export const DashboardPage = () => {
                   <span className="text-xs font-bold text-slate-900 font-mono">{st.count}</span>
                 </div>
                 <div className="text-xs font-bold text-slate-800 font-mono mt-1">
-                  ${(st.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {formatCurrency(st.totalValue || 0)}
                 </div>
               </div>
             ))}
@@ -771,34 +797,24 @@ export const DashboardPage = () => {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">Recent Quotations &amp; Deal Flow</h2>
-            <p className="text-xs text-slate-500">Live commercial proposals governed under automated margin rules.</p>
+            <h2 className="text-sm font-bold text-slate-900">Recent Quotations &amp; Deal Flow</h2>
+            <p className="text-xs text-slate-500">Latest business opportunities and draft agreements across your team</p>
           </div>
           <Button
             variant="outline"
-            size="xs"
+            size="sm"
+            icon={ArrowRight}
             onClick={() => navigate('/workspace/quotations')}
           >
-            View All Quotations
+            All Quotations
           </Button>
         </div>
 
         <DataTable
           columns={quoteColumns}
           data={recentQuotes}
+          emptyMessage="No quotations generated yet. Click 'Create Quotation' to initiate a new enterprise deal."
           onRowClick={(q) => navigate(`/workspace/quotations/${q.id}`)}
-          emptyMessage="No active quotations found"
-          emptyDescription="Start closing deals by building your first structured quote."
-          emptyAction={
-            <Button
-              variant="primary"
-              size="xs"
-              icon={Plus}
-              onClick={() => navigate('/workspace/quotations/new')}
-            >
-              New Quotation
-            </Button>
-          }
         />
       </div>
     </div>

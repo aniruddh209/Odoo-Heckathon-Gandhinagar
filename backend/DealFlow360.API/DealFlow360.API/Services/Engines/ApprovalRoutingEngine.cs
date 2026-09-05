@@ -7,6 +7,7 @@ public interface IApprovalRoutingEngine
 {
     void ValidateAction(Quotation quotation, User actingUser, ApprovalActionType actionType, string? reason, ApprovalLevel? currentLevel = null);
     (QuoteStatus NextQuoteStatus, ApprovalStatus NextApprovalStatus) DetermineNextStatus(Quotation quotation, User actingUser, ApprovalActionType actionType, ApprovalLevel? currentLevel = null);
+    void ValidateModification(Quotation quotation);
 }
 
 public enum ApprovalActionType
@@ -92,5 +93,14 @@ public class ApprovalRoutingEngine : IApprovalRoutingEngine
         }
 
         throw new UnauthorizedAccessException("User does not have required permissions to approve this quotation.");
+    }
+
+    public void ValidateModification(Quotation quotation)
+    {
+        if (quotation.Status == QuoteStatus.Approved || quotation.Status == QuoteStatus.PendingApproval)
+        {
+            quotation.Status = QuoteStatus.Draft;
+            quotation.ApprovalStatus = ApprovalStatus.None;
+        }
     }
 }

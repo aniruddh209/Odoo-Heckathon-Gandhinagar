@@ -12,7 +12,7 @@ public class WarehouseAllocation
 
     public int Quantity { get; set; }
 
-    [Column(TypeName = "decimal(18,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal ShipmentCost { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

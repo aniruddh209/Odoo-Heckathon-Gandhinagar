@@ -21,7 +21,7 @@ public class SubscriptionEngine : ISubscriptionEngine
         var dailyRatePerSeat = monthlyUnitRate / daysInMonth;
 
         var proratedCharge = dailyRatePerSeat * addedSeats * remainingDays;
-        return Math.Round(proratedCharge, 2);
+        return proratedCharge;
     }
 
     public void ApplySeatChange(BillingSchedule schedule, int newTotalSeats, DateTime changeDateUtc)

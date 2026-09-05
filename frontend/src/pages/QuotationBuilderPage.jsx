@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ArrowRight,
 } from 'lucide-react';
+import { formatCurrency } from '../utils/formatters';
 
 export const QuotationBuilderPage = () => {
   const navigate = useNavigate();
@@ -30,9 +31,9 @@ export const QuotationBuilderPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Form State
+  // Form State - Default Currency: Indian Rupee (INR)
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [currencyCode, setCurrencyCode] = useState('USD');
+  const [currencyCode, setCurrencyCode] = useState('INR');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -118,10 +119,15 @@ export const QuotationBuilderPage = () => {
       if (field === 'variantId') {
         item.variantId = value;
         const prod = products.find((p) => p.id === parseInt(item.productId, 10));
-        const prodVars = variantsMap[item.productId] || [];
-        const variant = prodVars.find((v) => v.id === parseInt(value, 10));
-        const addPrice = variant ? parseFloat(variant.additionalPrice) || 0 : 0;
-        item.unitPrice = (prod?.basePrice || 0) + addPrice;
+        if (prod && value) {
+          const vars = variantsMap[prod.id] || [];
+          const v = vars.find((vx) => vx.id === parseInt(value, 10));
+          if (v) {
+            item.unitPrice = (prod.basePrice || 0) + (v.additionalPrice || 0);
+          }
+        } else if (prod) {
+          item.unitPrice = prod.basePrice || 0;
+        }
       }
 
       updated[index] = item;
@@ -129,55 +135,60 @@ export const QuotationBuilderPage = () => {
     });
   };
 
-  const handleApplyOrderDiscount = () => {
-    if (!orderDiscountPercent && orderDiscountPercent !== 0) return;
-    const p = Math.max(0, Math.min(100, parseFloat(orderDiscountPercent) || 0));
-    setLines((prev) => prev.map((l) => ({ ...l, discountPercent: p })));
-    toast.success('Order Discount Applied', `Applied ${p}% discount across all ${lines.length} line(s).`);
-  };
-
   const handleRemoveLine = (index) => {
-    setLines((prev) => prev.filter((_, idx) => idx !== index));
+    setLines((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Optimistic calculation for immediate UI responsiveness
-  const subTotal = lines.reduce(
-    (sum, l) => sum + (parseInt(l.quantity, 10) || 0) * (parseFloat(l.unitPrice) || 0),
-    0
-  );
-  const discountTotal = lines.reduce(
-    (sum, l) =>
-      sum + (parseInt(l.quantity, 10) || 0) * (parseFloat(l.unitPrice) || 0) * ((parseFloat(l.discountPercent) || 0) / 100),
-    0
-  );
-  const taxableAmount = subTotal - discountTotal;
-  const taxTotal = taxableAmount * 0.18; // 18% standard GST/Tax
-  const grandTotal = taxableAmount + taxTotal;
+  // Calculations
+  const subTotal = lines.reduce((acc, line) => {
+    const qty = parseInt(line.quantity, 10) || 0;
+    const price = parseFloat(line.unitPrice) || 0;
+    return acc + qty * price;
+  }, 0);
 
-  // Check if any line exceeds customer tier limit
-  const maxDiscountInQuote = lines.reduce((max, l) => Math.max(max, parseFloat(l.discountPercent) || 0), 0);
-  const tierLimit = selectedCustomer?.maxDiscountPercent || (selectedCustomer?.tierName === 'Gold' ? 15 : selectedCustomer?.tierName === 'Silver' ? 10 : 5);
+  const lineDiscounts = lines.reduce((acc, line) => {
+    const qty = parseInt(line.quantity, 10) || 0;
+    const price = parseFloat(line.unitPrice) || 0;
+    const disc = parseFloat(line.discountPercent) || 0;
+    return acc + (qty * price * disc) / 100;
+  }, 0);
+
+  const orderDiscPct = parseFloat(orderDiscountPercent) || 0;
+  const overallOrderDiscount = ((subTotal - lineDiscounts) * orderDiscPct) / 100;
+  const discountTotal = lineDiscounts + overallOrderDiscount;
+
+  const netTotal = Math.max(0, subTotal - discountTotal);
+  const taxTotal = netTotal * 0.18; // Standard 18% GST
+  const grandTotal = netTotal + taxTotal;
+
+  // Governance limit checks
+  const tierLimit = selectedCustomer?.maxDiscountPercent ?? 15;
+  const maxDiscountInQuote = Math.max(
+    orderDiscPct,
+    ...lines.map((l) => parseFloat(l.discountPercent) || 0),
+    0
+  );
   const triggersApproval = maxDiscountInQuote > tierLimit;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedCustomerId) {
-      toast.error('Validation Error', 'Please select an active customer.');
+      toast.error('Validation Error', 'Please select a customer account.');
       return;
     }
-
     if (lines.length === 0) {
-      toast.error('Validation Error', 'Please add at least one line item to the quotation.');
+      toast.error('Validation Error', 'Please add at least one line item to the proposal.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const requestPayload = {
+      const payload = {
         customerId: parseInt(selectedCustomerId, 10),
-        currencyCode,
-        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate).toISOString() : null,
-        notes,
+        currency: currencyCode,
+        targetCloseDate: expectedCloseDate || null,
+        notes: notes.trim() || null,
+        overallDiscountPercent: orderDiscPct,
         lines: lines.map((l) => ({
           productId: parseInt(l.productId, 10),
           variantId: l.variantId ? parseInt(l.variantId, 10) : null,
@@ -187,11 +198,14 @@ export const QuotationBuilderPage = () => {
         })),
       };
 
-      const created = await quotationApi.createQuotation(requestPayload);
-      toast.success('Quotation Created', `Proposal ${created.quotationNumber} initialized.`);
-      navigate(`/workspace/quotations/${created.id}`);
+      const result = await quotationApi.createQuotation(payload);
+      toast.success(
+        'Quotation Created',
+        `Proposal #${result.quotationNumber || result.id} has been generated.`
+      );
+      navigate(`/workspace/quotations/${result.id || result.quotationId}`);
     } catch (err) {
-      toast.error('Creation Failed', err.message);
+      toast.error('Submission Failed', err.message || 'Could not construct quotation.');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,10 +256,10 @@ export const QuotationBuilderPage = () => {
                 value={currencyCode}
                 onChange={(e) => setCurrencyCode(e.target.value)}
                 options={[
+                  { value: 'INR', label: 'INR (₹) - Indian Rupee (Default)' },
                   { value: 'USD', label: 'USD ($) - US Dollar' },
                   { value: 'EUR', label: 'EUR (€) - Euro' },
                   { value: 'GBP', label: 'GBP (£) - British Pound' },
-                  { value: 'INR', label: 'INR (₹) - Indian Rupee' },
                 ]}
               />
 
@@ -258,14 +272,14 @@ export const QuotationBuilderPage = () => {
             </div>
 
             {selectedCustomer && (
-              <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                 <div>
                   <span className="font-bold text-blue-950">Active Tier: {selectedCustomer.tierName}</span>
                   <p className="text-blue-800 text-[11px] mt-0.5">
                     Tier discount limit: {tierLimit}%. Exceeding this triggers automated approval escalation.
                   </p>
                 </div>
-                <span className="font-semibold text-blue-900 bg-white px-2.5 py-1 rounded-md border border-blue-200 self-start sm:self-auto text-[11px]">
+                <span className="font-semibold text-blue-900 bg-white px-2.5 py-1 rounded-md border border-blue-200/80 self-start sm:self-auto text-[11px] shadow-2xs">
                   Ceiling: {tierLimit}%
                 </span>
               </div>
@@ -319,7 +333,7 @@ export const QuotationBuilderPage = () => {
                       <th className="py-2.5 px-3 min-w-[180px]">Product / Service</th>
                       <th className="py-2.5 px-3 min-w-[160px]">Product Variant</th>
                       <th className="py-2.5 px-3 w-20 text-center">Qty</th>
-                      <th className="py-2.5 px-3 w-28 text-right">Unit Price ($)</th>
+                      <th className="py-2.5 px-3 w-28 text-right">Unit Price ({currencyCode === 'USD' ? '$' : '₹'})</th>
                       <th className="py-2.5 px-3 w-24 text-center">Discount (%)</th>
                       <th className="py-2.5 px-3 w-28 text-right">Subtotal</th>
                       <th className="py-2.5 px-2 w-10 text-center"></th>
@@ -355,7 +369,7 @@ export const QuotationBuilderPage = () => {
                               <option value="">Base / Standard</option>
                               {(variantsMap[line.productId] || []).map((v) => (
                                 <option key={v.id} value={v.id}>
-                                  {v.name} (+${v.additionalPrice})
+                                  {v.name} (+{formatCurrency(v.additionalPrice, currencyCode)})
                                 </option>
                               ))}
                             </select>
@@ -401,7 +415,7 @@ export const QuotationBuilderPage = () => {
                           </td>
 
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                            ${lineSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(lineSubtotal, currencyCode)}
                           </td>
 
                           <td className="py-2.5 px-2 text-center">
@@ -450,23 +464,23 @@ export const QuotationBuilderPage = () => {
             <div className="space-y-2 text-xs">
               <div className="flex justify-between text-slate-500">
                 <span>Subtotal ({lines.length} lines)</span>
-                <span className="font-mono text-slate-800">${subTotal.toFixed(2)}</span>
+                <span className="font-mono text-slate-800">{formatCurrency(subTotal, currencyCode)}</span>
               </div>
 
               <div className="flex justify-between text-slate-500">
                 <span>Commercial Discount</span>
-                <span className="font-mono text-emerald-600">-${discountTotal.toFixed(2)}</span>
+                <span className="font-mono text-emerald-600">-{formatCurrency(discountTotal, currencyCode)}</span>
               </div>
 
               <div className="flex justify-between text-slate-500">
-                <span>Estimated Tax (18%)</span>
-                <span className="font-mono text-slate-800">${taxTotal.toFixed(2)}</span>
+                <span>Estimated Tax (18% GST)</span>
+                <span className="font-mono text-slate-800">{formatCurrency(taxTotal, currencyCode)}</span>
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-between items-baseline">
                 <span className="text-sm font-bold text-slate-900">Grand Total</span>
                 <span className="text-2xl font-bold font-mono text-blue-600 tracking-tight">
-                  ${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(grandTotal, currencyCode)}
                 </span>
               </div>
             </div>

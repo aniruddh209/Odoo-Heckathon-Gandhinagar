@@ -84,19 +84,19 @@ export const Sidebar = ({ onCloseMobile, isMobile = false }) => {
   };
 
   return (
-    <aside className="flex flex-col h-full bg-slate-950 text-slate-300 select-none border-r border-slate-800/80">
+    <aside className="flex flex-col h-full bg-white text-slate-700 select-none border-r border-slate-200/80 shadow-xs">
       {/* Brand Header */}
-      <div className="flex items-center justify-between px-5 h-16 border-b border-slate-800/80 bg-slate-950">
+      <div className="flex items-center justify-between px-5 h-16 border-b border-slate-200/80 bg-white shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/30">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black shadow-xs ring-2 ring-blue-600/10">
             <Zap className="w-4 h-4 fill-white text-white" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base text-white tracking-tight">
-                DealFlow<span className="text-blue-400">360</span>
+              <span className="font-extrabold text-base text-slate-900 tracking-tight">
+                DealFlow<span className="text-blue-600">360</span>
               </span>
-              <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">
+              <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/80">
                 PRO
               </span>
             </div>
@@ -110,7 +110,7 @@ export const Sidebar = ({ onCloseMobile, isMobile = false }) => {
           <button
             type="button"
             onClick={onCloseMobile}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
             aria-label="Close navigation"
           >
             <X className="w-5 h-5" />
@@ -127,7 +127,7 @@ export const Sidebar = ({ onCloseMobile, isMobile = false }) => {
 
           return (
             <div key={group.group || gIdx}>
-              <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <div className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {group.group}
               </div>
               <div className="space-y-0.5">
@@ -142,13 +142,17 @@ export const Sidebar = ({ onCloseMobile, isMobile = false }) => {
                         flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group
                         ${
                           isActive
-                            ? 'bg-blue-600/15 text-blue-400 font-semibold border-l-2 border-blue-500 shadow-2xs'
-                            : 'text-slate-400 hover:bg-slate-900/90 hover:text-slate-200'
+                            ? 'bg-blue-50/80 text-blue-700 font-semibold border-l-2 border-blue-600 shadow-2xs'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                         }
                       `}
                     >
-                      <Icon className="w-4 h-4 shrink-0 transition-transform duration-150 group-hover:scale-105" />
-                      <span className="truncate">{item.label}</span>
+                      {({ isActive }) => (
+                        <>
+                          <Icon className={`w-4 h-4 shrink-0 transition-transform duration-150 group-hover:scale-105 ${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                          <span className="truncate">{item.label}</span>
+                        </>
+                      )}
                     </NavLink>
                   );
                 })}
@@ -159,17 +163,17 @@ export const Sidebar = ({ onCloseMobile, isMobile = false }) => {
       </div>
 
       {/* User Persona & Sign Out Footer */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-950">
-        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/70 border border-slate-800/80">
+      <div className="p-3 border-t border-slate-200/80 bg-slate-50/50 shrink-0">
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-xs">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-xs">
               {getInitials(user?.fullName)}
             </div>
             <div className="min-w-0 pr-1">
-              <p className="text-xs font-semibold text-white truncate leading-tight">
+              <p className="text-xs font-semibold text-slate-900 truncate leading-tight">
                 {user?.fullName || 'User'}
               </p>
-              <span className="text-[10px] text-blue-400 block truncate font-medium mt-0.5">
+              <span className="text-[10px] text-slate-500 block truncate font-medium mt-0.5">
                 {getRoleDisplayName(user?.role)}
               </span>
             </div>
@@ -179,7 +183,7 @@ export const Sidebar = ({ onCloseMobile, isMobile = false }) => {
             type="button"
             onClick={logout}
             title="Sign out of session"
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors shrink-0"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
           >
             <LogOut className="w-4 h-4" />
           </button>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { quotationApi } from '../api';
 import {
   Button,
@@ -11,41 +10,37 @@ import {
   PageHeader,
   ErrorAlert,
 } from '../components/ui';
-import { Plus, Search, Filter, RefreshCw, FileText } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Filter,
+  RefreshCw,
+  FileText,
+} from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const QuotationListPage = () => {
-  const { user, isSalesRep, isSalesManager, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [quotes, setQuotes] = useState([]);
-  const [filteredQuotes, setFilteredQuotes] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
 
   useEffect(() => {
     loadQuotations();
-  }, [user]);
+  }, []);
 
   const loadQuotations = async () => {
     setIsLoading(true);
     setError(null);
-
     try {
-      const filterParams = {};
-      if (isSalesRep && !isAdmin && !isSalesManager) {
-        filterParams.salesRepId = user?.id;
-      }
-      if (statusFilter) {
-        filterParams.status = statusFilter;
-      }
-
-      const res = await quotationApi.getQuotations(filterParams);
-      const list = Array.isArray(res) ? res : res?.value || [];
-      setQuotes(list);
-      setFilteredQuotes(list);
+      const res = await quotationApi.getQuotations({ take: 100 });
+      const items = res.items || res.data || (Array.isArray(res) ? res : []);
+      setQuotations(items);
     } catch (err) {
       setError(err.message || 'Failed to retrieve quotations.');
     } finally {
@@ -53,25 +48,17 @@ export const QuotationListPage = () => {
     }
   };
 
-  useEffect(() => {
-    let result = [...quotes];
+  const filteredQuotes = quotations.filter((q) => {
+    const matchesSearch =
+      !searchQuery ||
+      q.quotationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      q.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      q.salesRepName?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (item) =>
-          item.quotationNumber?.toLowerCase().includes(q) ||
-          item.customerName?.toLowerCase().includes(q) ||
-          item.salesRepName?.toLowerCase().includes(q)
-      );
-    }
+    const matchesStatus = !statusFilter || q.status === statusFilter;
 
-    if (statusFilter) {
-      result = result.filter((item) => item.status === statusFilter);
-    }
-
-    setFilteredQuotes(result);
-  }, [searchQuery, statusFilter, quotes]);
+    return matchesSearch && matchesStatus;
+  });
 
   const columns = [
     {
@@ -97,8 +84,8 @@ export const QuotationListPage = () => {
       header: 'Deal Value',
       accessor: 'grandTotal',
       render: (q) => (
-        <span className="font-bold text-slate-900">
-          ${(q.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        <span className="font-bold text-slate-900 font-mono tracking-tight">
+          {formatCurrency(q.grandTotal || 0, q.currency || 'INR')}
         </span>
       ),
     },
@@ -135,7 +122,7 @@ export const QuotationListPage = () => {
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
-        title="Quotations & Deal Workspace"
+        title="Quotations &amp; Deal Workspace"
         subtitle="Active sales proposals, pricing governance, and approval compliance tracking."
         badge={`${filteredQuotes.length} Deals`}
         actions={
@@ -161,7 +148,7 @@ export const QuotationListPage = () => {
       />
 
       {/* Filter and Search Bar */}
-      <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center gap-3">
+      <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center gap-3">
         <div className="flex-1 w-full">
           <Input
             icon={Search}

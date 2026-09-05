@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '../common/Button';
 import { Clock, User, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '../../utils/formatters';
 
 export const StalledDealsFeed = ({
   alerts = [],
@@ -44,7 +45,7 @@ export const StalledDealsFeed = ({
                 <span className="text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded">
                   Stalled for {deal.DaysStalled} days in {deal.CurrentStage}
                 </span>
-                <span className="font-mono text-slate-700 font-bold">${(deal.TotalAmount ?? deal.totalAmount ?? 0).toLocaleString()}</span>
+                <span className="font-mono text-slate-700 font-bold">{formatCurrency(deal.TotalAmount ?? deal.totalAmount ?? 0)}</span>
                 <span className="flex items-center text-slate-400">
                   <User className="w-3 h-3 mr-1" />
                   {deal.SalesRepName}

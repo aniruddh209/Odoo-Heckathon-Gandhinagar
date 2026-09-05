@@ -22,9 +22,10 @@ import {
   FileText,
   Clock,
   User,
-  DollarSign,
+  IndianRupee,
   RefreshCw,
 } from 'lucide-react';
+import { formatCurrency } from '../utils/formatters';
 
 export const ApprovalDetailPage = () => {
   const { user, isSalesManager, isFinance, isAdmin } = useAuth();
@@ -134,7 +135,7 @@ export const ApprovalDetailPage = () => {
       accessor: 'grandTotal',
       render: (a) => (
         <span className="font-bold text-slate-900">
-          ${(a.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {formatCurrency(a.grandTotal || 0)}
         </span>
       ),
     },
@@ -243,7 +244,7 @@ export const ApprovalDetailPage = () => {
                 <div>
                   <span className="text-amber-800 text-[11px] block">Deal Grand Total</span>
                   <strong className="text-sm font-bold text-amber-950">
-                    ${(selectedApproval.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatCurrency(selectedApproval.grandTotal || 0)}
                   </strong>
                 </div>
                 <div>

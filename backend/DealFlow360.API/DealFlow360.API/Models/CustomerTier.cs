@@ -10,7 +10,7 @@ public class CustomerTier
     [Required, MaxLength(50)]
     public string Name { get; set; } = string.Empty;
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal MaxDiscountPercent { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

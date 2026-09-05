@@ -47,7 +47,25 @@ public class DealHealthEngine : IDealHealthEngine
             // 2. Discount anomaly check: > 20% discount or exceeding tier ceiling
             var tierCeiling = quote.Customer?.Tier?.MaxDiscountPercent ?? 15.00m;
             var effectiveDiscount = quote.SubTotal > 0 ? (quote.DiscountTotal / quote.SubTotal) * 100m : 0m;
-            if (effectiveDiscount > 20.00m || effectiveDiscount > tierCeiling + 5.00m)
+            
+            // F-20: Statistical Anomaly
+            var repQuotes = quotationsList.Where(q => q.SalesRepId == quote.SalesRepId).ToList();
+            decimal anomalyThreshold = 20.00m; // Default fallback
+            
+            if (repQuotes.Count >= 2)
+            {
+                var discounts = repQuotes.Select(q => q.SubTotal > 0 ? (q.DiscountTotal / q.SubTotal) * 100m : 0m).ToList();
+                var mean = discounts.Average();
+                var sumOfSquares = discounts.Sum(d => (d - mean) * (d - mean));
+                var stdDev = (decimal)Math.Sqrt((double)(sumOfSquares / (repQuotes.Count - 1)));
+                anomalyThreshold = mean + (2 * stdDev);
+            }
+            else
+            {
+                anomalyThreshold = tierCeiling + 5.00m;
+            }
+
+            if (effectiveDiscount > anomalyThreshold)
             {
                 response.DiscountAnomaliesCount++;
                 response.Alerts.Add(new DealHealthAlertResponse

@@ -38,8 +38,7 @@ public class DiscountGovernanceEngine : IDiscountGovernanceEngine
                 .OrderByDescending(r => r.CategoryId.HasValue)
                 .FirstOrDefault();
 
-            decimal categoryLimit = matchingRule?.MaxDiscountPercent ?? tierMaxDiscount;
-            decimal maxAllowedDiscount = matchingRule != null ? matchingRule.MaxDiscountPercent : tierMaxDiscount;
+            decimal maxAllowedDiscount = matchingRule != null ? Math.Min(tierMaxDiscount, matchingRule.MaxDiscountPercent) : tierMaxDiscount;
 
             var excessDiscount = Math.Max(0, line.DiscountPercent - maxAllowedDiscount);
 

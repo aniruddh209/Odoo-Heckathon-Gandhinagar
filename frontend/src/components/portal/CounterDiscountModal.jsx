@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import { AlertCircle, DollarSign, Percent } from 'lucide-react';
+import { AlertCircle, IndianRupee, Percent } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
 export const CounterDiscountModal = ({
   isOpen,
@@ -10,6 +11,7 @@ export const CounterDiscountModal = ({
   currentTotal = 0,
   onConfirm,
   isSubmitting = false,
+  currency = 'INR',
 }) => {
   const [mode, setMode] = useState('target');
   const [discountPercent, setDiscountPercent] = useState(5);
@@ -65,7 +67,7 @@ export const CounterDiscountModal = ({
         <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
           <span className="text-slate-400">Current Quote Total:</span>
           <div className="text-xl font-bold font-mono text-slate-900">
-            ${currentTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatCurrency(currentTotal, currency)}
           </div>
         </div>
 
@@ -82,7 +84,7 @@ export const CounterDiscountModal = ({
                   : 'border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <DollarSign className="w-4 h-4" />
+              <IndianRupee className="w-4 h-4" />
               <span>Specific Target Price</span>
             </button>
 
@@ -103,7 +105,7 @@ export const CounterDiscountModal = ({
 
         {mode === 'target' ? (
           <Input
-            label="Your Target Total ($)"
+            label={`Your Target Total (${currency === 'USD' ? '$' : '₹'})`}
             type="number"
             min="1"
             max={currentTotal}
@@ -132,7 +134,7 @@ export const CounterDiscountModal = ({
           <textarea
             rows={3}
             className="w-full p-2.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g. Budget cap of $45,000 for Q3, or commitment to order an additional 200 units if price meets $42,000..."
+            placeholder="e.g. Budget cap of ₹4,50,000 for Q3, or commitment to order an additional 200 units if price meets ₹4,20,000..."
             value={notes}
             onChange={(e) => {
               setNotes(e.target.value);

@@ -12,7 +12,8 @@ import {
   ErrorAlert,
   Badge,
 } from '../components/ui';
-import { Download, RefreshCw, Filter, Layers, DollarSign, TrendingUp, ShieldAlert, CheckCircle2, FileText, Users } from 'lucide-react';
+import { Download, RefreshCw, Filter, Layers, IndianRupee, TrendingUp, ShieldAlert, CheckCircle2, FileText, Users } from 'lucide-react';
+import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters';
 
 export const ReportsPage = () => {
   const { isAdmin, isSalesManager, isFinance } = useAuth();
@@ -216,7 +217,7 @@ export const ReportsPage = () => {
       accessor: 'total',
       render: (t) => (
         <span className="font-bold text-slate-900 font-mono">
-          ${t.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {formatCurrency(t.total)}
         </span>
       ),
     },
@@ -225,7 +226,7 @@ export const ReportsPage = () => {
       accessor: 'booked',
       render: (t) => (
         <span className="font-semibold text-emerald-700 font-mono">
-          ${t.booked.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {formatCurrency(t.booked)}
         </span>
       ),
     },
@@ -270,7 +271,7 @@ export const ReportsPage = () => {
       accessor: 'grandTotal',
       render: (q) => (
         <span className="font-mono font-bold text-slate-900">
-          ${(q.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {formatCurrency(q.grandTotal || 0)}
         </span>
       ),
     },
@@ -332,61 +333,61 @@ export const ReportsPage = () => {
 
       {/* Platform-Wide Executive Telemetry (if Admin or PlatformOverview available) */}
       {platformOverview && (
-        <div className="p-4 rounded-xl border border-indigo-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-700">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-indigo-400" /> Platform-Wide Executive Revenue Run-Rate
+        <div className="p-5 rounded-xl border border-slate-200/80 bg-white shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-blue-600" /> Platform-Wide Executive Revenue Run-Rate
             </span>
-            <span className="text-[11px] text-slate-400">Database Ground Truth · Real Aggregations</span>
+            <span className="text-[11px] text-slate-400 font-medium">Database Ground Truth · Real Aggregations</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/80">
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Total Quoted</span>
-              <div className="text-base font-bold text-white font-mono mt-0.5">
-                ${(platformOverview.totalQuotedRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+            <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[10px] uppercase font-semibold text-slate-500 block">Total Quoted</span>
+              <div className="text-base font-bold text-slate-900 font-mono mt-0.5">
+                {formatCurrency(platformOverview.totalQuotedRevenue || 0)}
               </div>
-              <span className="text-[10px] text-slate-400">{platformOverview.totalQuotations} quotes</span>
+              <span className="text-[10px] text-slate-500">{platformOverview.totalQuotations} quotes</span>
             </div>
 
-            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/80">
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Total Booked</span>
-              <div className="text-base font-bold text-emerald-400 font-mono mt-0.5">
-                ${(platformOverview.totalBookedRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+            <div className="p-3 rounded-lg bg-emerald-50/50 border border-emerald-100">
+              <span className="text-[10px] uppercase font-semibold text-emerald-700 block">Total Booked</span>
+              <div className="text-base font-bold text-emerald-800 font-mono mt-0.5">
+                {formatCurrency(platformOverview.totalBookedRevenue || 0)}
               </div>
-              <span className="text-[10px] text-emerald-300/80">{platformOverview.totalOrders} sale orders</span>
+              <span className="text-[10px] text-emerald-600 font-medium">{platformOverview.totalOrders} sale orders</span>
             </div>
 
-            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/80">
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Invoiced / Collected</span>
-              <div className="text-base font-bold text-blue-300 font-mono mt-0.5">
-                ${(platformOverview.totalCollectedRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+            <div className="p-3 rounded-lg bg-blue-50/50 border border-blue-100">
+              <span className="text-[10px] uppercase font-semibold text-blue-700 block">Invoiced / Collected</span>
+              <div className="text-base font-bold text-blue-900 font-mono mt-0.5">
+                {formatCurrency(platformOverview.totalCollectedRevenue || 0)}
               </div>
-              <span className="text-[10px] text-slate-400">${(platformOverview.totalInvoicedRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })} invoiced</span>
+              <span className="text-[10px] text-blue-600">{formatCurrency(platformOverview.totalInvoicedRevenue || 0)} invoiced</span>
             </div>
 
-            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/80">
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Monthly Recurring (MRR)</span>
-              <div className="text-base font-bold text-purple-300 font-mono mt-0.5">
-                ${(platformOverview.monthlyRecurringRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+            <div className="p-3 rounded-lg bg-purple-50/50 border border-purple-100">
+              <span className="text-[10px] uppercase font-semibold text-purple-700 block">Monthly Recurring (MRR)</span>
+              <div className="text-base font-bold text-purple-900 font-mono mt-0.5">
+                {formatCurrency(platformOverview.monthlyRecurringRevenue || 0)}
               </div>
-              <span className="text-[10px] text-purple-200/80">${(platformOverview.annualRecurringRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 0 })} ARR</span>
+              <span className="text-[10px] text-purple-600">{formatCurrency(platformOverview.annualRecurringRevenue || 0)} ARR</span>
             </div>
 
-            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/80">
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">At-Risk Deals</span>
-              <div className="text-base font-bold text-rose-400 font-mono mt-0.5">
+            <div className="p-3 rounded-lg bg-rose-50/50 border border-rose-100">
+              <span className="text-[10px] uppercase font-semibold text-rose-700 block">At-Risk Deals</span>
+              <div className="text-base font-bold text-rose-800 font-mono mt-0.5">
                 {platformOverview.atRiskDealsCount}
               </div>
-              <span className="text-[10px] text-rose-300/80">Risk Score &gt; 50</span>
+              <span className="text-[10px] text-rose-600 font-medium">Risk Score &gt; 50</span>
             </div>
 
-            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/80">
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Backorders &amp; Depots</span>
-              <div className="text-base font-bold text-amber-300 font-mono mt-0.5">
-                {platformOverview.backordersCount ?? platformOverview.openBackordersCount ?? 0} <span className="text-xs font-normal text-slate-400">BOs</span>
+            <div className="p-3 rounded-lg bg-amber-50/50 border border-amber-100">
+              <span className="text-[10px] uppercase font-semibold text-amber-800 block">Backorders &amp; Depots</span>
+              <div className="text-base font-bold text-amber-900 font-mono mt-0.5">
+                {platformOverview.backordersCount ?? platformOverview.openBackordersCount ?? 0} <span className="text-xs font-normal text-amber-700">BOs</span>
               </div>
-              <span className="text-[10px] text-slate-400">{platformOverview.totalWarehouses} warehouses</span>
+              <span className="text-[10px] text-amber-700">{platformOverview.totalWarehouses} warehouses</span>
             </div>
           </div>
         </div>
@@ -488,14 +489,14 @@ export const ReportsPage = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <MetricCard
           label="Filtered Volume"
-          value={`$${filteredMetrics.totalQuoted.toLocaleString('en-US', { minimumFractionDigits: 0 })}`}
-          icon={DollarSign}
+          value={formatCurrency(filteredMetrics.totalQuoted)}
+          icon={IndianRupee}
           variant="indigo"
           description={`${filteredMetrics.totalCount} Matching Proposals`}
         />
         <MetricCard
           label="Filtered Booked"
-          value={`$${filteredMetrics.totalBooked.toLocaleString('en-US', { minimumFractionDigits: 0 })}`}
+          value={formatCurrency(filteredMetrics.totalBooked)}
           icon={TrendingUp}
           variant="emerald"
           description={`${filteredMetrics.ordersCount} Confirmed Orders`}

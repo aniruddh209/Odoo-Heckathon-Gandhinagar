@@ -10,13 +10,13 @@ public class DiscountRule
 
     public int? CategoryId { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal MaxDiscountPercent { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal ManagerThreshold { get; set; }
 
-    [Column(TypeName = "decimal(5,2)")]
+    [Column(TypeName = "decimal(18,4)")]
     public decimal FinanceThreshold { get; set; }
 
     public bool IsActive { get; set; } = true;
