@@ -88,7 +88,7 @@ The system utilizes **Microsoft SQL Server 2022** with Entity Framework Core cod
 erDiagram
     CUSTOMER_TIER ||--o{ CUSTOMER : "categorizes"
     CUSTOMER ||--o{ QUOTATION : "places"
-    USER ||--o{ QUOTATION : "manages (SalesRep)"
+    USER ||--o{ QUOTATION : "manages"
     SALES_TEAM ||--o{ USER : "groups"
     
     QUOTATION ||--|{ QUOTATION_LINE : "contains"
@@ -170,7 +170,7 @@ sequenceDiagram
         API->>DB: Update Status -> Approved
     else Auto-Approved
         API->>DB: Update Status -> Approved
-    fi
+    end
 
     Rep->>API: POST /api/Quotations/{id}/send-to-customer
     API-->>Cust: Generates Portal Access Token & URL
@@ -184,7 +184,7 @@ sequenceDiagram
         API->>DB: Create WarehouseSplit (Status: Allocated)
     else Partial Stockout
         API->>DB: Create WarehouseSplit + Backorder Record
-    fi
+    end
     
     API->>API: Trigger Hybrid Billing Engine
     API->>DB: Generate BillingSchedule & Invoices
