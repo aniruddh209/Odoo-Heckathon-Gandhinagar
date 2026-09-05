@@ -110,12 +110,22 @@ public class CustomerService : ICustomerService
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
 
+            int effectiveTierId = request.TierId;
+            if (effectiveTierId <= 0)
+            {
+                var defaultBronze = await _context.CustomerTiers
+                    .Where(t => t.Name == "Bronze")
+                    .FirstOrDefaultAsync()
+                    ?? await _context.CustomerTiers.OrderBy(t => t.MaxDiscountPercent).FirstOrDefaultAsync();
+                effectiveTierId = defaultBronze?.Id ?? 1;
+            }
+
             var customer = new Customer
             {
                 Name = request.Name.Trim(),
                 Email = request.Email?.Trim(),
                 Phone = request.Phone?.Trim(),
-                TierId = request.TierId,
+                TierId = effectiveTierId,
                 CurrencyCode = string.IsNullOrWhiteSpace(request.CurrencyCode) ? "USD" : request.CurrencyCode.Trim().ToUpper(),
                 IsActive = true,
                 CreatedAtUtc = DateTime.UtcNow

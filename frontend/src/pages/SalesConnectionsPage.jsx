@@ -463,20 +463,20 @@ export const SalesConnectionsPage = () => {
                 <Button
                   variant="primary"
                   size="xs"
-                  icon={Phone}
-                  onClick={() => triggerContactModal(r)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                  icon={FileText}
+                  onClick={() => handleOpenInQuoteBuilder(r)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
                 >
-                  Contact
+                  Generate Quote
                 </Button>
                 <Button
                   variant="secondary"
                   size="xs"
-                  icon={FileText}
-                  onClick={() => handleOpenInQuoteBuilder(r)}
-                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs"
+                  icon={Phone}
+                  onClick={() => triggerContactModal(r)}
+                  className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-semibold text-xs"
                 >
-                  Generate Quote
+                  Contact
                 </Button>
               </>
             )}
@@ -575,34 +575,34 @@ export const SalesConnectionsPage = () => {
 
       {error && <ErrorAlert message={error} onRetry={loadData} />}
 
-      {/* KPI Metric Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* KPI Metric Summary Cards - Clickable Interactive Filters */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <button
           type="button"
           onClick={() => { setStatusFilter('ALL'); setPage(1); }}
-          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+          className={`p-3.5 rounded-xl text-left border transition-all cursor-pointer ${
             statusFilter === 'ALL'
-              ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'
+              ? 'bg-blue-50/70 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
               : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Total Inquiries</span>
+            <span>Total Requests</span>
             <UserCheck className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-black text-slate-900 mt-2 tracking-tight">
             {summary.total}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">All assigned requests</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">All assigned</p>
         </button>
 
         <button
           type="button"
           onClick={() => { setStatusFilter('Pending'); setPage(1); }}
-          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+          className={`p-3.5 rounded-xl text-left border transition-all cursor-pointer ${
             statusFilter === 'Pending'
-              ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-amber-200 shadow-xs'
+              ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-500/30 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-amber-300 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
@@ -617,11 +617,30 @@ export const SalesConnectionsPage = () => {
 
         <button
           type="button"
+          onClick={() => { setStatusFilter('Accepted'); setPage(1); }}
+          className={`p-3.5 rounded-xl text-left border transition-all cursor-pointer ${
+            statusFilter === 'Accepted'
+              ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/30 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-emerald-300 shadow-xs'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+            <span>Accepted</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-black text-emerald-600 mt-2 tracking-tight">
+            {summary.accepted}
+          </div>
+          <p className="text-[11px] text-emerald-700/80 mt-0.5 font-medium">Ready to quote</p>
+        </button>
+
+        <button
+          type="button"
           onClick={() => { setStatusFilter('Contacted'); setPage(1); }}
-          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
-            statusFilter === 'Contacted' || statusFilter === 'Accepted'
-              ? 'bg-blue-50/60 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-blue-200 shadow-xs'
+          className={`p-3.5 rounded-xl text-left border transition-all cursor-pointer ${
+            statusFilter === 'Contacted'
+              ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/30 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-blue-300 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
@@ -629,18 +648,18 @@ export const SalesConnectionsPage = () => {
             <MessageSquare className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-black text-blue-600 mt-2 tracking-tight">
-            {summary.contacted + summary.accepted}
+            {summary.contacted}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Customer dialogue open</p>
+          <p className="text-[11px] text-blue-700/80 mt-0.5 font-medium">Outreach open</p>
         </button>
 
         <button
           type="button"
           onClick={() => { setStatusFilter('Qualified'); setPage(1); }}
-          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+          className={`p-3.5 rounded-xl text-left border transition-all cursor-pointer ${
             statusFilter === 'Qualified'
-              ? 'bg-indigo-50/60 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-indigo-200 shadow-xs'
+              ? 'bg-indigo-50/80 border-indigo-400 ring-2 ring-indigo-500/30 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-indigo-300 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
@@ -650,26 +669,26 @@ export const SalesConnectionsPage = () => {
           <div className="text-2xl font-black text-indigo-600 mt-2 tracking-tight">
             {summary.qualified}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Ready for pricing</p>
+          <p className="text-[11px] text-indigo-700/80 mt-0.5 font-medium">Scope verified</p>
         </button>
 
         <button
           type="button"
           onClick={() => { setStatusFilter('QuoteCreated'); setPage(1); }}
-          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+          className={`p-3.5 rounded-xl text-left border transition-all cursor-pointer ${
             statusFilter === 'QuoteCreated' || statusFilter === 'Converted'
-              ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-emerald-200 shadow-xs'
+              ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-500/30 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-purple-300 shadow-xs'
           }`}
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
             <span>Quoted &amp; Won</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <FileText className="w-4 h-4 text-purple-600" />
           </div>
-          <div className="text-2xl font-black text-emerald-600 mt-2 tracking-tight">
+          <div className="text-2xl font-black text-purple-600 mt-2 tracking-tight">
             {summary.quoteCreated + summary.converted}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Commercial proposals active</p>
+          <p className="text-[11px] text-purple-700/80 mt-0.5 font-medium">Proposals live</p>
         </button>
       </div>
 

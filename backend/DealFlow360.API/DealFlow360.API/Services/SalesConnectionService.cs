@@ -271,9 +271,20 @@ public class SalesConnectionService : ISalesConnectionService
             query = query.Where(r => r.SalesRepresentativeId == userId);
         }
 
-        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<SalesConnectionStatus>(status, true, out var parsedStatus))
+        if (!string.IsNullOrWhiteSpace(status) && !status.Equals("ALL", StringComparison.OrdinalIgnoreCase))
         {
-            query = query.Where(r => r.Status == parsedStatus);
+            if (status.Equals("InProgress", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == SalesConnectionStatus.Accepted || r.Status == SalesConnectionStatus.Contacted);
+            }
+            else if (status.Equals("Quoted", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == SalesConnectionStatus.QuoteCreated || r.Status == SalesConnectionStatus.Converted);
+            }
+            else if (Enum.TryParse<SalesConnectionStatus>(status, true, out var parsedStatus))
+            {
+                query = query.Where(r => r.Status == parsedStatus);
+            }
         }
 
         if (companyId.HasValue)
@@ -365,7 +376,15 @@ public class SalesConnectionService : ISalesConnectionService
 
         if (!string.IsNullOrWhiteSpace(status) && !status.Equals("ALL", StringComparison.OrdinalIgnoreCase))
         {
-            if (Enum.TryParse<SalesConnectionStatus>(status, true, out var parsedStatus))
+            if (status.Equals("InProgress", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == SalesConnectionStatus.Accepted || r.Status == SalesConnectionStatus.Contacted);
+            }
+            else if (status.Equals("Quoted", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == SalesConnectionStatus.QuoteCreated || r.Status == SalesConnectionStatus.Converted);
+            }
+            else if (Enum.TryParse<SalesConnectionStatus>(status, true, out var parsedStatus))
             {
                 query = query.Where(r => r.Status == parsedStatus);
             }

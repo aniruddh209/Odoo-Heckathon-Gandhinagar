@@ -167,6 +167,36 @@ public class QuotationService : IQuotationService
             await RecalculateAndSaveQuotationAsync(quotation);
         }
 
+        // Auto-link Sales Inquiry if specified directly or referenced in notes
+        string? targetInquiryRef = request.InquiryRequestNumber;
+        if (string.IsNullOrWhiteSpace(targetInquiryRef) && !string.IsNullOrWhiteSpace(request.Notes))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(request.Notes, @"(SCR-\d{8}-[A-F0-9]{6})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                targetInquiryRef = match.Value;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetInquiryRef))
+        {
+            var inquiry = await _context.SalesConnectionRequests
+                .FirstOrDefaultAsync(r => r.RequestNumber == targetInquiryRef);
+            if (inquiry != null)
+            {
+                inquiry.QuotationId = quotation.Id;
+                inquiry.Status = SalesConnectionStatus.QuoteCreated;
+                inquiry.UpdatedAtUtc = DateTime.UtcNow;
+
+                // Move quotation status from Draft to Sent so customer can immediately view and act upon it in Customer Portal
+                quotation.Status = QuoteStatus.Sent;
+                quotation.UpdatedAtUtc = DateTime.UtcNow;
+                _context.Quotations.Update(quotation);
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
         return await GetQuotationByIdAsync(quotation.Id);
     }
 

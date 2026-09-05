@@ -9,6 +9,7 @@ public class CreateQuotationRequest
     public string CurrencyCode { get; set; } = "INR";
     public DateTime? ExpectedCloseDate { get; set; }
     public string? Notes { get; set; }
+    public string? InquiryRequestNumber { get; set; }
     public List<AddLineRequest>? Lines { get; set; }
 }
 

@@ -18,6 +18,8 @@ import {
   CheckCircle2,
   ShieldAlert,
   ArrowRight,
+  Package,
+  Percent,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 
@@ -87,11 +89,15 @@ export const QuotationBuilderPage = () => {
         if (matchedCust?.currencyCode) {
           setCurrencyCode(matchedCust.currencyCode);
         }
+        const autoTier = Number(matchedCust?.tierMaxDiscount ?? matchedCust?.maxDiscountPercent ?? 5);
+        setOrderDiscountPercent(autoTier.toString());
       } else if (custList.length > 0) {
         setSelectedCustomerId(custList[0].id.toString());
         if (custList[0]?.currencyCode) {
           setCurrencyCode(custList[0].currencyCode);
         }
+        const autoTier = Number(custList[0]?.tierMaxDiscount ?? custList[0]?.maxDiscountPercent ?? 5);
+        setOrderDiscountPercent(autoTier.toString());
       }
 
       if (paramProdId) {
@@ -136,6 +142,17 @@ export const QuotationBuilderPage = () => {
   );
 
   const tierLimit = Number(selectedCustomer?.tierMaxDiscount ?? selectedCustomer?.maxDiscountPercent ?? 15);
+
+  const handleCustomerChange = (customerId) => {
+    setSelectedCustomerId(customerId);
+    const cust = customers.find((c) => c.id === parseInt(customerId, 10));
+    if (cust) {
+      if (cust.currencyCode) setCurrencyCode(cust.currencyCode);
+      const tierDisc = Number(cust.tierMaxDiscount ?? cust.maxDiscountPercent ?? 5);
+      setOrderDiscountPercent(tierDisc.toString());
+      toast.info('Tier Advantage Applied', `${tierDisc}% ${cust.tierName || 'Bronze'} Tier advantage automatically applied for ${cust.name}.`);
+    }
+  };
 
   const handleApplyTierAdvantage = (percent) => {
     const val = Number(percent) || 0;
@@ -246,6 +263,7 @@ export const QuotationBuilderPage = () => {
       const payload = {
         customerId: parseInt(selectedCustomerId, 10),
         currencyCode: currencyCode,
+        inquiryRequestNumber: searchParams.get('inquiryId') || undefined,
         expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate).toISOString() : null,
         notes: notes.trim() || null,
         lines: lines.map((l) => {
@@ -332,7 +350,7 @@ export const QuotationBuilderPage = () => {
                 required
                 searchable
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                onChange={(e) => handleCustomerChange(e.target.value)}
                 options={customers.map((c) => ({
                   value: c.id,
                   label: `${c.name} (${c.tierName || 'Standard'} Tier)`,
@@ -417,11 +435,18 @@ export const QuotationBuilderPage = () => {
 
           {/* Section 2: Products & Line Items */}
           <div className="p-5 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-600" />
-                2. Products &amp; Deliverables ({lines.length})
-              </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-50 text-blue-600 rounded-md">
+                    <Package className="w-4 h-4" />
+                  </div>
+                  Products &amp; Deliverables
+                  <span className="ml-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+                    {lines.length} {lines.length === 1 ? 'Item' : 'Items'}
+                  </span>
+                </h2>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -566,17 +591,23 @@ export const QuotationBuilderPage = () => {
 
             {/* Overall Manual Deal Discount Control */}
             {lines.length > 0 && (
-              <div className="p-4 bg-slate-50/90 rounded-xl border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-800">
-                    Overall Proposal Discount (%)
-                  </label>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Apply blanket manual commercial discount across all proposal deliverables or use Tier Advantage above.
-                  </p>
+              <div className="mt-6 p-5 bg-gradient-to-r from-slate-50 to-white rounded-xl border border-slate-200/80 shadow-[0_4px_12px_-4px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row sm:items-center justify-between gap-5 group hover:border-slate-300 transition-colors">
+                <div className="flex items-start gap-3.5">
+                  <div className="mt-0.5 p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0 border border-blue-100/50 shadow-xs">
+                    <Percent className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900">
+                      Overall Proposal Discount
+                    </label>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-sm">
+                      Apply a blanket manual commercial discount across all proposal deliverables, or utilize the automated Tier Advantage above.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative flex items-center">
+                
+                <div className="flex items-center gap-4 bg-white p-2 rounded-xl border border-slate-100 shadow-xs">
+                  <div className="relative flex items-center group/input">
                     <input
                       type="number"
                       step="0.5"
@@ -585,25 +616,63 @@ export const QuotationBuilderPage = () => {
                       value={orderDiscountPercent}
                       onChange={(e) => setOrderDiscountPercent(e.target.value)}
                       placeholder="0.0"
-                      className={`w-28 h-9 px-3 text-center text-xs font-mono font-bold rounded-lg border focus:outline-none focus:ring-2 ${
+                      className={`w-28 h-10 pl-4 pr-7 text-right text-sm font-mono font-bold rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 ${
                         orderDiscPct > tierLimit
-                          ? 'border-amber-400 bg-amber-50 text-amber-900 focus:ring-amber-500'
-                          : 'border-slate-300 bg-white focus:ring-blue-500'
+                          ? 'border-amber-300 bg-amber-50/30 text-amber-900 focus:ring-amber-500/30 focus:border-amber-500'
+                          : 'border-slate-200 bg-slate-50/50 hover:bg-white text-slate-900 focus:ring-blue-500/20 focus:border-blue-500'
                       }`}
                     />
-                    <span className="ml-2 text-xs font-bold text-slate-600">%</span>
+                    <span className={`absolute right-3 text-xs font-bold ${orderDiscPct > tierLimit ? 'text-amber-600' : 'text-slate-400'}`}>%</span>
                   </div>
+                  
                   {orderDiscPct > 0 && (
-                    <span
-                      className={`text-[11px] font-semibold px-2 py-1 rounded-md border ${
-                        orderDiscPct <= tierLimit
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-amber-50 text-amber-900 border-amber-300'
-                      }`}
-                    >
-                      {orderDiscPct <= tierLimit ? '✓ Auto-Approved' : '⚠ Escalation'}
-                    </span>
+                    <div className="w-32 flex justify-center">
+                      <span
+                        className={`flex items-center justify-center gap-1.5 w-full text-[11px] font-bold px-2.5 py-1.5 rounded-lg border shadow-2xs transition-all ${
+                          orderDiscPct <= tierLimit
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                            : 'bg-amber-50 text-amber-700 border-amber-300/60'
+                        }`}
+                      >
+                        {orderDiscPct <= tierLimit ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Auto-Approved
+                          </>
+                        ) : (
+                          <>
+                            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                            Escalation
+                          </>
+                        )}
+                      </span>
+                    </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Real-Time Applied Tier Discount Notification Banner */}
+            {lines.length > 0 && orderDiscPct > 0 && (
+              <div className="p-3.5 bg-emerald-50/90 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-950 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold text-emerald-900">
+                      {selectedCustomer?.tierName || 'Bronze'} Tier Advantage Applied:
+                    </span>{' '}
+                    <span className="text-emerald-800">
+                      {orderDiscPct}% standard customer discount pre-applied ({formatCurrency(overallOrderDiscount, currencyCode)} savings).
+                    </span>
+                    {orderDiscPct <= tierLimit ? (
+                      <span className="text-emerald-700 ml-1 font-semibold">✓ Pre-approved within customer tier ceiling.</span>
+                    ) : (
+                      <span className="text-amber-700 ml-1 font-semibold">⚠ Exceeds {tierLimit}% tier limit (requires Manager escalation).</span>
+                    )}
+                  </div>
+                </div>
+                <div className="font-mono font-black text-emerald-700 text-sm shrink-0">
+                  -{formatCurrency(overallOrderDiscount, currencyCode)}
                 </div>
               </div>
             )}
@@ -638,6 +707,16 @@ export const QuotationBuilderPage = () => {
                 <span>Subtotal ({lines.length} lines)</span>
                 <span className="font-mono text-slate-800">{formatCurrency(subTotal, currencyCode)}</span>
               </div>
+
+              {discountTotal > 0 && (
+                <div className="flex justify-between text-xs text-emerald-700 bg-emerald-50/80 p-2 rounded-lg border border-emerald-200">
+                  <span className="flex items-center gap-1 font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    {selectedCustomer?.tierName || 'Bronze'} Tier Discount ({orderDiscPct}%):
+                  </span>
+                  <span className="font-mono font-bold text-emerald-700">-{formatCurrency(discountTotal, currencyCode)}</span>
+                </div>
+              )}
 
               <div className="flex justify-between text-slate-500">
                 <span>Commercial Discount</span>
