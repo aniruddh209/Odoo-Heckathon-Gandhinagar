@@ -144,7 +144,9 @@ public class SalesConnectionService : ISalesConnectionService
 
     public async Task<SalesConnectionResponse> CreateConnectionRequestAsync(int customerId, CreateSalesConnectionRequestDto dto)
     {
-        var customer = await _context.Customers.FindAsync(customerId);
+        var customer = await _context.Customers
+            .Include(c => c.Tier)
+            .FirstOrDefaultAsync(c => c.Id == customerId);
         if (customer == null || !customer.IsActive)
         {
             throw new KeyNotFoundException("Active customer organization not found.");
@@ -244,7 +246,7 @@ public class SalesConnectionService : ISalesConnectionService
     public async Task<List<SalesConnectionResponse>> GetCustomerRequestsAsync(int customerId)
     {
         return await _context.SalesConnectionRequests
-            .Include(r => r.Customer)
+            .Include(r => r.Customer).ThenInclude(c => c.Tier)
             .Include(r => r.Company)
             .Include(r => r.Product)
             .Include(r => r.SalesRepresentative)
@@ -258,7 +260,7 @@ public class SalesConnectionService : ISalesConnectionService
     public async Task<List<SalesConnectionResponse>> GetRepRequestsAsync(int userId, Role role, string? status = null, int? companyId = null)
     {
         var query = _context.SalesConnectionRequests
-            .Include(r => r.Customer)
+            .Include(r => r.Customer).ThenInclude(c => c.Tier)
             .Include(r => r.Company)
             .Include(r => r.Product)
             .Include(r => r.SalesRepresentative)
@@ -362,7 +364,7 @@ public class SalesConnectionService : ISalesConnectionService
         int pageSize = 20)
     {
         var query = _context.SalesConnectionRequests
-            .Include(r => r.Customer)
+            .Include(r => r.Customer).ThenInclude(c => c.Tier)
             .Include(r => r.Company)
             .Include(r => r.Product)
             .Include(r => r.SalesRepresentative)
@@ -757,7 +759,7 @@ public class SalesConnectionService : ISalesConnectionService
     public async Task<CreateQuoteFromConnectionResponse> CreateQuoteFromConnectionAsync(int id, int userId, Role role)
     {
         var connection = await _context.SalesConnectionRequests
-            .Include(r => r.Customer)
+            .Include(r => r.Customer).ThenInclude(c => c.Tier)
             .Include(r => r.Product)
             .Include(r => r.Company)
             .Include(r => r.SalesRepresentative)
@@ -795,13 +797,17 @@ public class SalesConnectionService : ISalesConnectionService
             }
         }
 
+        decimal tierDiscount = connection.Customer?.Tier?.MaxDiscountPercent ?? 5.00m;
+        string tierName = connection.Customer?.Tier?.Name ?? "Bronze";
+
         // Build CreateQuotationRequest
         var createQuoteReq = new CreateQuotationRequest
         {
             CustomerId = connection.CustomerId,
-            CurrencyCode = connection.Customer.CurrencyCode ?? "INR",
+            CurrencyCode = connection.Customer?.CurrencyCode ?? "INR",
             ExpectedCloseDate = DateTime.UtcNow.AddDays(30),
-            Notes = $"Generated from Inquiry #{connection.RequestNumber} ({connection.Company.Name} - {connection.Product.Name}). Customer note: {connection.CustomerMessage}",
+            InquiryRequestNumber = connection.RequestNumber,
+            Notes = $"Generated from Inquiry #{connection.RequestNumber} ({connection.Company.Name} - {connection.Product.Name}). Customer {tierName} Tier Advantage ({tierDiscount}% discount pre-applied). Note: {connection.CustomerMessage}",
             Lines = new List<AddLineRequest>
             {
                 new()
@@ -809,7 +815,7 @@ public class SalesConnectionService : ISalesConnectionService
                     ProductId = connection.ProductId,
                     Quantity = connection.RequestedQuantity > 0 ? connection.RequestedQuantity : 1,
                     UnitPrice = connection.Product.BasePrice,
-                    DiscountPercent = 0.00m
+                    DiscountPercent = tierDiscount
                 }
             }
         };
@@ -1123,6 +1129,8 @@ public class SalesConnectionService : ISalesConnectionService
             CustomerId = r.CustomerId,
             CustomerName = customer.Name,
             CustomerEmail = customer.Email,
+            CustomerTierName = customer.Tier != null ? customer.Tier.Name : "Bronze",
+            TierDiscountPercent = customer.Tier != null ? customer.Tier.MaxDiscountPercent : 5.00m,
             CompanyId = r.CompanyId,
             CompanyName = company.Name,
             ProductId = r.ProductId,
@@ -1158,6 +1166,8 @@ public class SalesConnectionService : ISalesConnectionService
             CustomerId = r.CustomerId,
             CustomerName = r.Customer.Name,
             CustomerEmail = r.Customer.Email,
+            CustomerTierName = r.Customer.Tier != null ? r.Customer.Tier.Name : "Bronze",
+            TierDiscountPercent = r.Customer.Tier != null ? r.Customer.Tier.MaxDiscountPercent : 5.00m,
             CompanyId = r.CompanyId,
             CompanyName = r.Company.Name,
             ProductId = r.ProductId,

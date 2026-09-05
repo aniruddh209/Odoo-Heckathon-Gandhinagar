@@ -83,35 +83,37 @@ export const QuotationBuilderPage = () => {
       const paramInquiryId = searchParams.get('inquiryId');
       const paramNotes = searchParams.get('notes');
 
+      let autoTierDiscount = 5;
       if (paramCustId && custList.some((c) => c.id === parseInt(paramCustId, 10))) {
         setSelectedCustomerId(paramCustId);
         const matchedCust = custList.find((c) => c.id === parseInt(paramCustId, 10));
         if (matchedCust?.currencyCode) {
           setCurrencyCode(matchedCust.currencyCode);
         }
-        const autoTier = Number(matchedCust?.tierMaxDiscount ?? matchedCust?.maxDiscountPercent ?? 5);
-        setOrderDiscountPercent(autoTier.toString());
+        autoTierDiscount = Number(matchedCust?.tierMaxDiscount ?? matchedCust?.maxDiscountPercent ?? 5);
+        setOrderDiscountPercent(autoTierDiscount.toString());
       } else if (custList.length > 0) {
         setSelectedCustomerId(custList[0].id.toString());
         if (custList[0]?.currencyCode) {
           setCurrencyCode(custList[0].currencyCode);
         }
-        const autoTier = Number(custList[0]?.tierMaxDiscount ?? custList[0]?.maxDiscountPercent ?? 5);
-        setOrderDiscountPercent(autoTier.toString());
+        autoTierDiscount = Number(custList[0]?.tierMaxDiscount ?? custList[0]?.maxDiscountPercent ?? 5);
+        setOrderDiscountPercent(autoTierDiscount.toString());
       }
 
       if (paramProdId) {
         const pId = parseInt(paramProdId, 10);
         const matchedProd = prodList.find((p) => p.id === pId);
         if (matchedProd) {
+          const basePrice = matchedProd.basePrice || 0;
           setLines([
             {
               productId: matchedProd.id,
               variantId: '',
               quantity: paramQty,
-              unitPrice: matchedProd.basePrice || 0,
-              discountPercent: 0,
-              discountAmount: 0,
+              unitPrice: basePrice,
+              discountPercent: autoTierDiscount,
+              discountAmount: (basePrice * paramQty * autoTierDiscount) / 100,
             },
           ]);
         }
@@ -150,6 +152,12 @@ export const QuotationBuilderPage = () => {
       if (cust.currencyCode) setCurrencyCode(cust.currencyCode);
       const tierDisc = Number(cust.tierMaxDiscount ?? cust.maxDiscountPercent ?? 5);
       setOrderDiscountPercent(tierDisc.toString());
+      setLines((prev) =>
+        prev.map((l) => ({
+          ...l,
+          discountPercent: tierDisc,
+        }))
+      );
       toast.info('Tier Advantage Applied', `${tierDisc}% ${cust.tierName || 'Bronze'} Tier advantage automatically applied for ${cust.name}.`);
     }
   };
@@ -157,11 +165,17 @@ export const QuotationBuilderPage = () => {
   const handleApplyTierAdvantage = (percent) => {
     const val = Number(percent) || 0;
     setOrderDiscountPercent(val.toString());
+    setLines((prev) =>
+      prev.map((l) => ({
+        ...l,
+        discountPercent: val,
+      }))
+    );
     toast.success('Tier Advantage Applied', `${val}% ${selectedCustomer?.tierName || ''} Tier discount advantage activated.`);
   };
 
   const handleResetDiscounts = () => {
-    setOrderDiscountPercent('');
+    setOrderDiscountPercent('0');
     setLines((prev) => prev.map((l) => ({ ...l, discountPercent: 0 })));
     toast.info('Discounts Reset', 'All manual and tier discounts have been reset to 0%.');
   };
@@ -169,6 +183,7 @@ export const QuotationBuilderPage = () => {
   const handleAddBlankLine = () => {
     if (products.length === 0) return;
     const defaultProduct = products[0];
+    const currentTierDiscount = Number(selectedCustomer?.tierMaxDiscount ?? selectedCustomer?.maxDiscountPercent ?? 5);
     setLines((prev) => [
       ...prev,
       {
@@ -176,7 +191,7 @@ export const QuotationBuilderPage = () => {
         variantId: '',
         quantity: 1,
         unitPrice: defaultProduct.basePrice || 0,
-        discountPercent: 0,
+        discountPercent: currentTierDiscount,
       },
     ]);
   };
@@ -317,14 +332,18 @@ export const QuotationBuilderPage = () => {
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-bold text-xs">Auto-Populated from Sales Inquiry</span>
                 <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-200/80 text-emerald-900">
                   #{searchParams.get('inquiryId')}
                 </span>
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1">
+                  <span>{selectedCustomer?.tierName || 'Bronze'} Tier Advantage</span>
+                  <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full">{tierLimit}% Discount Pre-Applied</span>
+                </span>
               </div>
-              <p className="text-xs text-emerald-800 mt-0.5">
-                Customer account, requested product deliverables, and inquiry notes pre-filled. Customize manual discounts or activate customer tier advantage below.
+              <p className="text-xs text-emerald-800 mt-1">
+                Customer account ({selectedCustomer?.name || 'Selected Customer'}), requested products, and <strong>{selectedCustomer?.tierName || 'Bronze'} Tier ({tierLimit}% Pre-Approved Discount)</strong> are automatically selected and applied.
               </p>
             </div>
           </div>
@@ -618,12 +637,17 @@ export const QuotationBuilderPage = () => {
                       min="0"
                       max="100"
                       value={orderDiscountPercent}
-                      readOnly
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setOrderDiscountPercent(val);
+                        const num = parseFloat(val) || 0;
+                        setLines((prev) => prev.map((l) => ({ ...l, discountPercent: num })));
+                      }}
                       placeholder="0.0"
-                      className={`w-28 h-10 pl-4 pr-7 text-right text-sm font-mono font-bold rounded-lg border cursor-not-allowed transition-all duration-200 focus:outline-none ${
+                      className={`w-28 h-10 pl-4 pr-7 text-right text-sm font-mono font-bold rounded-lg border transition-all duration-200 focus:outline-none bg-white ${
                         orderDiscPct > tierLimit
-                          ? 'border-amber-200 bg-amber-50/50 text-amber-800'
-                          : 'border-slate-100 bg-slate-50 text-slate-600'
+                          ? 'border-amber-300 bg-amber-50/50 text-amber-900 focus:ring-2 focus:ring-amber-500/20'
+                          : 'border-slate-200 text-slate-900 focus:ring-2 focus:ring-blue-500/20'
                       }`}
                     />
                     <span className={`absolute right-3 text-xs font-bold ${orderDiscPct > tierLimit ? 'text-amber-600' : 'text-slate-400'}`}>%</span>

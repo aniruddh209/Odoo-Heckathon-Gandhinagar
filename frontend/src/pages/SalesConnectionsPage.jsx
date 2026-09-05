@@ -382,7 +382,12 @@ export const SalesConnectionsPage = () => {
       accessor: 'customerName',
       render: (r) => (
         <div>
-          <span className="font-semibold text-xs text-slate-900 block">{r.customerName}</span>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="font-semibold text-xs text-slate-900">{r.customerName}</span>
+            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+              {r.customerTierName || 'Bronze'} ({r.tierDiscountPercent || 5}%)
+            </span>
+          </div>
           <span className="text-[11px] text-slate-500 font-mono block">
             {r.customerEmail || 'Enterprise Client'}
           </span>
@@ -468,6 +473,16 @@ export const SalesConnectionsPage = () => {
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
                 >
                   Generate Quote
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  icon={Zap}
+                  onClick={() => handleCreateQuoteOneClick(r)}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold text-xs"
+                  title="Instant 1-Click Quote with Tier Discount"
+                >
+                  1-Click
                 </Button>
                 <Button
                   variant="secondary"
@@ -1110,6 +1125,17 @@ export const SalesConnectionsPage = () => {
                       className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-xs"
                     >
                       Generate Quotation
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Zap}
+                      disabled={isSubmittingAction}
+                      onClick={() => handleCreateQuoteOneClick(selectedInquiry)}
+                      className="bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-xs font-semibold"
+                      title="Instant 1-Click Quote with Customer Tier Discount"
+                    >
+                      Instant 1-Click Quote
                     </Button>
                     <Button
                       variant="secondary"

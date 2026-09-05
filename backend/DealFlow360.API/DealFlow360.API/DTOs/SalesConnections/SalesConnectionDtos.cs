@@ -184,6 +184,8 @@ public class SalesConnectionResponse
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public string? CustomerEmail { get; set; }
+    public string? CustomerTierName { get; set; }
+    public decimal TierDiscountPercent { get; set; } = 5.00m;
     public int CompanyId { get; set; }
     public string CompanyName { get; set; } = string.Empty;
     public int ProductId { get; set; }
