@@ -39,6 +39,8 @@ public class SalesConnectionRequest
     [MaxLength(500)]
     public string? RejectionReason { get; set; }
 
+    public DateTime? AcceptedAtUtc { get; set; }
+
     public DateTime? ContactedAtUtc { get; set; }
 
     public DateTime? QualifiedAtUtc { get; set; }

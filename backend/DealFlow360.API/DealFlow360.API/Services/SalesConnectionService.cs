@@ -19,7 +19,14 @@ public interface ISalesConnectionService
 
     // Sales Rep & Manager Facing
     Task<List<SalesConnectionResponse>> GetRepRequestsAsync(int userId, Role role, string? status = null, int? companyId = null);
+    Task<SalesInquirySummaryDto> GetInquiriesSummaryAsync(int userId, Role role);
+    Task<PagedSalesInquiriesResult> GetWorkspaceInquiriesPagedAsync(
+        int userId, Role role, string? search = null, string? status = null, int? companyId = null, int? productId = null, string? sortBy = null, int page = 1, int pageSize = 20);
     Task<SalesConnectionResponse> GetRequestByIdAsync(int id, int userId, Role role, int? customerId);
+    Task<SalesConnectionResponse> AcceptInquiryAsync(int id, AcceptInquiryRequest dto, int userId, Role role);
+    Task<SalesConnectionResponse> ContactCustomerAsync(int id, ContactCustomerRequest dto, int userId, Role role);
+    Task<SalesConnectionResponse> QualifyInquiryAsync(int id, QualifyInquiryRequest dto, int userId, Role role);
+    Task<SalesConnectionResponse> RejectInquiryAsync(int id, RejectInquiryRequest dto, int userId, Role role);
     Task<SalesConnectionResponse> UpdateStatusAsync(int id, UpdateSalesConnectionStatusRequest dto, int userId, Role role);
     Task<CreateQuoteFromConnectionResponse> CreateQuoteFromConnectionAsync(int id, int userId, Role role);
 
@@ -278,6 +285,360 @@ public class SalesConnectionService : ISalesConnectionService
             .OrderByDescending(r => r.CreatedAtUtc)
             .Select(MapToResponseExpr)
             .ToListAsync();
+    }
+
+    public async Task<SalesInquirySummaryDto> GetInquiriesSummaryAsync(int userId, Role role)
+    {
+        var query = _context.SalesConnectionRequests.AsNoTracking();
+
+        if (role == Role.SalesRep)
+        {
+            query = query.Where(r => r.SalesRepresentativeId == userId);
+        }
+
+        var counts = await query
+            .GroupBy(r => r.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        var summary = new SalesInquirySummaryDto();
+        foreach (var c in counts)
+        {
+            summary.Total += c.Count;
+            switch (c.Status)
+            {
+                case SalesConnectionStatus.Pending:
+                    summary.New += c.Count;
+                    break;
+                case SalesConnectionStatus.Accepted:
+                    summary.Accepted += c.Count;
+                    summary.InProgress += c.Count;
+                    break;
+                case SalesConnectionStatus.Contacted:
+                    summary.Contacted += c.Count;
+                    summary.InProgress += c.Count;
+                    break;
+                case SalesConnectionStatus.Qualified:
+                    summary.Qualified += c.Count;
+                    break;
+                case SalesConnectionStatus.QuoteCreated:
+                    summary.QuoteCreated += c.Count;
+                    break;
+                case SalesConnectionStatus.Converted:
+                    summary.Converted += c.Count;
+                    break;
+                case SalesConnectionStatus.Rejected:
+                    summary.Rejected += c.Count;
+                    break;
+                case SalesConnectionStatus.Closed:
+                    summary.Closed += c.Count;
+                    break;
+            }
+        }
+
+        return summary;
+    }
+
+    public async Task<PagedSalesInquiriesResult> GetWorkspaceInquiriesPagedAsync(
+        int userId,
+        Role role,
+        string? search = null,
+        string? status = null,
+        int? companyId = null,
+        int? productId = null,
+        string? sortBy = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        var query = _context.SalesConnectionRequests
+            .Include(r => r.Customer)
+            .Include(r => r.Company)
+            .Include(r => r.Product)
+            .Include(r => r.SalesRepresentative)
+            .Include(r => r.Quotation)
+            .AsNoTracking();
+
+        if (role == Role.SalesRep)
+        {
+            query = query.Where(r => r.SalesRepresentativeId == userId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && !status.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Enum.TryParse<SalesConnectionStatus>(status, true, out var parsedStatus))
+            {
+                query = query.Where(r => r.Status == parsedStatus);
+            }
+        }
+
+        if (companyId.HasValue && companyId.Value > 0)
+        {
+            query = query.Where(r => r.CompanyId == companyId.Value);
+        }
+
+        if (productId.HasValue && productId.Value > 0)
+        {
+            query = query.Where(r => r.ProductId == productId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(r =>
+                r.RequestNumber.ToLower().Contains(s) ||
+                r.Customer.Name.ToLower().Contains(s) ||
+                (r.Customer.Email != null && r.Customer.Email.ToLower().Contains(s)) ||
+                r.Company.Name.ToLower().Contains(s) ||
+                r.Product.Name.ToLower().Contains(s) ||
+                r.Product.SKU.ToLower().Contains(s));
+        }
+
+        var totalCount = await query.CountAsync();
+
+        query = sortBy?.ToLower() switch
+        {
+            "oldest" => query.OrderBy(r => r.CreatedAtUtc),
+            "customer" => query.OrderBy(r => r.Customer.Name),
+            "status" => query.OrderBy(r => r.Status).ThenByDescending(r => r.CreatedAtUtc),
+            _ => query.OrderByDescending(r => r.CreatedAtUtc)
+        };
+
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
+
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(MapToResponseExpr)
+            .ToListAsync();
+
+        var summary = await GetInquiriesSummaryAsync(userId, role);
+
+        return new PagedSalesInquiriesResult
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            Summary = summary
+        };
+    }
+
+    public async Task<SalesConnectionResponse> AcceptInquiryAsync(int id, AcceptInquiryRequest dto, int userId, Role role)
+    {
+        var connection = await _context.SalesConnectionRequests
+            .Include(r => r.Customer)
+            .Include(r => r.Company)
+            .Include(r => r.Product)
+            .Include(r => r.SalesRepresentative)
+            .Include(r => r.Quotation)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (connection == null)
+        {
+            throw new KeyNotFoundException($"Sales inquiry #{id} not found.");
+        }
+
+        if (role == Role.SalesRep && connection.SalesRepresentativeId != userId)
+        {
+            throw new UnauthorizedAccessException("You are only authorized to accept inquiries assigned to you.");
+        }
+
+        if (connection.Status != SalesConnectionStatus.Pending)
+        {
+            throw new InvalidOperationException($"Inquiry #{connection.RequestNumber} has already been updated to '{connection.Status}' and cannot be accepted again.");
+        }
+
+        var oldStatus = connection.Status;
+        connection.Status = SalesConnectionStatus.Accepted;
+        connection.AcceptedAtUtc = DateTime.UtcNow;
+        connection.UpdatedAtUtc = DateTime.UtcNow;
+
+        if (!string.IsNullOrWhiteSpace(dto.Notes))
+        {
+            var stamp = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm UTC}] Rep Note: {dto.Notes.Trim()}";
+            connection.RepNotes = string.IsNullOrWhiteSpace(connection.RepNotes)
+                ? stamp
+                : $"{connection.RepNotes}\n{stamp}";
+        }
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = nameof(SalesConnectionRequest),
+            EntityId = connection.Id,
+            Action = "InquiryAccepted",
+            UserId = userId,
+            OldValueJson = oldStatus.ToString(),
+            NewValueJson = SalesConnectionStatus.Accepted.ToString(),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return MapToResponse(connection, connection.Customer, connection.Company, connection.Product, connection.SalesRepresentative.FullName, connection.SalesRepresentative.Email);
+    }
+
+    public async Task<SalesConnectionResponse> ContactCustomerAsync(int id, ContactCustomerRequest dto, int userId, Role role)
+    {
+        var connection = await _context.SalesConnectionRequests
+            .Include(r => r.Customer)
+            .Include(r => r.Company)
+            .Include(r => r.Product)
+            .Include(r => r.SalesRepresentative)
+            .Include(r => r.Quotation)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (connection == null)
+        {
+            throw new KeyNotFoundException($"Sales inquiry #{id} not found.");
+        }
+
+        if (role == Role.SalesRep && connection.SalesRepresentativeId != userId)
+        {
+            throw new UnauthorizedAccessException("You are only authorized to update inquiries assigned to you.");
+        }
+
+        if (connection.Status == SalesConnectionStatus.Rejected || connection.Status == SalesConnectionStatus.Closed)
+        {
+            throw new InvalidOperationException($"Cannot record contact for inquiry #{connection.RequestNumber} in '{connection.Status}' status.");
+        }
+
+        var oldStatus = connection.Status;
+        if (connection.Status == SalesConnectionStatus.Pending || connection.Status == SalesConnectionStatus.Accepted)
+        {
+            connection.Status = SalesConnectionStatus.Contacted;
+        }
+
+        connection.ContactedAtUtc ??= DateTime.UtcNow;
+        connection.UpdatedAtUtc = DateTime.UtcNow;
+
+        var outcomeText = !string.IsNullOrWhiteSpace(dto.Outcome) ? $" (Outcome: {dto.Outcome.Trim()})" : "";
+        var stamp = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm UTC}] Contacted via {dto.ContactMethod}{outcomeText}. Note: {dto.Notes.Trim()}";
+        connection.RepNotes = string.IsNullOrWhiteSpace(connection.RepNotes)
+            ? stamp
+            : $"{connection.RepNotes}\n{stamp}";
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = nameof(SalesConnectionRequest),
+            EntityId = connection.Id,
+            Action = "CustomerContacted",
+            UserId = userId,
+            OldValueJson = oldStatus.ToString(),
+            NewValueJson = connection.Status.ToString(),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return MapToResponse(connection, connection.Customer, connection.Company, connection.Product, connection.SalesRepresentative.FullName, connection.SalesRepresentative.Email);
+    }
+
+    public async Task<SalesConnectionResponse> QualifyInquiryAsync(int id, QualifyInquiryRequest dto, int userId, Role role)
+    {
+        var connection = await _context.SalesConnectionRequests
+            .Include(r => r.Customer)
+            .Include(r => r.Company)
+            .Include(r => r.Product)
+            .Include(r => r.SalesRepresentative)
+            .Include(r => r.Quotation)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (connection == null)
+        {
+            throw new KeyNotFoundException($"Sales inquiry #{id} not found.");
+        }
+
+        if (role == Role.SalesRep && connection.SalesRepresentativeId != userId)
+        {
+            throw new UnauthorizedAccessException("You are only authorized to qualify inquiries assigned to you.");
+        }
+
+        if (connection.Status == SalesConnectionStatus.Rejected || connection.Status == SalesConnectionStatus.Closed)
+        {
+            throw new InvalidOperationException($"Cannot qualify inquiry #{connection.RequestNumber} in '{connection.Status}' status.");
+        }
+
+        var oldStatus = connection.Status;
+        connection.Status = SalesConnectionStatus.Qualified;
+        connection.QualifiedAtUtc = DateTime.UtcNow;
+        connection.UpdatedAtUtc = DateTime.UtcNow;
+
+        if (!string.IsNullOrWhiteSpace(dto.RepNotes))
+        {
+            var stamp = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm UTC}] Qualification Note: {dto.RepNotes.Trim()}";
+            connection.RepNotes = string.IsNullOrWhiteSpace(connection.RepNotes)
+                ? stamp
+                : $"{connection.RepNotes}\n{stamp}";
+        }
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = nameof(SalesConnectionRequest),
+            EntityId = connection.Id,
+            Action = "InquiryQualified",
+            UserId = userId,
+            OldValueJson = oldStatus.ToString(),
+            NewValueJson = SalesConnectionStatus.Qualified.ToString(),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return MapToResponse(connection, connection.Customer, connection.Company, connection.Product, connection.SalesRepresentative.FullName, connection.SalesRepresentative.Email);
+    }
+
+    public async Task<SalesConnectionResponse> RejectInquiryAsync(int id, RejectInquiryRequest dto, int userId, Role role)
+    {
+        var connection = await _context.SalesConnectionRequests
+            .Include(r => r.Customer)
+            .Include(r => r.Company)
+            .Include(r => r.Product)
+            .Include(r => r.SalesRepresentative)
+            .Include(r => r.Quotation)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (connection == null)
+        {
+            throw new KeyNotFoundException($"Sales inquiry #{id} not found.");
+        }
+
+        if (role == Role.SalesRep && connection.SalesRepresentativeId != userId)
+        {
+            throw new UnauthorizedAccessException("You are only authorized to reject inquiries assigned to you.");
+        }
+
+        if (connection.Status == SalesConnectionStatus.Converted || connection.Status == SalesConnectionStatus.QuoteCreated)
+        {
+            throw new InvalidOperationException($"Cannot reject inquiry #{connection.RequestNumber} that has already reached '{connection.Status}'.");
+        }
+
+        var oldStatus = connection.Status;
+        connection.Status = SalesConnectionStatus.Rejected;
+        connection.RejectionReason = dto.RejectionReason.Trim();
+        connection.ClosedAtUtc = DateTime.UtcNow;
+        connection.UpdatedAtUtc = DateTime.UtcNow;
+
+        var stamp = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm UTC}] Disqualified/Rejected. Reason: {dto.RejectionReason.Trim()}";
+        connection.RepNotes = string.IsNullOrWhiteSpace(connection.RepNotes)
+            ? stamp
+            : $"{connection.RepNotes}\n{stamp}";
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = nameof(SalesConnectionRequest),
+            EntityId = connection.Id,
+            Action = "InquiryRejected",
+            UserId = userId,
+            OldValueJson = oldStatus.ToString(),
+            NewValueJson = SalesConnectionStatus.Rejected.ToString(),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return MapToResponse(connection, connection.Customer, connection.Company, connection.Product, connection.SalesRepresentative.FullName, connection.SalesRepresentative.Email);
     }
 
     public async Task<SalesConnectionResponse> GetRequestByIdAsync(int id, int userId, Role role, int? customerId)
@@ -761,6 +1122,7 @@ public class SalesConnectionService : ISalesConnectionService
             QuotationNumber = r.Quotation != null ? r.Quotation.QuotationNumber : null,
             RepNotes = r.RepNotes,
             RejectionReason = r.RejectionReason,
+            AcceptedAtUtc = r.AcceptedAtUtc,
             ContactedAtUtc = r.ContactedAtUtc,
             QualifiedAtUtc = r.QualifiedAtUtc,
             QuoteCreatedAtUtc = r.QuoteCreatedAtUtc,
@@ -795,6 +1157,7 @@ public class SalesConnectionService : ISalesConnectionService
             QuotationNumber = r.Quotation != null ? r.Quotation.QuotationNumber : null,
             RepNotes = r.RepNotes,
             RejectionReason = r.RejectionReason,
+            AcceptedAtUtc = r.AcceptedAtUtc,
             ContactedAtUtc = r.ContactedAtUtc,
             QualifiedAtUtc = r.QualifiedAtUtc,
             QuoteCreatedAtUtc = r.QuoteCreatedAtUtc,

@@ -110,60 +110,60 @@ export const SignupPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-950 text-slate-100">
+    <div className="min-h-screen flex bg-white text-slate-900">
       {/* Left Column: Value Proposition & Brand Story (Hidden on small screens) */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-linear-to-br from-slate-900 via-slate-950 to-blue-950 border-r border-slate-800/80 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-linear-to-br from-slate-50 to-blue-50/50 border-r border-slate-200 relative overflow-hidden">
         {/* Subtle radial ambient background glow */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Brand Header */}
         <div className="relative z-10">
-          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-6">
-            <Zap className="w-4 h-4 fill-blue-400" />
+          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold uppercase tracking-wider mb-6">
+            <Zap className="w-4 h-4 fill-blue-600 text-blue-600" />
             DealFlow360 Client Portal
           </div>
-          <h1 className="text-3xl xl:text-4xl font-extrabold text-white tracking-tight leading-tight">
+          <h1 className="text-3xl xl:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
             Seamless B2B Commercial Collaboration & Negotiation
           </h1>
-          <p className="mt-3 text-sm text-slate-300 max-w-lg leading-relaxed">
+          <p className="mt-3 text-sm text-slate-600 max-w-lg leading-relaxed">
             Directly review transparent proposals, negotiate terms with mathematical clarity, track milestone delivery, and confirm orders in a single enterprise workspace.
           </p>
         </div>
 
         {/* Feature Highlights Grid */}
         <div className="space-y-4 my-8 relative z-10">
-          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
-            <div className="p-2 rounded-lg bg-blue-600/20 text-blue-400 shrink-0 mt-0.5">
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="p-2 rounded-lg bg-blue-100 text-blue-600 shrink-0 mt-0.5">
               <FileCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Transparent Commercial Proposals</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h3 className="text-sm font-bold text-slate-900">Transparent Commercial Proposals</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Review interactive quotations detailing equipment, services, and multi-tier volume discounts tailored to your account.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
-            <div className="p-2 rounded-lg bg-emerald-600/20 text-emerald-400 shrink-0 mt-0.5">
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 shrink-0 mt-0.5">
               <MessageSquare className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Interactive Line-Item Clarification</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h3 className="text-sm font-bold text-slate-900">Interactive Line-Item Clarification</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Discuss specific line items directly with your sales executive and submit counter-discount requests with instant feedback.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
-            <div className="p-2 rounded-lg bg-indigo-600/20 text-indigo-400 shrink-0 mt-0.5">
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 shrink-0 mt-0.5">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Order Tracking & Unified Invoices</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h3 className="text-sm font-bold text-slate-900">Order Tracking & Unified Invoices</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Monitor multi-warehouse inventory allocation, view delivery milestones, and reconcile commercial invoices seamlessly.
               </p>
             </div>
@@ -171,12 +171,12 @@ export const SignupPage = () => {
         </div>
 
         {/* Trust Badges Footer */}
-        <div className="relative z-10 pt-6 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+        <div className="relative z-10 pt-6 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>MSSQL Encrypted • Zero-Leak Tenant Isolation</span>
           </div>
-          <span className="font-mono text-[11px] text-slate-500">v2.5 Production</span>
+          <span className="font-mono text-[11px] text-slate-400">v2.5 Production</span>
         </div>
       </div>
 
@@ -189,13 +189,13 @@ export const SignupPage = () => {
               <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-600/30">
                 <Zap className="w-4 h-4 fill-white text-white" />
               </div>
-              <span className="font-bold text-lg text-white tracking-tight">DealFlow<span className="text-blue-400">360</span></span>
+              <span className="font-bold text-lg text-slate-900 tracking-tight">DealFlow<span className="text-blue-600">360</span></span>
             </div>
 
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               Create Customer Account
             </h2>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-500">
               Register your organization to collaborate on proposals and manage commercial agreements.
             </p>
           </div>
@@ -208,7 +208,7 @@ export const SignupPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
                   label="Contact Full Name"
-                  labelClassName="text-slate-300 font-medium"
+                  labelClassName="text-slate-700 font-medium"
                   required
                   icon={User}
                   value={fullName}
@@ -219,7 +219,7 @@ export const SignupPage = () => {
 
                 <Input
                   label="Company / Account Name"
-                  labelClassName="text-slate-300 font-medium"
+                  labelClassName="text-slate-700 font-medium"
                   required
                   icon={Building2}
                   value={companyName}
@@ -232,7 +232,7 @@ export const SignupPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
                   label="Work Email"
-                  labelClassName="text-slate-300 font-medium"
+                  labelClassName="text-slate-700 font-medium"
                   type="email"
                   required
                   icon={Mail}
@@ -244,7 +244,7 @@ export const SignupPage = () => {
 
                 <Input
                   label="Phone Number"
-                  labelClassName="text-slate-300 font-medium"
+                  labelClassName="text-slate-700 font-medium"
                   type="tel"
                   icon={Phone}
                   value={phone}
@@ -256,11 +256,11 @@ export const SignupPage = () => {
             </div>
 
             {/* Section 2: Security Credentials */}
-            <div className="pt-2 border-t border-slate-800 space-y-3">
+            <div className="pt-2 border-t border-slate-200 space-y-3">
               <div className="relative">
                 <Input
                   label="Password"
-                  labelClassName="text-slate-300 font-medium"
+                  labelClassName="text-slate-700 font-medium"
                   type={showPassword ? 'text' : 'password'}
                   required
                   icon={KeyRound}
@@ -275,7 +275,7 @@ export const SignupPage = () => {
                   tabIndex={-1}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-200 focus:outline-hidden"
+                  className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-600 focus:outline-hidden"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -284,7 +284,7 @@ export const SignupPage = () => {
               <div className="relative">
                 <Input
                   label="Confirm Password"
-                  labelClassName="text-slate-300 font-medium"
+                  labelClassName="text-slate-700 font-medium"
                   type={showConfirmPassword ? 'text' : 'password'}
                   required
                   icon={Lock}
@@ -299,25 +299,25 @@ export const SignupPage = () => {
                   tabIndex={-1}
                   aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-200 focus:outline-hidden"
+                  className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-600 focus:outline-hidden"
                 >
                   {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
 
               {/* Password Quality Checklist */}
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
-                <span className="font-semibold text-slate-300 block text-[11px] uppercase tracking-wider mb-1">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
+                <span className="font-semibold text-slate-700 block text-[11px] uppercase tracking-wider mb-1">
                   Password Requirements:
                 </span>
                 {passwordCriteria.map((c, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     {c.met ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     ) : (
-                      <div className="w-3.5 h-3.5 rounded-full border border-slate-600 shrink-0" />
+                      <div className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0" />
                     )}
-                    <span className={c.met ? 'text-slate-200' : 'text-slate-400'}>
+                    <span className={c.met ? 'text-slate-900' : 'text-slate-500'}>
                       {c.label}
                     </span>
                   </div>
@@ -341,11 +341,11 @@ export const SignupPage = () => {
           </form>
 
           {/* Footer Link to Login */}
-          <div className="pt-4 text-center text-xs text-slate-400 border-t border-slate-800">
+          <div className="pt-4 text-center text-xs text-slate-500 border-t border-slate-200">
             Already have an account?{' '}
             <Link
               to="/login"
-              className="font-semibold text-blue-400 hover:text-blue-300 underline underline-offset-4 ml-1"
+              className="font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-4 ml-1"
             >
               Sign In to Platform
             </Link>
@@ -372,18 +372,18 @@ export const SignupPage = () => {
               </div>
             </div>
 
-            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2 text-xs font-mono">
-              <div className="flex justify-between items-center py-1 border-b border-slate-800">
-                <span className="text-slate-400">Account Name:</span>
-                <span className="text-white font-semibold">{successData.companyName}</span>
+            <div className="bg-slate-50 text-slate-900 p-4 rounded-xl space-y-2 text-xs font-mono border border-slate-200">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200">
+                <span className="text-slate-500">Account Name:</span>
+                <span className="text-slate-900 font-semibold">{successData.companyName}</span>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800">
-                <span className="text-slate-400">Login Email:</span>
-                <span className="text-white">{successData.email}</span>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200">
+                <span className="text-slate-500">Login Email:</span>
+                <span className="text-slate-900">{successData.email}</span>
               </div>
               <div className="flex justify-between items-center pt-1">
-                <span className="text-slate-400">Access Scope:</span>
-                <span className="text-emerald-400 font-semibold">{successData.role} Portal</span>
+                <span className="text-slate-500">Access Scope:</span>
+                <span className="text-emerald-600 font-semibold">{successData.role} Portal</span>
               </div>
             </div>
 

@@ -73,12 +73,54 @@ export const StatusBadge = ({
 
   // Status mapping database
   const statusStyles = {
-    // Quotation States
+    // Quotation & Sales Inquiry States
     Draft: {
       bg: 'bg-slate-100 text-slate-700 border-slate-200',
       icon: FileText,
       iconColor: 'text-slate-500',
       label: 'Draft',
+    },
+    Pending: {
+      bg: 'bg-amber-50 text-amber-800 border-amber-200',
+      icon: Clock,
+      iconColor: 'text-amber-600',
+      label: 'Pending Review',
+    },
+    Accepted: {
+      bg: 'bg-sky-50 text-sky-800 border-sky-200',
+      icon: CheckCircle2,
+      iconColor: 'text-sky-600',
+      label: 'Accepted / Claimed',
+    },
+    Contacted: {
+      bg: 'bg-blue-50 text-blue-800 border-blue-200',
+      icon: MessageSquare,
+      iconColor: 'text-blue-600',
+      label: 'Contacted Client',
+    },
+    Qualified: {
+      bg: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+      icon: ShieldCheck,
+      iconColor: 'text-indigo-600',
+      label: 'Qualified Lead',
+    },
+    QuoteCreated: {
+      bg: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      icon: FileText,
+      iconColor: 'text-emerald-600',
+      label: 'Quotation Issued',
+    },
+    Converted: {
+      bg: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+      icon: CheckCircle2,
+      iconColor: 'text-emerald-700',
+      label: 'Converted to Deal',
+    },
+    Closed: {
+      bg: 'bg-slate-100 text-slate-700 border-slate-200',
+      icon: XCircle,
+      iconColor: 'text-slate-500',
+      label: 'Closed',
     },
     PendingApproval: {
       bg: 'bg-amber-50 text-amber-800 border-amber-200',

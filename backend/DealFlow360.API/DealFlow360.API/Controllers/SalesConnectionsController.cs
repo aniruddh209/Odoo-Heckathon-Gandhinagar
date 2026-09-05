@@ -9,6 +9,7 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/sales-connections")]
+[Route("api/sales/inquiries")]
 public class SalesConnectionsController : ControllerBase
 {
     private readonly ISalesConnectionService _salesConnectionService;
@@ -102,6 +103,34 @@ public class SalesConnectionsController : ControllerBase
     }
 
     // ─── Sales Rep & Workspace Endpoints ─────────────────────
+    
+    [HttpGet("summary")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> GetInquiriesSummary()
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+        var summary = await _salesConnectionService.GetInquiriesSummaryAsync(userId, role);
+        return Ok(summary);
+    }
+
+    [HttpGet("paged")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> GetWorkspaceInquiriesPaged(
+        [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] int? companyId,
+        [FromQuery] int? productId,
+        [FromQuery] string? sortBy,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+        var result = await _salesConnectionService.GetWorkspaceInquiriesPagedAsync(
+            userId, role, search, status, companyId, productId, sortBy, page, pageSize);
+        return Ok(result);
+    }
 
     [HttpGet("workspace")]
     [Authorize(Roles = "SalesRep,SalesManager,Admin")]
@@ -113,6 +142,112 @@ public class SalesConnectionsController : ControllerBase
         var role = GetCurrentUserRole();
         var result = await _salesConnectionService.GetRepRequestsAsync(userId, role, status, companyId);
         return Ok(result);
+    }
+
+    [HttpPost("{id}/accept")]
+    [HttpPost("{id}/claim")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> AcceptInquiry(int id, [FromBody] AcceptInquiryRequest? request)
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+        request ??= new AcceptInquiryRequest();
+
+        try
+        {
+            var result = await _salesConnectionService.AcceptInquiryAsync(id, request, userId, role);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/contact")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> ContactCustomer(int id, [FromBody] ContactCustomerRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+
+        try
+        {
+            var result = await _salesConnectionService.ContactCustomerAsync(id, request, userId, role);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/qualify")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> QualifyInquiry(int id, [FromBody] QualifyInquiryRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+
+        try
+        {
+            var result = await _salesConnectionService.QualifyInquiryAsync(id, request, userId, role);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/reject")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> RejectInquiry(int id, [FromBody] RejectInquiryRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var role = GetCurrentUserRole();
+
+        try
+        {
+            var result = await _salesConnectionService.RejectInquiryAsync(id, request, userId, role);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id}")]

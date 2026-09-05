@@ -8,5 +8,6 @@ public enum SalesConnectionStatus
     QuoteCreated = 4,
     Converted = 5,
     Rejected = 6,
-    Closed = 7
+    Closed = 7,
+    Accepted = 8
 }

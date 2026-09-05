@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { quotationApi, customerApi, adminApi } from '../api';
 import {
@@ -23,6 +23,7 @@ import { formatCurrency } from '../utils/formatters';
 
 export const QuotationBuilderPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
 
   const [customers, setCustomers] = useState([]);
@@ -74,8 +75,39 @@ export const QuotationBuilderPage = () => {
       );
       setVariantsMap(Object.fromEntries(varEntries));
 
-      if (custList.length > 0) {
+      const paramCustId = searchParams.get('customerId');
+      const paramProdId = searchParams.get('productId');
+      const paramQty = parseInt(searchParams.get('quantity'), 10) || 1;
+      const paramInquiryId = searchParams.get('inquiryId');
+      const paramNotes = searchParams.get('notes');
+
+      if (paramCustId && custList.some((c) => c.id === parseInt(paramCustId, 10))) {
+        setSelectedCustomerId(paramCustId);
+      } else if (custList.length > 0) {
         setSelectedCustomerId(custList[0].id.toString());
+      }
+
+      if (paramProdId) {
+        const pId = parseInt(paramProdId, 10);
+        const matchedProd = prodList.find((p) => p.id === pId);
+        if (matchedProd) {
+          setLines([
+            {
+              productId: matchedProd.id,
+              variantId: '',
+              quantity: paramQty,
+              unitPrice: matchedProd.basePrice || 0,
+              discountPercent: 0,
+              discountAmount: 0,
+            },
+          ]);
+        }
+      }
+
+      if (paramNotes) {
+        setNotes(decodeURIComponent(paramNotes));
+      } else if (paramInquiryId) {
+        setNotes(`Created from Sales Inquiry #${paramInquiryId}`);
       }
     } catch (err) {
       setError(err.message || 'Failed to load catalog data.');

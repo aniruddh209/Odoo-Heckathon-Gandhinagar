@@ -3,7 +3,6 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Menu,
-  Search,
   Plus,
   ChevronRight,
   Database,
@@ -20,12 +19,11 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui';
 
-export const TopHeader = ({ onOpenMobile }) => {
+export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
   const { user, isSalesRep, isSalesManager, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Determine path breadcrumbs
   const pathParts = location.pathname.split('/').filter(Boolean);
@@ -53,11 +51,7 @@ export const TopHeader = ({ onOpenMobile }) => {
     }
   };
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    navigate(`/workspace/quotations?search=${encodeURIComponent(searchQuery.trim())}`);
-  };
+
 
   const getRoleBadge = (role) => {
     switch (role) {
@@ -88,6 +82,14 @@ export const TopHeader = ({ onOpenMobile }) => {
         >
           <Menu className="w-5 h-5" />
         </button>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="hidden lg:flex p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          title="Toggle sidebar"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
 
         <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate">
           <Link to="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
@@ -104,18 +106,8 @@ export const TopHeader = ({ onOpenMobile }) => {
         </nav>
       </div>
 
-      {/* Center: Global Search Bar */}
-      <div className="hidden md:flex items-center max-w-sm w-full mx-4">
-        <form onSubmit={handleSearchSubmit} className="w-full relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Quick search quotes, customers, SKU..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-slate-200 bg-slate-50/70 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all shadow-2xs"
-          />
-        </form>
+      {/* Center: Empty Space */}
+      <div className="hidden md:flex items-center flex-1 mx-4">
       </div>
 
       {/* Right: Section 4 B1 Top Menu Actions, Role Badge, Quick Action, Profile */}

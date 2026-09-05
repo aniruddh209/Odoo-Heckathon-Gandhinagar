@@ -129,60 +129,60 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-950 text-slate-100">
+    <div className="min-h-screen flex bg-white text-slate-900">
       {/* Left Column: Brand Story & Intelligence Telemetry (Hidden on mobile) */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-linear-to-br from-slate-900 via-slate-950 to-blue-950 border-r border-slate-800/80 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-linear-to-br from-slate-50 to-blue-50/50 border-r border-slate-200 relative overflow-hidden">
         {/* Ambient radial lighting */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Brand Header */}
         <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-6">
-            <Zap className="w-4 h-4 fill-blue-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold uppercase tracking-wider mb-6">
+            <Zap className="w-4 h-4 fill-blue-600 text-blue-600" />
             DealFlow360 Enterprise CRM
           </div>
-          <h1 className="text-3xl xl:text-4xl font-extrabold text-white tracking-tight leading-tight">
+          <h1 className="text-3xl xl:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
             Autonomous, Self-Governing Sales Operations Platform
           </h1>
-          <p className="mt-3 text-sm text-slate-300 max-w-lg leading-relaxed">
+          <p className="mt-3 text-sm text-slate-600 max-w-lg leading-relaxed">
             Uniting CPQ algorithmic pricing, real-time gross margin preservation, cascading approval matrices, and live customer collaboration in a single unified architecture.
           </p>
         </div>
 
         {/* Feature Highlights Grid */}
         <div className="space-y-4 my-8 relative z-10">
-          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
-            <div className="p-2 rounded-lg bg-blue-600/20 text-blue-400 shrink-0 mt-0.5">
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="p-2 rounded-lg bg-blue-100 text-blue-600 shrink-0 mt-0.5">
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">13 Self-Governing Engines</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h3 className="text-sm font-bold text-slate-900">13 Self-Governing Engines</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Automated CPQ pricing models, multi-factor tier discount matrix, dynamic margin guardrails, and automated SLA monitors.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
-            <div className="p-2 rounded-lg bg-emerald-600/20 text-emerald-400 shrink-0 mt-0.5">
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 shrink-0 mt-0.5">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Real-Time Gross Margin Protection</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h3 className="text-sm font-bold text-slate-900">Real-Time Gross Margin Protection</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Mathematical floor enforcement prevents margin leakage, automatically escalating out-of-bounds quotations to Sales Management or Finance.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
-            <div className="p-2 rounded-lg bg-indigo-600/20 text-indigo-400 shrink-0 mt-0.5">
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 shrink-0 mt-0.5">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Zero-Leak Commercial Portal</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h3 className="text-sm font-bold text-slate-900">Zero-Leak Commercial Portal</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Direct B2B client collaboration, line-item inquiries, counter-discount negotiation, and digital acceptance under strict tenant isolation.
               </p>
             </div>
@@ -190,12 +190,12 @@ export const LoginPage = () => {
         </div>
 
         {/* Trust Badges Footer */}
-        <div className="relative z-10 pt-6 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+        <div className="relative z-10 pt-6 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>MSSQL Encrypted • Production Identity & RBAC</span>
           </div>
-          <span className="font-mono text-[11px] text-slate-500">v2.5 Production</span>
+          <span className="font-mono text-[11px] text-slate-400">v2.5 Production</span>
         </div>
       </div>
 
@@ -208,15 +208,15 @@ export const LoginPage = () => {
               <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-600/30">
                 <Zap className="w-4 h-4 fill-white text-white" />
               </div>
-              <span className="font-bold text-lg text-white tracking-tight">
-                DealFlow<span className="text-blue-400">360</span>
+              <span className="font-bold text-lg text-slate-900 tracking-tight">
+                DealFlow<span className="text-blue-600">360</span>
               </span>
             </div>
 
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               Sign In to Platform
             </h2>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-500">
               Authenticate with your corporate credentials or customer portal account.
             </p>
           </div>
@@ -226,7 +226,7 @@ export const LoginPage = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               label="Work or Portal Email"
-              labelClassName="text-slate-300 font-medium"
+              labelClassName="text-slate-700 font-medium"
               type="email"
               required
               icon={Mail}
@@ -239,7 +239,7 @@ export const LoginPage = () => {
             <div className="relative">
               <Input
                 label="Password"
-                labelClassName="text-slate-300 font-medium"
+                labelClassName="text-slate-700 font-medium"
                 type={showPassword ? 'text' : 'password'}
                 required
                 icon={KeyRound}
@@ -254,7 +254,7 @@ export const LoginPage = () => {
                 tabIndex={-1}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-200 focus:outline-hidden"
+                className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-600 focus:outline-hidden"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -278,22 +278,22 @@ export const LoginPage = () => {
             <button
               type="button"
               onClick={() => setShowQuickCredentials(!showQuickCredentials)}
-              className="w-full py-2 px-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 flex items-center justify-between text-xs text-slate-300 transition-colors"
+              className="w-full py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 flex items-center justify-between text-xs text-slate-700 transition-colors"
             >
               <span className="flex items-center gap-2 font-medium">
-                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                 Quick Demo Role Switcher (Preloaded Profiles)
               </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${
                   showQuickCredentials ? 'rotate-180' : ''
                 }`}
               />
             </button>
 
             {showQuickCredentials && (
-              <div className="mt-2 p-3 bg-slate-900/90 border border-slate-800 rounded-xl space-y-1.5">
-                <p className="text-[11px] text-slate-400 mb-2">
+              <div className="mt-2 p-3 bg-white shadow-sm border border-slate-200 rounded-xl space-y-1.5">
+                <p className="text-[11px] text-slate-500 mb-2">
                   Click any verified seed profile to populate credentials:
                 </p>
                 <div className="grid grid-cols-1 gap-1.5">
@@ -302,13 +302,13 @@ export const LoginPage = () => {
                       key={item.role}
                       type="button"
                       onClick={() => handleSelectQuickRole(item)}
-                      className="w-full text-left p-2 rounded-lg bg-slate-950/60 hover:bg-blue-950/30 border border-slate-800/80 hover:border-blue-700/50 transition-colors flex items-center justify-between text-xs"
+                      className="w-full text-left p-2 rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition-colors flex items-center justify-between text-xs"
                     >
                       <div>
-                        <span className="font-semibold text-white mr-2">{item.role}:</span>
-                        <span className="text-slate-400">{item.name}</span>
+                        <span className="font-semibold text-slate-900 mr-2">{item.role}:</span>
+                        <span className="text-slate-600">{item.name}</span>
                       </div>
-                      <span className="text-[10px] text-blue-400 font-mono">
+                      <span className="text-[10px] text-blue-600 font-mono">
                         {item.badge}
                       </span>
                     </button>
@@ -319,11 +319,11 @@ export const LoginPage = () => {
           </div>
 
           {/* Register / Self-Service Link */}
-          <div className="pt-4 text-center text-xs text-slate-400 border-t border-slate-800">
+          <div className="pt-4 text-center text-xs text-slate-500 border-t border-slate-200">
             Need a client portal account?{' '}
             <Link
               to="/signup"
-              className="font-semibold text-blue-400 hover:text-blue-300 underline underline-offset-4 ml-1"
+              className="font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-4 ml-1"
             >
               Register Your Organization
             </Link>

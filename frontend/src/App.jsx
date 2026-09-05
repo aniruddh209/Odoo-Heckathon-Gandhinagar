@@ -79,6 +79,14 @@ export function App() {
             <Route path="workspace/customers" element={<CustomerListPage />} />
             <Route path="workspace/customers/:id" element={<CustomerDetailPage />} />
             <Route
+              path="workspace/inquiries"
+              element={
+                <ProtectedRoute allowedRoles={['SalesRep', 'SalesManager', 'Admin']}>
+                  <SalesConnectionsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="workspace/sales-connections"
               element={
                 <ProtectedRoute allowedRoles={['SalesRep', 'SalesManager', 'Admin']}>

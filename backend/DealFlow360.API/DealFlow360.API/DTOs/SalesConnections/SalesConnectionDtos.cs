@@ -202,6 +202,7 @@ public class SalesConnectionResponse
     public string? QuotationNumber { get; set; }
     public string? RepNotes { get; set; }
     public string? RejectionReason { get; set; }
+    public DateTime? AcceptedAtUtc { get; set; }
     public DateTime? ContactedAtUtc { get; set; }
     public DateTime? QualifiedAtUtc { get; set; }
     public DateTime? QuoteCreatedAtUtc { get; set; }
@@ -216,4 +217,58 @@ public class CreateQuoteFromConnectionResponse
     public string QuotationNumber { get; set; } = string.Empty;
     public decimal GrandTotal { get; set; }
     public string CurrencyCode { get; set; } = "INR";
+}
+
+public class AcceptInquiryRequest
+{
+    [MaxLength(1500)]
+    public string? Notes { get; set; }
+}
+
+public class ContactCustomerRequest
+{
+    [Required, MaxLength(50)]
+    public string ContactMethod { get; set; } = "Phone";
+
+    [Required, MaxLength(1500)]
+    public string Notes { get; set; } = string.Empty;
+
+    [MaxLength(150)]
+    public string? Outcome { get; set; }
+}
+
+public class QualifyInquiryRequest
+{
+    [Required, MaxLength(1500)]
+    public string RepNotes { get; set; } = string.Empty;
+}
+
+public class RejectInquiryRequest
+{
+    [Required, MaxLength(500)]
+    public string RejectionReason { get; set; } = string.Empty;
+}
+
+public class SalesInquirySummaryDto
+{
+    public int Total { get; set; }
+    public int New { get; set; }
+    public int Accepted { get; set; }
+    public int InProgress { get; set; }
+    public int Contacted { get; set; }
+    public int Qualified { get; set; }
+    public int QuoteCreated { get; set; }
+    public int Converted { get; set; }
+    public int Rejected { get; set; }
+    public int Closed { get; set; }
+}
+
+public class PagedSalesInquiriesResult
+{
+    public List<SalesConnectionResponse> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 0;
+    public SalesInquirySummaryDto Summary { get; set; } = new();
 }

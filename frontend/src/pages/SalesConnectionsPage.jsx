@@ -18,7 +18,12 @@ import {
   Zap,
   ShieldCheck,
   Tag,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft,
+  Calendar,
+  XCircle,
+  MessageSquare,
+  Check,
 } from 'lucide-react';
 import { salesConnectionApi } from '../api';
 import {
@@ -26,150 +31,334 @@ import {
   Button,
   DataTable,
   Drawer,
+  Modal,
   ErrorAlert,
   LoadingSpinner,
-  Badge
+  Badge,
+  StatusBadge,
+  Input,
+  Select,
+  Textarea,
 } from '../components/ui';
 import { useToast } from '../context/ToastContext';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 export const SalesConnectionsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [requests, setRequests] = useState([]);
+  // Primary Data State
+  const [inquiries, setInquiries] = useState([]);
+  const [summary, setSummary] = useState({
+    total: 0,
+    new: 0,
+    accepted: 0,
+    inProgress: 0,
+    contacted: 0,
+    qualified: 0,
+    quoteCreated: 0,
+    converted: 0,
+    rejected: 0,
+    closed: 0,
+  });
   const [companies, setCompanies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Filters
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [companyFilter, setCompanyFilter] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
 
-  // Selected Request Drawer
-  const [selectedRequest, setSelectedRequest] = useState(null);
+  // Drawer / Inspection State
+  const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Action Drawer Form State
-  const [drawerStatus, setDrawerStatus] = useState('Pending');
-  const [repNotes, setRepNotes] = useState('');
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [isCreatingQuote, setIsCreatingQuote] = useState(false);
+  // Modal Action States
+  const [activeModal, setActiveModal] = useState(null); // 'accept', 'contact', 'qualify', 'reject'
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
+  // Action Form Inputs
+  const [acceptNotes, setAcceptNotes] = useState('');
+  const [contactMethod, setContactMethod] = useState('Phone');
+  const [contactNotes, setContactNotes] = useState('');
+  const [contactOutcome, setContactOutcome] = useState('Discussion Completed');
+  const [qualifyNotes, setQualifyNotes] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('Budget mismatch');
+  const [rejectionCustomNotes, setRejectionCustomNotes] = useState('');
+
+  // Initial Load & Query Debounce
   useEffect(() => {
     loadData();
+  }, [page, pageSize, statusFilter, companyFilter, sortBy]);
+
+  // Load Companies once on mount
+  useEffect(() => {
+    loadCompanies();
   }, []);
+
+  const loadCompanies = async () => {
+    try {
+      const res = await salesConnectionApi.getCompanies();
+      const list = Array.isArray(res) ? res : res?.value || [];
+      setCompanies(list);
+    } catch {
+      // Non-critical
+    }
+  };
 
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [reqsRes, compsRes] = await Promise.all([
-        salesConnectionApi.getWorkspaceRequests(),
-        salesConnectionApi.getCompanies()
-      ]);
-      const reqList = Array.isArray(reqsRes) ? reqsRes : reqsRes?.value || [];
-      const compList = Array.isArray(compsRes) ? compsRes : compsRes?.value || [];
-      setRequests(reqList);
-      setCompanies(compList);
+      const pagedRes = await salesConnectionApi.getWorkspaceInquiriesPaged({
+        search: searchQuery.trim() || undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        companyId: companyFilter !== 'ALL' ? parseInt(companyFilter, 10) : undefined,
+        sortBy,
+        page,
+        pageSize,
+      });
 
-      if (selectedRequest) {
-        const updated = reqList.find(r => r.id === selectedRequest.id);
-        if (updated) setSelectedRequest(updated);
+      const items = Array.isArray(pagedRes?.items) ? pagedRes.items : [];
+      setInquiries(items);
+      setTotalCount(pagedRes?.totalCount || items.length);
+
+      if (pagedRes?.summary) {
+        setSummary(pagedRes.summary);
+      } else {
+        try {
+          const sumRes = await salesConnectionApi.getInquiriesSummary();
+          if (sumRes) setSummary(sumRes);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (selectedInquiry) {
+        const refreshed = items.find((i) => i.id === selectedInquiry.id);
+        if (refreshed) {
+          setSelectedInquiry(refreshed);
+        }
       }
     } catch (err) {
-      setError(err.message || 'Failed to load sales connections workspace.');
+      setError(err.message || 'Failed to load sales inquiries workspace.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOpenDrawer = (req) => {
-    setSelectedRequest(req);
-    setDrawerStatus(req.status);
-    setRepNotes(req.repNotes || '');
-    setRejectionReason(req.rejectionReason || '');
+  const handleSearchSubmit = (e) => {
+    e?.preventDefault();
+    setPage(1);
+    loadData();
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('ALL');
+    setCompanyFilter('ALL');
+    setSortBy('newest');
+    setPage(1);
+  };
+
+  // Drawer handlers
+  const handleOpenDrawer = (item) => {
+    setSelectedInquiry(item);
     setIsDrawerOpen(true);
   };
 
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
-    setSelectedRequest(null);
+    setSelectedInquiry(null);
   };
 
-  const handleUpdateStatus = async (e) => {
+  // Quick Action Modal Triggers
+  const triggerAcceptModal = (inquiry) => {
+    setSelectedInquiry(inquiry);
+    setAcceptNotes('');
+    setActiveModal('accept');
+  };
+
+  const triggerContactModal = (inquiry) => {
+    setSelectedInquiry(inquiry);
+    setContactMethod(inquiry.preferredContactMethod || 'Phone');
+    setContactNotes('');
+    setContactOutcome('Requirements Discussed');
+    setActiveModal('contact');
+  };
+
+  const triggerQualifyModal = (inquiry) => {
+    setSelectedInquiry(inquiry);
+    setQualifyNotes('');
+    setActiveModal('qualify');
+  };
+
+  const triggerRejectModal = (inquiry) => {
+    setSelectedInquiry(inquiry);
+    setRejectionReason('Budget mismatch');
+    setRejectionCustomNotes('');
+    setActiveModal('reject');
+  };
+
+  // Action Executions with Conflict (409) Protection
+  const handleAcceptSubmit = async (e) => {
     e?.preventDefault();
-    if (!selectedRequest) return;
-
-    setIsUpdatingStatus(true);
+    if (!selectedInquiry) return;
+    setIsSubmittingAction(true);
     try {
-      const statusValueMap = {
-        Pending: 1,
-        Contacted: 2,
-        Qualified: 3,
-        QuoteCreated: 4,
-        Converted: 5,
-        Rejected: 6,
-        Closed: 7
-      };
-
-      const payload = {
-        status: statusValueMap[drawerStatus] || 2,
-        repNotes: repNotes.trim() || undefined,
-        rejectionReason: drawerStatus === 'Rejected' ? (rejectionReason.trim() || undefined) : undefined
-      };
-
-      const updated = await salesConnectionApi.updateStatus(selectedRequest.id, payload);
-      toast?.showSuccess?.(`Inquiry #${updated.requestNumber} status updated to ${updated.status}`);
-      setSelectedRequest(updated);
+      const updated = await salesConnectionApi.acceptInquiry(selectedInquiry.id, {
+        notes: acceptNotes.trim() || undefined,
+      });
+      toast.showSuccess(`Inquiry #${updated.requestNumber} accepted and claimed into your active pipeline.`);
+      setActiveModal(null);
+      setSelectedInquiry(updated);
       loadData();
     } catch (err) {
-      toast?.showError?.(err.message || 'Failed to update status.');
+      if (err.status === 409 || err.message?.includes('already') || err.message?.includes('conflict')) {
+        toast.showError('Conflict: This inquiry has already been modified or claimed by another session. Refreshed.');
+      } else {
+        toast.showError(err.message || 'Failed to accept inquiry.');
+      }
+      loadData();
     } finally {
-      setIsUpdatingStatus(false);
+      setIsSubmittingAction(false);
     }
   };
 
-  const handleCreateQuote = async () => {
-    if (!selectedRequest) return;
-
-    setIsCreatingQuote(true);
+  const handleContactSubmit = async (e) => {
+    e?.preventDefault();
+    if (!selectedInquiry) return;
+    if (!contactNotes.trim()) {
+      toast.showError('Please record customer interaction notes before saving.');
+      return;
+    }
+    setIsSubmittingAction(true);
     try {
-      const res = await salesConnectionApi.createQuoteFromConnection(selectedRequest.id);
-      toast?.showSuccess?.(`Quotation #${res.quotationNumber} generated successfully! Transitioning to Quotation Workspace...`);
+      const updated = await salesConnectionApi.contactCustomer(selectedInquiry.id, {
+        contactMethod,
+        notes: contactNotes.trim(),
+        outcome: contactOutcome.trim(),
+      });
+      toast.showSuccess(`Customer outreach logged for #${updated.requestNumber}. Status is now Contacted.`);
+      setActiveModal(null);
+      setSelectedInquiry(updated);
+      loadData();
+    } catch (err) {
+      if (err.status === 409 || err.message?.includes('conflict')) {
+        toast.showError('Conflict: Inquiry state was changed. Data refreshed.');
+      } else {
+        toast.showError(err.message || 'Failed to log customer interaction.');
+      }
+      loadData();
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleQualifySubmit = async (e) => {
+    e?.preventDefault();
+    if (!selectedInquiry) return;
+    if (!qualifyNotes.trim()) {
+      toast.showError('Please provide qualification notes (budget, timeline, technical scope).');
+      return;
+    }
+    setIsSubmittingAction(true);
+    try {
+      const updated = await salesConnectionApi.qualifyInquiry(selectedInquiry.id, {
+        repNotes: qualifyNotes.trim(),
+      });
+      toast.showSuccess(`Inquiry #${updated.requestNumber} successfully Qualified! Ready for commercial quotation.`);
+      setActiveModal(null);
+      setSelectedInquiry(updated);
+      loadData();
+    } catch (err) {
+      if (err.status === 409 || err.message?.includes('conflict')) {
+        toast.showError('Conflict: Inquiry state was updated elsewhere. Refreshed.');
+      } else {
+        toast.showError(err.message || 'Failed to qualify inquiry.');
+      }
+      loadData();
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleRejectSubmit = async (e) => {
+    e?.preventDefault();
+    if (!selectedInquiry) return;
+    const finalReason = rejectionCustomNotes.trim()
+      ? `${rejectionReason}: ${rejectionCustomNotes.trim()}`
+      : rejectionReason;
+
+    setIsSubmittingAction(true);
+    try {
+      const updated = await salesConnectionApi.rejectInquiry(selectedInquiry.id, {
+        rejectionReason: finalReason,
+      });
+      toast.showSuccess(`Inquiry #${updated.requestNumber} marked as Disqualified / Rejected.`);
+      setActiveModal(null);
+      setSelectedInquiry(updated);
+      loadData();
+    } catch (err) {
+      if (err.status === 409 || err.message?.includes('conflict')) {
+        toast.showError('Conflict: Inquiry was already updated.');
+      } else {
+        toast.showError(err.message || 'Failed to disqualify inquiry.');
+      }
+      loadData();
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  // 1-Click Quotation Generator Bridge
+  const handleCreateQuoteOneClick = async (inquiry) => {
+    const target = inquiry || selectedInquiry;
+    if (!target) return;
+
+    setIsSubmittingAction(true);
+    try {
+      const res = await salesConnectionApi.createQuoteFromConnection(target.id);
+      toast.showSuccess(`Quotation #${res.quotationNumber} created successfully! Redirecting to pricing engine...`);
       setIsDrawerOpen(false);
       navigate(`/workspace/quotations/${res.quotationId}`);
     } catch (err) {
-      toast?.showError?.(err.message || 'Failed to generate quotation.');
+      toast.showError(err.message || 'Failed to generate quotation from inquiry.');
     } finally {
-      setIsCreatingQuote(false);
+      setIsSubmittingAction(false);
     }
   };
 
-  // KPIs
-  const totalCount = requests.length;
-  const pendingCount = requests.filter(r => r.status === 'Pending').length;
-  const inProgressCount = requests.filter(r => r.status === 'Contacted' || r.status === 'Qualified').length;
-  const quoteCreatedCount = requests.filter(r => r.status === 'QuoteCreated' || r.status === 'Converted').length;
+  // Open in Quotation Builder (Custom)
+  const handleOpenInQuoteBuilder = (target) => {
+    const item = target || selectedInquiry;
+    if (!item) return;
 
-  // Filtered requests
-  const filteredRequests = requests.filter(r => {
-    if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
-    if (companyFilter !== 'ALL' && String(r.companyId) !== String(companyFilter)) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        r.requestNumber?.toLowerCase().includes(q) ||
-        r.customerName?.toLowerCase().includes(q) ||
-        r.productName?.toLowerCase().includes(q) ||
-        r.productSku?.toLowerCase().includes(q) ||
-        r.companyName?.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+    const queryParams = new URLSearchParams({
+      customerId: item.customerId,
+      productId: item.productId,
+      quantity: item.requestedQuantity || 1,
+      inquiryId: item.requestNumber,
+      notes: encodeURIComponent(
+        `Generated from Inquiry #${item.requestNumber} (${item.companyName} - ${item.productName}). Customer note: ${item.customerMessage || 'N/A'}`
+      ),
+    });
 
+    setIsDrawerOpen(false);
+    navigate(`/workspace/quotations/new?${queryParams.toString()}`);
+  };
+
+  // Pagination Helpers
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const startItem = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, totalCount);
+
+  // Table Column Definitions
   const columns = [
     {
       header: 'Tracking Ref',
@@ -179,12 +368,13 @@ export const SalesConnectionsPage = () => {
           <button
             type="button"
             onClick={() => handleOpenDrawer(r)}
-            className="font-mono font-bold text-xs text-blue-600 hover:text-blue-800 hover:underline text-left cursor-pointer"
+            className="font-mono font-bold text-xs text-blue-600 hover:text-blue-800 hover:underline text-left cursor-pointer flex items-center gap-1"
           >
-            {r.requestNumber}
+            <span>{r.requestNumber}</span>
+            <ArrowUpRight className="w-3 h-3 text-blue-400" />
           </button>
-          <span className="text-[10px] text-slate-400 block mt-0.5">
-            {r.createdAtUtc ? new Date(r.createdAtUtc).toLocaleDateString() : ''}
+          <span className="text-[11px] text-slate-400 block mt-0.5 font-mono">
+            {formatDate(r.createdAtUtc)}
           </span>
         </div>
       ),
@@ -195,7 +385,12 @@ export const SalesConnectionsPage = () => {
       render: (r) => (
         <div>
           <span className="font-semibold text-xs text-slate-900 block">{r.customerName}</span>
-          <span className="text-[11px] text-slate-400 font-mono">{r.customerEmail || 'Enterprise Client'}</span>
+          <span className="text-[11px] text-slate-500 font-mono block">
+            {r.customerEmail || 'Enterprise Client'}
+          </span>
+          <span className="text-[10px] text-slate-400 font-medium">
+            Prefers: <span className="text-slate-600 font-semibold">{r.preferredContactMethod || 'Email'}</span>
+          </span>
         </div>
       ),
     },
@@ -211,11 +406,26 @@ export const SalesConnectionsPage = () => {
             <span className="text-[10px] text-slate-400 font-mono">({r.productSku})</span>
           </div>
           <span className="font-medium text-xs text-slate-800 block line-clamp-1">{r.productName}</span>
-          <span className="text-[11px] text-slate-500 font-mono font-bold">
-            ₹{r.basePrice?.toLocaleString('en-IN')} × {r.requestedQuantity}
+          <span className="text-[11px] text-slate-500 font-mono">
+            ₹{r.basePrice?.toLocaleString('en-IN')} × {r.requestedQuantity} {r.requestedQuantity > 1 ? 'Units' : 'Unit'}
           </span>
         </div>
       ),
+    },
+    {
+      header: 'Est. Deal Value',
+      accessor: 'basePrice',
+      render: (r) => {
+        const estValue = (r.basePrice || 0) * (r.requestedQuantity || 1);
+        return (
+          <div>
+            <span className="font-bold font-mono text-xs text-slate-900 block">
+              ₹{estValue.toLocaleString('en-IN')}
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">List Pipeline</span>
+          </div>
+        );
+      },
     },
     {
       header: 'Assigned Specialist',
@@ -230,133 +440,232 @@ export const SalesConnectionsPage = () => {
     {
       header: 'Status',
       accessor: 'status',
-      render: (r) => {
-        const statusMap = {
-          Pending: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-          Contacted: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-          Qualified: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-          QuoteCreated: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-          Converted: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
-          Rejected: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-          Closed: { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' }
-        };
-        const s = statusMap[r.status] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
-        return (
-          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
-            {r.status === 'QuoteCreated' ? 'Quotation Issued' : r.status}
-          </span>
-        );
-      },
+      render: (r) => <StatusBadge status={r.status} size="sm" />,
     },
     {
-      header: 'Actions',
+      header: 'Quick Action',
       accessor: 'id',
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => handleOpenDrawer(r)}
-          >
-            Review &amp; Action
-          </Button>
-          {r.quotationId && (
+      render: (r) => {
+        return (
+          <div className="flex items-center gap-1.5">
+            {r.status === 'Pending' && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Check}
+                onClick={() => triggerAcceptModal(r)}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+              >
+                Accept
+              </Button>
+            )}
+
+            {r.status === 'Accepted' && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Phone}
+                onClick={() => triggerContactModal(r)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              >
+                Contact
+              </Button>
+            )}
+
+            {r.status === 'Contacted' && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={ShieldCheck}
+                onClick={() => triggerQualifyModal(r)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+              >
+                Qualify
+              </Button>
+            )}
+
+            {r.status === 'Qualified' && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Zap}
+                onClick={() => handleCreateQuoteOneClick(r)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+              >
+                1-Click Quote
+              </Button>
+            )}
+
+            {r.quotationId && (
+              <Button
+                variant="outline"
+                size="xs"
+                icon={FileText}
+                onClick={() => navigate(`/workspace/quotations/${r.quotationId}`)}
+                className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 font-semibold"
+              >
+                View Quote
+              </Button>
+            )}
+
             <Button
               variant="outline"
               size="xs"
-              icon={FileText}
-              onClick={() => navigate(`/workspace/quotations/${r.quotationId}`)}
-              className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+              onClick={() => handleOpenDrawer(r)}
+              className="text-slate-600 hover:text-slate-900 border-slate-200"
             >
-              View Quote
+              Review
             </Button>
-          )}
-        </div>
-      ),
+          </div>
+        );
+      },
     },
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in">
+    <div className="space-y-6 animate-in fade-in duration-200">
       <PageHeader
-        title="Customer Sales Connections & Brand Inquiries"
-        subtitle="Manage inbound customer product connections, qualify enterprise interest, and convert inquiries into quotations."
+        title="Sales Inquiries Workspace"
+        subtitle="Operational inbox for customer-generated product requests. Review context, accept inquiries, qualify requirements, and generate commercial quotations."
         actions={
-          <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadData}>
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={RefreshCw}
+              onClick={loadData}
+              disabled={isLoading}
+            >
+              Refresh
+            </Button>
+          </div>
         }
       />
 
       {error && <ErrorAlert message={error} onRetry={loadData} />}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+      {/* KPI Metric Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <button
+          type="button"
+          onClick={() => { setStatusFilter('ALL'); setPage(1); }}
+          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+            statusFilter === 'ALL'
+              ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Total Inbound Inquiries</span>
+            <span>Total Inquiries</span>
             <UserCheck className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-black text-slate-900 mt-2 tracking-tight">
-            {totalCount}
+            {summary.total}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Across all mapped vendor brands</p>
-        </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">All assigned requests</p>
+        </button>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <button
+          type="button"
+          onClick={() => { setStatusFilter('Pending'); setPage(1); }}
+          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+            statusFilter === 'Pending'
+              ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-500/20 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-amber-200 shadow-xs'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
             <span>Pending Review</span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-black text-amber-600 mt-2 tracking-tight">
-            {pendingCount}
+            {summary.new}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Awaiting initial sales outreach</p>
-        </div>
+          <p className="text-[11px] text-amber-700/80 mt-0.5 font-medium">Awaiting acceptance</p>
+        </button>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <button
+          type="button"
+          onClick={() => { setStatusFilter('Contacted'); setPage(1); }}
+          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+            statusFilter === 'Contacted' || statusFilter === 'Accepted'
+              ? 'bg-blue-50/60 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-blue-200 shadow-xs'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Contacted / Qualified</span>
-            <Zap className="w-4 h-4 text-indigo-600" />
+            <span>In Contact</span>
+            <MessageSquare className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="text-2xl font-black text-blue-600 mt-2 tracking-tight">
+            {summary.contacted + summary.accepted}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Customer dialogue open</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setStatusFilter('Qualified'); setPage(1); }}
+          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+            statusFilter === 'Qualified'
+              ? 'bg-indigo-50/60 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-indigo-200 shadow-xs'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+            <span>Qualified Deals</span>
+            <ShieldCheck className="w-4 h-4 text-indigo-600" />
           </div>
           <div className="text-2xl font-black text-indigo-600 mt-2 tracking-tight">
-            {inProgressCount}
+            {summary.qualified}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Active commercial discussion</p>
-        </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Ready for pricing</p>
+        </button>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <button
+          type="button"
+          onClick={() => { setStatusFilter('QuoteCreated'); setPage(1); }}
+          className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${
+            statusFilter === 'QuoteCreated' || statusFilter === 'Converted'
+              ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-emerald-200 shadow-xs'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Converted to Quotations</span>
+            <span>Quoted &amp; Won</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-black text-emerald-600 mt-2 tracking-tight">
-            {quoteCreatedCount}
+            {summary.quoteCreated + summary.converted}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Proposals active in pricing engine</p>
-        </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Commercial proposals active</p>
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Status Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {[
             { id: 'ALL', label: 'All Inquiries' },
-            { id: 'Pending', label: 'Pending' },
+            { id: 'Pending', label: `New (${summary.new})` },
+            { id: 'Accepted', label: 'Accepted' },
             { id: 'Contacted', label: 'Contacted' },
             { id: 'Qualified', label: 'Qualified' },
             { id: 'QuoteCreated', label: 'Quotation Issued' },
-            { id: 'Closed', label: 'Closed / Rejected' },
+            { id: 'Converted', label: 'Converted' },
+            { id: 'Rejected', label: 'Disqualified' },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setStatusFilter(tab.id)}
+              onClick={() => {
+                setStatusFilter(tab.id);
+                setPage(1);
+              }}
               className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                 statusFilter === tab.id
                   ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {tab.label}
@@ -364,241 +673,726 @@ export const SalesConnectionsPage = () => {
           ))}
         </div>
 
-        {/* Company Filter & Search */}
-        <div className="flex items-center gap-3">
-          <select
-            value={companyFilter}
-            onChange={(e) => setCompanyFilter(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="ALL">All Vendor Brands</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2.5 flex-1">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search reference, customer, brand, SKU..."
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              />
+            </div>
 
-          <div className="relative w-48 sm:w-60">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search reference, customer..."
-              className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <select
+              value={companyFilter}
+              onChange={(e) => {
+                setCompanyFilter(e.target.value);
+                setPage(1);
+              }}
+              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            >
+              <option value="ALL">All Vendor Brands</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value);
+                setPage(1);
+              }}
+              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="customer">Customer Name (A-Z)</option>
+              <option value="status">Status Order</option>
+            </select>
+
+            <Button type="submit" variant="outline" size="sm" className="text-xs">
+              Search
+            </Button>
+
+            {(searchQuery || statusFilter !== 'ALL' || companyFilter !== 'ALL' || sortBy !== 'newest') && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs text-slate-500 hover:text-slate-800 underline font-medium cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
-        </div>
+
+          <div className="text-xs text-slate-500 font-medium shrink-0">
+            Showing <strong className="text-slate-800">{startItem}</strong>-
+            <strong className="text-slate-800">{endItem}</strong> of{' '}
+            <strong className="text-slate-800">{totalCount}</strong> inquiries
+          </div>
+        </form>
       </div>
 
-      {/* Main Table */}
+      {/* Main Inquiries Table */}
       <DataTable
         columns={columns}
-        data={filteredRequests}
+        data={inquiries}
         isLoading={isLoading}
-        emptyMessage="No customer sales inquiries found"
-        emptyDescription="Inbound customer connections for products and brands will appear here."
+        emptyMessage="No customer sales inquiries found matching criteria"
+        emptyDescription="Inbound customer connections resolved for you by the routing engine will appear here."
       />
 
-      {/* Action & Quotation Generation Drawer */}
+      {/* Table Pagination Bar */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Items per page:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(parseInt(e.target.value, 10));
+                setPage(1);
+              }}
+              className="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="xs"
+              icon={ChevronLeft}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <span className="text-xs font-semibold text-slate-700 px-2 font-mono">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="xs"
+              icon={ChevronRight}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Detail & Action Drawer */}
       <Drawer
         isOpen={isDrawerOpen}
         onClose={handleCloseDrawer}
-        title={selectedRequest ? `Sales Connection #${selectedRequest.requestNumber}` : 'Inquiry Details'}
-        subtitle="Review customer product interest, record sales progress, and generate commercial quotations"
-        size="lg"
+        title={selectedInquiry ? `Inquiry #${selectedInquiry.requestNumber}` : 'Inquiry Context'}
+        subtitle="Inbound commercial request context, client specifications, and sales pipeline actions"
+        width="lg"
       >
-        {selectedRequest && (
+        {selectedInquiry && (
           <div className="space-y-6">
-            {/* Top Overview Banner */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Customer &amp; Product Details
-                </span>
-                <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700">
-                  {selectedRequest.preferredContactMethod || 'Email'} Preferred
-                </span>
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-medium">Lifecycle Status:</span>
+                <StatusBadge status={selectedInquiry.status} />
               </div>
+              <span className="text-xs text-slate-500 font-mono">
+                Received: {formatDate(selectedInquiry.createdAtUtc)}
+              </span>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Customer Account</span>
-                  <strong className="text-slate-900 text-sm">{selectedRequest.customerName}</strong>
-                  <span className="text-slate-500 block font-mono text-[11px]">{selectedRequest.customerEmail}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Product &amp; Operating Company</span>
-                  <strong className="text-slate-900 text-sm">{selectedRequest.productName}</strong>
-                  <span className="text-blue-600 block font-semibold text-[11px]">
-                    {selectedRequest.companyName} • SKU: {selectedRequest.productSku}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Requested Units</span>
-                  <strong className="text-slate-900 text-sm font-mono">{selectedRequest.requestedQuantity} Units</strong>
-                  <span className="text-slate-500 block text-[11px]">
-                    Base List: ₹{selectedRequest.basePrice?.toLocaleString('en-IN')} / unit
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Assigned Representative</span>
-                  <strong className="text-slate-900 text-sm">{selectedRequest.salesRepName}</strong>
-                  <span className="text-slate-500 block font-mono text-[11px]">{selectedRequest.salesRepEmail}</span>
-                </div>
-              </div>
+            {/* Visual Lifecycle Stepper */}
+            <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Inquiry Progression Timeline
+              </h4>
 
-              {/* Customer Notes */}
-              {selectedRequest.customerMessage && (
-                <div className="pt-3 border-t border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Customer Project Message
-                  </span>
-                  <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-700 leading-relaxed italic">
-                    "{selectedRequest.customerMessage}"
+              <div className="grid grid-cols-5 gap-1 pt-1 text-center">
+                {/* Step 1: Received */}
+                <div className="flex flex-col items-center">
+                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                    ✓
                   </div>
+                  <span className="text-[11px] font-bold text-slate-800 mt-1.5">Inbound</span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {selectedInquiry.createdAtUtc ? new Date(selectedInquiry.createdAtUtc).toLocaleDateString() : ''}
+                  </span>
                 </div>
-              )}
 
-              {/* Resolution Reason */}
-              {selectedRequest.resolutionReason && (
-                <div className="pt-2 text-[11px] text-slate-500">
-                  <strong className="text-slate-700 font-medium">Resolution Rule: </strong>
-                  {selectedRequest.resolutionReason}
+                {/* Step 2: Accepted */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedInquiry.acceptedAtUtc || ['Contacted', 'Qualified', 'QuoteCreated', 'Converted'].includes(selectedInquiry.status)
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : selectedInquiry.status === 'Pending'
+                        ? 'bg-amber-100 text-amber-800 border-2 border-amber-400 animate-pulse'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    {selectedInquiry.acceptedAtUtc || ['Contacted', 'Qualified', 'QuoteCreated', 'Converted'].includes(selectedInquiry.status)
+                      ? '✓'
+                      : '2'}
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-700 mt-1.5">Accepted</span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {selectedInquiry.acceptedAtUtc ? new Date(selectedInquiry.acceptedAtUtc).toLocaleDateString() : 'Awaiting'}
+                  </span>
+                </div>
+
+                {/* Step 3: Contacted */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedInquiry.contactedAtUtc || ['Qualified', 'QuoteCreated', 'Converted'].includes(selectedInquiry.status)
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : selectedInquiry.status === 'Accepted'
+                        ? 'bg-blue-100 text-blue-800 border-2 border-blue-400 animate-pulse'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    {selectedInquiry.contactedAtUtc || ['Qualified', 'QuoteCreated', 'Converted'].includes(selectedInquiry.status)
+                      ? '✓'
+                      : '3'}
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-700 mt-1.5">Contacted</span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {selectedInquiry.contactedAtUtc ? new Date(selectedInquiry.contactedAtUtc).toLocaleDateString() : 'Pending'}
+                  </span>
+                </div>
+
+                {/* Step 4: Qualified */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedInquiry.qualifiedAtUtc || ['QuoteCreated', 'Converted'].includes(selectedInquiry.status)
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : selectedInquiry.status === 'Contacted'
+                        ? 'bg-indigo-100 text-indigo-800 border-2 border-indigo-400 animate-pulse'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    {selectedInquiry.qualifiedAtUtc || ['QuoteCreated', 'Converted'].includes(selectedInquiry.status)
+                      ? '✓'
+                      : '4'}
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-700 mt-1.5">Qualified</span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {selectedInquiry.qualifiedAtUtc ? new Date(selectedInquiry.qualifiedAtUtc).toLocaleDateString() : 'Pending'}
+                  </span>
+                </div>
+
+                {/* Step 5: Quoted */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedInquiry.quotationId
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : selectedInquiry.status === 'Qualified'
+                        ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-400 animate-pulse'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    {selectedInquiry.quotationId ? '✓' : '5'}
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-700 mt-1.5">Quotation</span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {selectedInquiry.quotationNumber ? `#${selectedInquiry.quotationNumber}` : 'Pending'}
+                  </span>
+                </div>
+              </div>
+
+              {selectedInquiry.status === 'Rejected' && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start gap-2 mt-2">
+                  <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Disqualified / Rejected: </strong>
+                    <span>{selectedInquiry.rejectionReason || 'Commercial fit mismatch'}</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* If Quotation Already Created */}
-            {selectedRequest.quotationId && (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                  <div>
-                    <h4 className="text-xs font-bold text-emerald-950">
-                      Official Quotation Generated (#{selectedRequest.quotationNumber || selectedRequest.quotationId})
-                    </h4>
-                    <p className="text-[11px] text-emerald-800">
-                      This inquiry has already been converted into a commercial quotation in the pricing engine.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="primary"
-                  size="xs"
-                  icon={ArrowUpRight}
-                  onClick={() => {
-                    setIsDrawerOpen(false);
-                    navigate(`/workspace/quotations/${selectedRequest.quotationId}`);
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                >
-                  Open Quotation
-                </Button>
-              </div>
-            )}
-
-            {/* 1-Click Quotation Generator Action */}
-            {!selectedRequest.quotationId && (
-              <div className="p-5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-xs space-y-3">
+            {/* Context Cards: Customer & Product */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-semibold">
-                    <Zap className="w-3.5 h-3.5 fill-white" />
-                    <span>1-Click Engine Transition</span>
-                  </div>
-                  <span className="text-[11px] text-blue-100 font-mono">
-                    Est. Value: ₹{(selectedRequest.basePrice * selectedRequest.requestedQuantity)?.toLocaleString('en-IN')}
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Customer Account
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
+                    ID #{selectedInquiry.customerId}
                   </span>
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold tracking-tight">Convert to Official Quotation</h4>
-                  <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">
-                    Instantly launches the DealFlow360 Quotation Engine. Pre-populates the customer account, assigns this representative, mounts the selected product line item, and executes discount governance &amp; margin calculation.
-                  </p>
+                  <h3 className="text-sm font-bold text-slate-900">{selectedInquiry.customerName}</h3>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">{selectedInquiry.customerEmail}</p>
                 </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={isCreatingQuote}
-                  icon={FileText}
-                  onClick={handleCreateQuote}
-                  className="w-full bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs py-2.5 shadow-xs"
-                >
-                  {isCreatingQuote ? 'Launching Pricing Engine...' : 'Generate Commercial Quotation Now'}
-                </Button>
+                <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
+                  <span>Preferred Channel:</span>
+                  <span className="font-semibold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                    {selectedInquiry.preferredContactMethod || 'Email'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Requested Product
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                    {selectedInquiry.companyName}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 line-clamp-1">{selectedInquiry.productName}</h3>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">SKU: {selectedInquiry.productSku}</p>
+                </div>
+                <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-500">₹{selectedInquiry.basePrice?.toLocaleString('en-IN')} × {selectedInquiry.requestedQuantity}</span>
+                  <span className="font-bold text-slate-900 text-sm">
+                    ₹{((selectedInquiry.basePrice || 0) * (selectedInquiry.requestedQuantity || 1))?.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {selectedInquiry.customerMessage && (
+              <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-100 space-y-1.5">
+                <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                  Client Project Scope &amp; Notes
+                </span>
+                <p className="text-xs text-slate-700 italic leading-relaxed bg-white p-3 rounded-lg border border-blue-100">
+                  "{selectedInquiry.customerMessage}"
+                </p>
               </div>
             )}
 
-            {/* Status & Progress Form */}
-            <form onSubmit={handleUpdateStatus} className="border-t border-slate-200 pt-5 space-y-4">
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Progress Status &amp; Representative Notes
-              </h4>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Lifecycle Status
-                </label>
-                <select
-                  value={drawerStatus}
-                  onChange={(e) => setDrawerStatus(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                >
-                  <option value="Pending">Pending Review</option>
-                  <option value="Contacted">Contacted Customer</option>
-                  <option value="Qualified">Qualified Enterprise Lead</option>
-                  <option value="QuoteCreated" disabled>Quotation Issued (Triggered via Create Quote)</option>
-                  <option value="Converted">Converted to Order</option>
-                  <option value="Rejected">Rejected / Disqualified</option>
-                  <option value="Closed">Closed</option>
-                </select>
-              </div>
-
-              {drawerStatus === 'Rejected' && (
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Engine 14 Routing &amp; Representative Assignment
+              </span>
+              <div className="grid grid-cols-2 gap-3 text-slate-600">
                 <div>
-                  <label className="block text-xs font-semibold text-rose-700 mb-1">
-                    Disqualification / Rejection Rationale
-                  </label>
-                  <input
-                    type="text"
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    placeholder="E.g., Out of scope, budget mismatch, competitor selected..."
-                    className="w-full px-3 py-2 text-xs bg-white border border-rose-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    required
-                  />
+                  <span className="text-[11px] text-slate-400 block">Assigned Representative:</span>
+                  <strong className="text-slate-900 text-xs">{selectedInquiry.salesRepName}</strong>
+                  <span className="text-[11px] text-slate-500 block font-mono">{selectedInquiry.salesRepEmail}</span>
                 </div>
-              )}
+                <div>
+                  <span className="text-[11px] text-slate-400 block">Routing Resolution Logic:</span>
+                  <span className="text-slate-700 text-xs font-medium">
+                    {selectedInquiry.resolutionReason || 'Default Account Manager rule'}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Representative Action Notes (Internal)
-                </label>
-                <textarea
-                  rows="3"
-                  value={repNotes}
-                  onChange={(e) => setRepNotes(e.target.value)}
-                  placeholder="Record customer meeting notes, technical requirements, delivery constraints..."
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            {selectedInquiry.repNotes && (
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Representative Interaction Log
+                </span>
+                <div className="p-3.5 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs whitespace-pre-wrap leading-relaxed shadow-xs">
+                  {selectedInquiry.repNotes}
+                </div>
+              </div>
+            )}
+
+            {/* Action Toolbar */}
+            <div className="p-5 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 text-white space-y-4 shadow-md">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold tracking-tight">Stage Actions &amp; Quotation Gateway</h4>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Execute current lifecycle transition or convert into pricing engine proposal.
+                  </p>
+                </div>
+                <StatusBadge status={selectedInquiry.status} />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  disabled={isUpdatingStatus}
-                  className="bg-slate-900 text-white text-xs px-5 py-2 font-semibold"
-                >
-                  {isUpdatingStatus ? 'Saving Updates...' : 'Save Progress'}
-                </Button>
+              <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-700/80">
+                {selectedInquiry.status === 'Pending' && (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={Check}
+                      disabled={isSubmittingAction}
+                      onClick={() => triggerAcceptModal(selectedInquiry)}
+                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
+                    >
+                      Accept &amp; Claim Inquiry
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={XCircle}
+                      disabled={isSubmittingAction}
+                      onClick={() => triggerRejectModal(selectedInquiry)}
+                      className="text-rose-300 border-rose-800 hover:bg-rose-950/40 text-xs"
+                    >
+                      Disqualify
+                    </Button>
+                  </>
+                )}
+
+                {selectedInquiry.status === 'Accepted' && (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={Phone}
+                      disabled={isSubmittingAction}
+                      onClick={() => triggerContactModal(selectedInquiry)}
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs"
+                    >
+                      Log Customer Contact
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={ShieldCheck}
+                      disabled={isSubmittingAction}
+                      onClick={() => triggerQualifyModal(selectedInquiry)}
+                      className="text-xs font-semibold"
+                    >
+                      Qualify Directly
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={XCircle}
+                      disabled={isSubmittingAction}
+                      onClick={() => triggerRejectModal(selectedInquiry)}
+                      className="text-rose-300 border-rose-800 hover:bg-rose-950/40 text-xs"
+                    >
+                      Disqualify
+                    </Button>
+                  </>
+                )}
+
+                {selectedInquiry.status === 'Contacted' && (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={ShieldCheck}
+                      disabled={isSubmittingAction}
+                      onClick={() => triggerQualifyModal(selectedInquiry)}
+                      className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs"
+                    >
+                      Qualify Requirements
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Phone}
+                      disabled={isSubmittingAction}
+                      onClick={() => triggerContactModal(selectedInquiry)}
+                      className="text-xs font-semibold"
+                    >
+                      Log Another Contact
+                    </Button>
+                  </>
+                )}
+
+                {selectedInquiry.status === 'Qualified' && !selectedInquiry.quotationId && (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={Zap}
+                      disabled={isSubmittingAction}
+                      onClick={() => handleCreateQuoteOneClick(selectedInquiry)}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs shadow-xs"
+                    >
+                      {isSubmittingAction ? 'Generating...' : '1-Click Quotation Creation'}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={FileText}
+                      disabled={isSubmittingAction}
+                      onClick={() => handleOpenInQuoteBuilder(selectedInquiry)}
+                      className="text-xs font-semibold"
+                    >
+                      Open in Quote Builder
+                    </Button>
+                  </>
+                )}
+
+                {selectedInquiry.quotationId && (
+                  <div className="flex items-center justify-between w-full">
+                    <div className="text-xs text-emerald-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Commercial Quotation #{selectedInquiry.quotationNumber || selectedInquiry.quotationId} active</span>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={ArrowUpRight}
+                      onClick={() => {
+                        setIsDrawerOpen(false);
+                        navigate(`/workspace/quotations/${selectedInquiry.quotationId}`);
+                      }}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs"
+                    >
+                      Open Quotation Workspace
+                    </Button>
+                  </div>
+                )}
               </div>
-            </form>
+            </div>
           </div>
         )}
       </Drawer>
+
+      {/* MODAL 1: ACCEPT INQUIRY */}
+      <Modal
+        isOpen={activeModal === 'accept'}
+        onClose={() => setActiveModal(null)}
+        title="Accept & Claim Sales Inquiry"
+        description="Claim this customer inquiry into your active pipeline to initiate engagement."
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setActiveModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isSubmittingAction}
+              onClick={handleAcceptSubmit}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+            >
+              {isSubmittingAction ? 'Claiming...' : 'Confirm Acceptance'}
+            </Button>
+          </>
+        }
+      >
+        {selectedInquiry && (
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
+              <strong className="block font-semibold">Inquiry #{selectedInquiry.requestNumber}</strong>
+              <span>
+                {selectedInquiry.customerName} • {selectedInquiry.productName} ({selectedInquiry.requestedQuantity} Units)
+              </span>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Optional Rep Acceptance Note
+              </label>
+              <Textarea
+                rows={3}
+                value={acceptNotes}
+                onChange={(e) => setAcceptNotes(e.target.value)}
+                placeholder="E.g., Reviewing client's infrastructure needs. Scheduled preliminary reach out for tomorrow morning."
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL 2: CONTACT CUSTOMER */}
+      <Modal
+        isOpen={activeModal === 'contact'}
+        onClose={() => setActiveModal(null)}
+        title="Record Customer Interaction"
+        description="Log outreach details, discussion notes, and conversation outcomes."
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setActiveModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isSubmittingAction}
+              onClick={handleContactSubmit}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+            >
+              {isSubmittingAction ? 'Saving...' : 'Save Interaction Log'}
+            </Button>
+          </>
+        }
+      >
+        {selectedInquiry && (
+          <div className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Contact Channel
+                </label>
+                <Select
+                  value={contactMethod}
+                  onChange={(e) => setContactMethod(e.target.value)}
+                  options={[
+                    { value: 'Phone', label: 'Phone Call' },
+                    { value: 'Email', label: 'Direct Email' },
+                    { value: 'VideoCall', label: 'Video Conference (Teams/Meet)' },
+                    { value: 'InPerson', label: 'On-site Meeting' },
+                  ]}
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Interaction Outcome
+                </label>
+                <Select
+                  value={contactOutcome}
+                  onChange={(e) => setContactOutcome(e.target.value)}
+                  options={[
+                    { value: 'Requirements Discussed', label: 'Requirements Discussed' },
+                    { value: 'Technical Demo Scheduled', label: 'Technical Demo Scheduled' },
+                    { value: 'Quotation Requested', label: 'Quotation Requested' },
+                    { value: 'Follow-up Required', label: 'Follow-up Required' },
+                    { value: 'Unreachable / Left Voicemail', label: 'Unreachable / Left Voicemail' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Meeting &amp; Discussion Notes <span className="text-rose-500">*</span>
+              </label>
+              <Textarea
+                rows={4}
+                value={contactNotes}
+                onChange={(e) => setContactNotes(e.target.value)}
+                placeholder="Detail key customer requirements, budget constraints, expected timeline, delivery address..."
+                required
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL 3: QUALIFY INQUIRY */}
+      <Modal
+        isOpen={activeModal === 'qualify'}
+        onClose={() => setActiveModal(null)}
+        title="Qualify Enterprise Opportunity"
+        description="Verify project budget, decision timeline, and product alignment before issuing commercial pricing."
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setActiveModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isSubmittingAction}
+              onClick={handleQualifySubmit}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+            >
+              {isSubmittingAction ? 'Qualifying...' : 'Confirm Qualification'}
+            </Button>
+          </>
+        }
+      >
+        {selectedInquiry && (
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-950">
+              <strong className="block font-semibold">Qualification Target</strong>
+              <span>
+                {selectedInquiry.customerName} • Est. Value: ₹{((selectedInquiry.basePrice || 0) * (selectedInquiry.requestedQuantity || 1))?.toLocaleString('en-IN')}
+              </span>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Qualification Assessment &amp; Commercial Scope <span className="text-rose-500">*</span>
+              </label>
+              <Textarea
+                rows={4}
+                value={qualifyNotes}
+                onChange={(e) => setQualifyNotes(e.target.value)}
+                placeholder="Confirm BANT criteria: Budget confirmed, Authority verified, Need validated, Timeline established..."
+                required
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL 4: DISQUALIFY / REJECT */}
+      <Modal
+        isOpen={activeModal === 'reject'}
+        onClose={() => setActiveModal(null)}
+        title="Disqualify Sales Inquiry"
+        description="Record disqualification rationale to maintain clean sales pipeline metrics."
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setActiveModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={isSubmittingAction}
+              onClick={handleRejectSubmit}
+              className="font-bold"
+            >
+              {isSubmittingAction ? 'Disqualifying...' : 'Confirm Disqualification'}
+            </Button>
+          </>
+        }
+      >
+        {selectedInquiry && (
+          <div className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Disqualification Reason <span className="text-rose-500">*</span>
+              </label>
+              <Select
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                options={[
+                  { value: 'Budget mismatch', label: 'Budget mismatch / Insufficient funding' },
+                  { value: 'Product technical out of scope', label: 'Product technical out of scope' },
+                  { value: 'Competitor vendor chosen', label: 'Competitor vendor chosen' },
+                  { value: 'Customer project cancelled/postponed', label: 'Customer project cancelled/postponed' },
+                  { value: 'Unresponsive after multiple contact attempts', label: 'Unresponsive after multiple attempts' },
+                  { value: 'Duplicate or inadvertent inquiry', label: 'Duplicate or inadvertent inquiry' },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Additional Comments &amp; Context
+              </label>
+              <Textarea
+                rows={3}
+                value={rejectionCustomNotes}
+                onChange={(e) => setRejectionCustomNotes(e.target.value)}
+                placeholder="Optional notes explaining customer feedback or future re-engagement date..."
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
