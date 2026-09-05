@@ -9,6 +9,10 @@ export const customerApi = {
     return apiClient.get(`customers/${id}`);
   },
 
+  getCustomer360: async (id) => {
+    return apiClient.get(`customers/${id}/360`);
+  },
+
   createCustomer: async (data) => {
     return apiClient.post('customers', data);
   },

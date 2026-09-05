@@ -12,6 +12,7 @@ import {
   Activity,
   BarChart3,
   Users,
+  UserCheck,
   Settings,
   Package,
   Layers,
@@ -21,41 +22,13 @@ import {
   ChevronRight,
   Shield,
   Zap,
-  Sparkles,
 } from 'lucide-react';
 
 export const AppLayout = () => {
-  const { user, role, isSalesRep, isSalesManager, isFinance, isAdmin, logout, login } = useAuth();
-  const toast = useToast();
+  const { user, isSalesRep, isSalesManager, isFinance, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [switchingRole, setSwitchingRole] = useState(false);
-
-  // Quick switch for reviewers
-  const handleQuickRoleSwitch = async (targetRole) => {
-    if (user?.role === targetRole) return;
-    setSwitchingRole(true);
-    const credentials = {
-      SalesRep: { email: 'rep@dealflow360.io', password: 'Rep@123' },
-      SalesManager: { email: 'manager@dealflow360.io', password: 'Manager@123' },
-      FinanceOperations: { email: 'finance@dealflow360.io', password: 'Finance@123' },
-      Admin: { email: 'admin@dealflow360.io', password: 'Admin@123' },
-    };
-
-    try {
-      const creds = credentials[targetRole];
-      if (creds) {
-        await login(creds);
-        toast.success('Role Switched', `Now logged in as ${targetRole}`);
-        navigate('/dashboard');
-      }
-    } catch (err) {
-      toast.error('Switch Failed', err.message);
-    } finally {
-      setSwitchingRole(false);
-    }
-  };
 
   const navItems = [
     // Core Sales
@@ -70,11 +43,12 @@ export const AppLayout = () => {
     },
     // Governance & Approvals
     {
-      group: 'Governance & Health',
+      group: 'Governance & Team',
       visible: isSalesManager || isFinance || isAdmin,
       items: [
         { label: 'Approvals Desk', path: '/workspace/approvals', icon: CheckSquare, visible: isSalesManager || isFinance || isAdmin },
         { label: 'Deal Health Radar', path: '/workspace/deal-health', icon: Activity, visible: isSalesManager || isAdmin },
+        { label: 'Users & Team', path: '/workspace/users', icon: UserCheck, visible: isSalesManager || isAdmin },
       ],
     },
     // Operations & Revenue
@@ -232,32 +206,25 @@ export const AppLayout = () => {
             </div>
           </div>
 
-          {/* Quick Role Switcher Bar */}
-          <div className="flex items-center gap-2">
-            <span className="hidden md:inline-flex text-[11px] font-semibold text-slate-500 uppercase tracking-wider items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-500" /> Demo Role:
-            </span>
-            <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
-              {[
-                { r: 'SalesRep', label: 'Rep' },
-                { r: 'SalesManager', label: 'Manager' },
-                { r: 'FinanceOperations', label: 'Finance' },
-                { r: 'Admin', label: 'Admin' },
-              ].map(({ r, label }) => (
-                <button
-                  key={r}
-                  type="button"
-                  disabled={switchingRole}
-                  onClick={() => handleQuickRoleSwitch(r)}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                    user?.role === r
-                      ? 'bg-white text-blue-700 shadow-xs font-semibold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+          {/* Identity & Environment Info */}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-slate-500 font-medium font-mono text-[11px]">MSSQL Active</span>
+            </div>
+            <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+              <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                {user?.role === 'SalesRep'
+                  ? 'Sales Representative'
+                  : user?.role === 'SalesManager'
+                  ? 'Sales Manager'
+                  : user?.role === 'FinanceOperations'
+                  ? 'Finance & Ops'
+                  : user?.role || 'User'}
+              </span>
+              <span className="hidden md:inline-block text-xs font-medium text-slate-700">
+                {user?.fullName}
+              </span>
             </div>
           </div>
         </header>

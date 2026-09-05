@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { customerApi, adminApi } from '../api';
 import { useToast } from '../context/ToastContext';
 import {
@@ -10,9 +11,21 @@ import {
   LoadingSpinner,
   ErrorAlert,
 } from '../components/ui';
-import { Users, Plus, Mail, Phone, RefreshCw } from 'lucide-react';
+import {
+  Users,
+  Plus,
+  Mail,
+  Phone,
+  RefreshCw,
+  ExternalLink,
+  Copy,
+  Check,
+  AlertTriangle,
+  ArrowRight,
+} from 'lucide-react';
 
 export const CustomerListPage = () => {
+  const navigate = useNavigate();
   const toast = useToast();
   const [customers, setCustomers] = useState([]);
   const [tiers, setTiers] = useState([]);
@@ -27,6 +40,10 @@ export const CustomerListPage = () => {
   const [tierId, setTierId] = useState('');
   const [currencyCode, setCurrencyCode] = useState('USD');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Credentials Generated Modal
+  const [createdCredential, setCreatedCredential] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     loadCustomers();
@@ -60,25 +77,43 @@ export const CustomerListPage = () => {
 
     setIsSubmitting(true);
     try {
-      await customerApi.createCustomer({
-        name,
-        email,
-        phone,
+      const res = await customerApi.createCustomer({
+        name: name.trim(),
+        email: email.trim() || null,
+        phone: phone.trim() || null,
         tierId: parseInt(tierId, 10),
         currencyCode,
       });
 
-      toast.success('Customer Created', `${name} added to accounts.`);
+      toast.success('Customer Created', `${name} registered successfully.`);
       setIsModalOpen(false);
       setName('');
       setEmail('');
       setPhone('');
+
+      // Check if temporary password returned
+      if (res?.temporaryPassword) {
+        setCreatedCredential({
+          customerName: res.customer?.name || name,
+          email: res.user?.email || email,
+          temporaryPassword: res.temporaryPassword,
+        });
+      }
+
       await loadCustomers();
     } catch (err) {
       toast.error('Creation Failed', err.message);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const copyToClipboard = () => {
+    if (!createdCredential) return;
+    const text = `Customer Portal Access Credentials:\nURL: ${window.location.origin}/login\nEmail: ${createdCredential.email}\nTemporary Password: ${createdCredential.temporaryPassword}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   if (isLoading) {
@@ -89,7 +124,16 @@ export const CustomerListPage = () => {
     {
       header: 'Account Name',
       accessor: 'name',
-      render: (c) => <span className="font-bold text-slate-900">{c.name}</span>,
+      render: (c) => (
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
+            {c.name}
+          </span>
+          <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded-md font-medium border border-blue-100 flex items-center gap-0.5">
+            360 <ExternalLink className="w-2.5 h-2.5" />
+          </span>
+        </div>
+      ),
     },
     {
       header: 'Contact Email',
@@ -125,6 +169,22 @@ export const CustomerListPage = () => {
       accessor: 'currencyCode',
       render: (c) => <span className="font-mono text-xs text-slate-600">{c.currencyCode}</span>,
     },
+    {
+      header: 'Action',
+      render: (c) => (
+        <Button
+          variant="outline"
+          size="xs"
+          icon={ArrowRight}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/workspace/customers/${c.id}`);
+          }}
+        >
+          View 360
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -134,7 +194,7 @@ export const CustomerListPage = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Customer Accounts</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Enterprise customer registry, tier assignment, and commercial pricing policies.
+            Enterprise customer registry, commercial tiers, and Customer 360 workspaces.
           </p>
         </div>
 
@@ -165,6 +225,7 @@ export const CustomerListPage = () => {
         data={customers}
         emptyMessage="No customer accounts registered"
         emptyDescription="Create a customer account to begin generating proposals."
+        onRowClick={(c) => navigate(`/workspace/customers/${c.id}`)}
       />
 
       {/* New Customer Modal */}
@@ -172,7 +233,7 @@ export const CustomerListPage = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="Register Enterprise Customer"
-        description="Assign tier discount limits and default currency code."
+        description="Creates customer account and provisions portal credentials atomically."
       >
         <form onSubmit={handleCreateCustomer} className="space-y-4">
           <Input
@@ -185,7 +246,7 @@ export const CustomerListPage = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Contact Email"
+              label="Contact / Portal Email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -224,16 +285,74 @@ export const CustomerListPage = () => {
             />
           </div>
 
+          <p className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+            Note: Providing an email address will automatically provision a Customer Portal login with a secure 14-character temporary password.
+          </p>
+
           <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
             <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" size="sm" isLoading={isSubmitting}>
-              Save Customer
+              Save Customer & Provision
             </Button>
           </div>
         </form>
       </Modal>
+
+      {/* Temporary Password / Credentials Modal */}
+      {createdCredential && (
+        <Modal
+          isOpen={true}
+          onClose={() => setCreatedCredential(null)}
+          title="Customer Portal Access Provisioned"
+          description="A customer account and portal login have been created in Microsoft SQL Server."
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-800">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Security Notice:</span> This temporary password is only displayed once. Please securely send these credentials to the client contact.
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2.5 text-xs font-mono">
+              <div className="flex justify-between items-center py-1 border-b border-slate-800">
+                <span className="text-slate-400">Customer:</span>
+                <span className="text-white font-semibold">{createdCredential.customerName}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-800">
+                <span className="text-slate-400">Portal Login:</span>
+                <span className="text-white">{createdCredential.email}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-slate-400">Temporary Password:</span>
+                <span className="text-emerald-400 font-bold text-sm tracking-wider bg-slate-800 px-2 py-0.5 rounded">
+                  {createdCredential.temporaryPassword}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={copied ? Check : Copy}
+                onClick={copyToClipboard}
+              >
+                {copied ? 'Copied to Clipboard' : 'Copy Credentials'}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setCreatedCredential(null)}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

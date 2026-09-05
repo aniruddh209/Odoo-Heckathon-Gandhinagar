@@ -13,6 +13,7 @@ public interface IAuthService
     Task<AuthResponse> SignupAsync(SignupRequest request);
     Task<AuthResponse> RefreshTokenAsync(string refreshToken);
     Task<MeResponse> GetMeAsync(int userId);
+    Task ChangePasswordAsync(int userId, ChangePasswordRequest request);
 }
 
 public class AuthService : IAuthService
@@ -31,15 +32,24 @@ public class AuthService : IAuthService
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
 
-        if (user == null || !user.IsActive)
+        if (user == null)
         {
             throw new UnauthorizedAccessException("Invalid email or password.");
+        }
+
+        if (!user.IsActive)
+        {
+            throw new UnauthorizedAccessException("Account is disabled. Please contact your administrator.");
         }
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
             throw new UnauthorizedAccessException("Invalid email or password.");
         }
+
+        user.LastLoginAtUtc = DateTime.UtcNow;
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
 
         return await GenerateAuthResponseAsync(user);
     }
@@ -59,6 +69,7 @@ public class AuthService : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = Role.SalesRep,
             IsActive = true,
+            MustChangePassword = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         };
@@ -100,8 +111,41 @@ public class AuthService : IAuthService
             Role = user.Role.ToString(),
             SalesTeamId = user.SalesTeamId,
             CustomerId = user.CustomerId,
-            IsActive = user.IsActive
+            IsActive = user.IsActive,
+            MustChangePassword = user.MustChangePassword,
+            LastLoginAtUtc = user.LastLoginAtUtc
         };
+    }
+
+    public async Task ChangePasswordAsync(int userId, ChangePasswordRequest request)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) throw new KeyNotFoundException("User not found.");
+
+        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            throw new UnauthorizedAccessException("Current password is incorrect.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new ArgumentException("New password must be at least 8 characters long.");
+        }
+
+        var hasUpper = request.NewPassword.Any(char.IsUpper);
+        var hasLower = request.NewPassword.Any(char.IsLower);
+        var hasDigit = request.NewPassword.Any(char.IsDigit);
+        if (!hasUpper || !hasLower || !hasDigit)
+        {
+            throw new ArgumentException("New password must contain uppercase, lowercase, and numeric characters.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.MustChangePassword = false;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
     }
 
     private async Task<AuthResponse> GenerateAuthResponseAsync(User user)
@@ -132,7 +176,9 @@ public class AuthService : IAuthService
                 Role = user.Role.ToString(),
                 SalesTeamId = user.SalesTeamId,
                 CustomerId = user.CustomerId,
-                IsActive = user.IsActive
+                IsActive = user.IsActive,
+                MustChangePassword = user.MustChangePassword,
+                LastLoginAtUtc = user.LastLoginAtUtc
             }
         };
     }

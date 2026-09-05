@@ -24,6 +24,10 @@ public class User
 
     public bool IsActive { get; set; } = true;
 
+    public bool MustChangePassword { get; set; } = false;
+
+    public DateTime? LastLoginAtUtc { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAtUtc { get; set; }

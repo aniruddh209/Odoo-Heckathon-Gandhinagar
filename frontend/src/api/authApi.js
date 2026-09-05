@@ -29,6 +29,10 @@ export const authApi = {
     return apiClient.get('auth/me');
   },
 
+  changePassword: async (passwordData) => {
+    return apiClient.post('auth/change-password', passwordData);
+  },
+
   logout: () => {
     clearStoredAuth();
   },

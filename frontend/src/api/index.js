@@ -9,3 +9,4 @@ export { default as reportApi } from './reportApi';
 export { default as customerApi } from './customerApi';
 export { default as portalApi } from './portalApi';
 export { default as adminApi } from './adminApi';
+export { default as userApi } from './userApi';

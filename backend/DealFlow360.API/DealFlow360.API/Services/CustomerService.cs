@@ -1,8 +1,10 @@
+using DealFlow360.API.Common;
 using DealFlow360.API.Data;
 using DealFlow360.API.DTOs.Customers;
 using DealFlow360.API.DTOs.Invoices;
 using DealFlow360.API.DTOs.Orders;
 using DealFlow360.API.DTOs.Portal;
+using DealFlow360.API.DTOs.Users;
 using DealFlow360.API.Models;
 using DealFlow360.API.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -13,8 +15,9 @@ public interface ICustomerService
 {
     Task<List<CustomerListResponse>> GetCustomersAsync();
     Task<CustomerDetailResponse> GetCustomerByIdAsync(int id);
-    Task<CustomerDetailResponse> CreateCustomerAsync(CreateCustomerRequest request);
+    Task<CreateCustomerResponse> CreateCustomerAsync(CreateCustomerRequest request);
     Task<CustomerDetailResponse> UpdateCustomerAsync(int id, UpdateCustomerRequest request);
+    Task<Customer360Response> GetCustomer360Async(int id);
     Task<List<CustomerQuoteDto>> GetCustomerQuotationsAsync(int customerId);
     Task<CustomerQuoteDto> ConfirmCustomerQuotationAsync(int customerId, int quotationId);
     Task<List<OrderListResponse>> GetCustomerOrdersAsync(int customerId);
@@ -51,6 +54,7 @@ public class CustomerService : ICustomerService
     {
         var c = await _context.Customers
             .Include(cust => cust.Tier)
+            .Include(cust => cust.AssignedSalesRep)
             .FirstOrDefaultAsync(cust => cust.Id == id);
 
         if (c == null) throw new KeyNotFoundException($"Customer {id} not found.");
@@ -66,27 +70,104 @@ public class CustomerService : ICustomerService
             TierMaxDiscount = c.Tier.MaxDiscountPercent,
             CurrencyCode = c.CurrencyCode,
             IsActive = c.IsActive,
-            CreatedAtUtc = c.CreatedAtUtc
+            CreatedAtUtc = c.CreatedAtUtc,
+            AssignedSalesRepId = c.AssignedSalesRepId,
+            AssignedSalesRepName = c.AssignedSalesRep?.FullName
         };
     }
 
-    public async Task<CustomerDetailResponse> CreateCustomerAsync(CreateCustomerRequest request)
+    public async Task<CreateCustomerResponse> CreateCustomerAsync(CreateCustomerRequest request)
     {
-        var customer = new Customer
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            Name = request.Name,
-            Email = request.Email,
-            Phone = request.Phone,
-            TierId = request.TierId,
-            CurrencyCode = request.CurrencyCode,
-            IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
-        };
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-        _context.Customers.Add(customer);
-        await _context.SaveChangesAsync();
+            var customer = new Customer
+            {
+                Name = request.Name.Trim(),
+                Email = request.Email?.Trim(),
+                Phone = request.Phone?.Trim(),
+                TierId = request.TierId,
+                CurrencyCode = string.IsNullOrWhiteSpace(request.CurrencyCode) ? "USD" : request.CurrencyCode.Trim().ToUpper(),
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            };
 
-        return await GetCustomerByIdAsync(customer.Id);
+            _context.Customers.Add(customer);
+            await _context.SaveChangesAsync();
+
+            UserResponse? userResponse = null;
+            string? temporaryPassword = null;
+
+            if (!string.IsNullOrWhiteSpace(customer.Email))
+            {
+                var emailLower = customer.Email.ToLower();
+                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == emailLower);
+                if (existingUser != null)
+                {
+                    existingUser.CustomerId = customer.Id;
+                    existingUser.UpdatedAtUtc = DateTime.UtcNow;
+                    _context.Users.Update(existingUser);
+                    await _context.SaveChangesAsync();
+
+                    userResponse = new UserResponse
+                    {
+                        Id = existingUser.Id,
+                        FullName = existingUser.FullName,
+                        Email = existingUser.Email,
+                        Role = existingUser.Role.ToString(),
+                        CustomerId = existingUser.CustomerId,
+                        CustomerName = customer.Name,
+                        IsActive = existingUser.IsActive,
+                        CreatedAtUtc = existingUser.CreatedAtUtc
+                    };
+                }
+                else
+                {
+                    temporaryPassword = PasswordGenerator.Generate(14);
+                    var newUser = new User
+                    {
+                        FullName = customer.Name,
+                        Email = emailLower,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(temporaryPassword),
+                        Role = Role.Customer,
+                        CustomerId = customer.Id,
+                        IsActive = true,
+                        MustChangePassword = true,
+                        CreatedAtUtc = DateTime.UtcNow,
+                        UpdatedAtUtc = DateTime.UtcNow
+                    };
+
+                    _context.Users.Add(newUser);
+                    await _context.SaveChangesAsync();
+
+                    userResponse = new UserResponse
+                    {
+                        Id = newUser.Id,
+                        FullName = newUser.FullName,
+                        Email = newUser.Email,
+                        Role = newUser.Role.ToString(),
+                        CustomerId = newUser.CustomerId,
+                        CustomerName = customer.Name,
+                        IsActive = newUser.IsActive,
+                        MustChangePassword = true,
+                        CreatedAtUtc = newUser.CreatedAtUtc
+                    };
+                }
+            }
+
+            await transaction.CommitAsync();
+
+            var detail = await GetCustomerByIdAsync(customer.Id);
+
+            return new CreateCustomerResponse
+            {
+                Customer = detail,
+                User = userResponse,
+                TemporaryPassword = temporaryPassword
+            };
+        });
     }
 
     public async Task<CustomerDetailResponse> UpdateCustomerAsync(int id, UpdateCustomerRequest request)
@@ -94,9 +175,9 @@ public class CustomerService : ICustomerService
         var customer = await _context.Customers.FindAsync(id);
         if (customer == null) throw new KeyNotFoundException($"Customer {id} not found.");
 
-        customer.Name = request.Name;
-        customer.Email = request.Email;
-        customer.Phone = request.Phone;
+        customer.Name = request.Name.Trim();
+        customer.Email = request.Email?.Trim();
+        customer.Phone = request.Phone?.Trim();
         customer.TierId = request.TierId;
         customer.CurrencyCode = request.CurrencyCode;
         customer.IsActive = request.IsActive;
@@ -106,6 +187,146 @@ public class CustomerService : ICustomerService
         await _context.SaveChangesAsync();
 
         return await GetCustomerByIdAsync(id);
+    }
+
+    public async Task<Customer360Response> GetCustomer360Async(int id)
+    {
+        var customerDetail = await GetCustomerByIdAsync(id);
+
+        var quotes = await GetCustomerQuotationsAsync(id);
+        var orders = await GetCustomerOrdersAsync(id);
+        var invoices = await GetCustomerInvoicesAsync(id);
+
+        var associatedUsers = await _context.Users
+            .Where(u => u.CustomerId == id)
+            .Select(u => new UserResponse
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Role = u.Role.ToString(),
+                CustomerId = u.CustomerId,
+                CustomerName = customerDetail.Name,
+                IsActive = u.IsActive,
+                MustChangePassword = u.MustChangePassword,
+                LastLoginAtUtc = u.LastLoginAtUtc,
+                CreatedAtUtc = u.CreatedAtUtc
+            })
+            .ToListAsync();
+
+        // Compute Overview KPIs
+        var activeQuotes = quotes.Where(q => q.Status != "ConvertedToOrder" && q.Status != "Confirmed" && q.Status != "Rejected" && q.Status != "Cancelled").ToList();
+        var activeQuotesValue = activeQuotes.Sum(q => q.GrandTotal);
+
+        var confirmedOrders = orders.Where(o => o.Status == "Confirmed" || o.Status == "Processing" || o.Status == "Fulfilled" || o.Status == "PartiallyFulfilled").ToList();
+        var confirmedOrdersValue = confirmedOrders.Sum(o => o.Total);
+
+        var totalOutstanding = invoices.Sum(i => i.Outstanding);
+
+        var lifetimeValue = confirmedOrdersValue > 0 ? confirmedOrdersValue : quotes.Where(q => q.Status == "Confirmed" || q.Status == "ConvertedToOrder").Sum(q => q.GrandTotal);
+
+        var kpis = new CustomerOverviewKpis
+        {
+            TotalLifetimeValue = lifetimeValue,
+            TotalQuotationsCount = quotes.Count,
+            ActiveQuotationsCount = activeQuotes.Count,
+            ActiveQuotationsValue = activeQuotesValue,
+            ConfirmedOrdersCount = orders.Count,
+            ConfirmedOrdersValue = confirmedOrdersValue,
+            TotalInvoicesCount = invoices.Count,
+            TotalOutstandingBalance = totalOutstanding
+        };
+
+        // Product History: Aggregate distinct products purchased across quotations and orders
+        var productHistoryMap = new Dictionary<int, CustomerProductHistoryItem>();
+        foreach (var q in quotes)
+        {
+            foreach (var line in q.Lines)
+            {
+                if (!productHistoryMap.TryGetValue(line.ProductId, out var item))
+                {
+                    item = new CustomerProductHistoryItem
+                    {
+                        ProductId = line.ProductId,
+                        ProductName = line.ProductName,
+                        SKU = line.SKU,
+                        TotalQuantityPurchased = line.Quantity,
+                        TotalRevenue = line.NetAmount,
+                        LastPurchasedAtUtc = q.ExpectedCloseDate
+                    };
+                    productHistoryMap[line.ProductId] = item;
+                }
+                else
+                {
+                    item.TotalQuantityPurchased += line.Quantity;
+                    item.TotalRevenue += line.NetAmount;
+                }
+            }
+        }
+
+        // Activity Timeline: Assemble milestones
+        var timeline = new List<CustomerActivityEvent>();
+        foreach (var q in quotes)
+        {
+            timeline.Add(new CustomerActivityEvent
+            {
+                EventType = "QuotationCreated",
+                Title = $"Quotation {q.QuotationNumber} Prepared",
+                Description = $"Commercial proposal created totaling {q.CurrencyCode} {q.GrandTotal:N2}.",
+                TimestampUtc = q.ExpectedCloseDate ?? DateTime.UtcNow,
+                ReferenceNumber = q.QuotationNumber
+            });
+
+            if (q.Status == "Confirmed")
+            {
+                timeline.Add(new CustomerActivityEvent
+                {
+                    EventType = "QuotationConfirmed",
+                    Title = $"Quotation {q.QuotationNumber} Formally Confirmed",
+                    Description = $"Client confirmed proposal terms.",
+                    TimestampUtc = DateTime.UtcNow,
+                    ReferenceNumber = q.QuotationNumber
+                });
+            }
+        }
+
+        foreach (var o in orders)
+        {
+            timeline.Add(new CustomerActivityEvent
+            {
+                EventType = "OrderCreated",
+                Title = $"Sale Order {o.OrderNumber} Executed",
+                Description = $"Order confirmed with status {o.Status} totaling {customerDetail.CurrencyCode} {o.Total:N2}.",
+                TimestampUtc = o.CreatedAtUtc,
+                ReferenceNumber = o.OrderNumber
+            });
+        }
+
+        foreach (var inv in invoices)
+        {
+            timeline.Add(new CustomerActivityEvent
+            {
+                EventType = "InvoiceIssued",
+                Title = $"Invoice {inv.InvoiceNumber} Issued",
+                Description = $"Billing statement issued for {customerDetail.CurrencyCode} {inv.Total:N2}. Status: {inv.Status}.",
+                TimestampUtc = inv.DueDate,
+                ReferenceNumber = inv.InvoiceNumber
+            });
+        }
+
+        var sortedTimeline = timeline.OrderByDescending(t => t.TimestampUtc).Take(30).ToList();
+
+        return new Customer360Response
+        {
+            Customer = customerDetail,
+            Overview = kpis,
+            Quotations = quotes,
+            Orders = orders,
+            Invoices = invoices,
+            ProductHistory = productHistoryMap.Values.OrderByDescending(p => p.TotalRevenue).ToList(),
+            ActivityTimeline = sortedTimeline,
+            AssociatedUsers = associatedUsers
+        };
     }
 
     public async Task<List<CustomerQuoteDto>> GetCustomerQuotationsAsync(int customerId)

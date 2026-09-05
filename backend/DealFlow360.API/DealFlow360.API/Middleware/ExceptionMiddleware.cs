@@ -34,6 +34,7 @@ public class ExceptionMiddleware
         var (statusCode, message) = exception switch
         {
             KeyNotFoundException => (HttpStatusCode.NotFound, exception.Message),
+            DealFlow360.API.Common.ForbiddenAccessException => (HttpStatusCode.Forbidden, exception.Message),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, exception.Message),
             InvalidOperationException => (HttpStatusCode.BadRequest, exception.Message),
             ArgumentException => (HttpStatusCode.BadRequest, exception.Message),

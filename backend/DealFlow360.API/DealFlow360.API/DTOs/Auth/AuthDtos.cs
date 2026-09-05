@@ -32,4 +32,12 @@ public class MeResponse
     public int? SalesTeamId { get; set; }
     public int? CustomerId { get; set; }
     public bool IsActive { get; set; }
+    public bool MustChangePassword { get; set; }
+    public DateTime? LastLoginAtUtc { get; set; }
+}
+
+public class ChangePasswordRequest
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }

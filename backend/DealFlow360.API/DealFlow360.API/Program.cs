@@ -107,6 +107,7 @@ public class Program
         // ─── Register Application Services ────────────────────
         builder.Services.AddScoped<IJwtService, JwtService>();
         builder.Services.AddScoped<IAuthService, AuthService>();
+        builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IAdminService, AdminService>();
         builder.Services.AddScoped<ICustomerService, CustomerService>();

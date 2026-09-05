@@ -40,12 +40,20 @@ public class CustomersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id}/360")]
+    [Authorize(Roles = "SalesRep,SalesManager,FinanceOperations,Admin")]
+    public async Task<IActionResult> GetCustomer360(int id)
+    {
+        var result = await _customerService.GetCustomer360Async(id);
+        return Ok(result);
+    }
+
     [HttpPost]
     [Authorize(Roles = "SalesRep,SalesManager,Admin")]
     public async Task<IActionResult> CreateCustomer([FromBody] CreateCustomerRequest request)
     {
         var result = await _customerService.CreateCustomerAsync(request);
-        return CreatedAtAction(nameof(GetCustomerById), new { id = result.Id }, result);
+        return CreatedAtAction(nameof(GetCustomerById), new { id = result.Customer.Id }, result);
     }
 
     [HttpPut("{id}")]

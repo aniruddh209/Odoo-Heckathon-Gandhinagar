@@ -28,6 +28,15 @@ public class UserResponse
     public string? TeamName { get; set; }
     public int? SalesTeamId { get; set; }
     public int? CustomerId { get; set; }
+    public string? CustomerName { get; set; }
     public bool IsActive { get; set; }
+    public bool MustChangePassword { get; set; }
+    public DateTime? LastLoginAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+}
+
+public class CreateUserResponse
+{
+    public UserResponse User { get; set; } = null!;
+    public string? TemporaryPassword { get; set; }
 }

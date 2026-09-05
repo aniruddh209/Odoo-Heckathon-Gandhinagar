@@ -10,6 +10,8 @@ export { default as BillingPage } from './BillingPage';
 export { default as DealHealthPage } from './DealHealthPage';
 export { default as ReportsPage } from './ReportsPage';
 export { default as CustomerListPage } from './CustomerListPage';
+export { default as CustomerDetailPage } from './CustomerDetailPage';
+export { default as UserManagementPage } from './UserManagementPage';
 export { default as CustomerAccountPage } from './CustomerAccountPage';
 export { default as CustomerPortalDetailPage } from './CustomerPortalDetailPage';
 export { default as AdminCatalogPage } from './AdminCatalogPage';

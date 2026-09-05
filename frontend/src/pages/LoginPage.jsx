@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Button, Input, ErrorAlert } from '../components/ui';
-import { Zap, KeyRound, Mail, UserCheck, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { authApi } from '../api';
+import { Button, Input, Modal, ErrorAlert } from '../components/ui';
+import { Zap, KeyRound, Mail, ArrowRight, Eye, EyeOff, ShieldAlert, Lock, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage = () => {
   const { login } = useAuth();
@@ -11,54 +12,30 @@ export const LoginPage = () => {
   const location = useLocation();
   const toast = useToast();
 
-  const [email, setEmail] = useState('rep@dealflow360.io');
-  const [password, setPassword] = useState('Rep@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const demoAccounts = [
-    {
-      role: 'Sales Representative',
-      email: 'rep@dealflow360.io',
-      pass: 'Rep@123',
-      badge: 'Core Rep',
-      desc: 'Builds quotes, triggers margin rules & upsells',
-    },
-    {
-      role: 'Sales Manager',
-      email: 'manager@dealflow360.io',
-      pass: 'Manager@123',
-      badge: 'Approver',
-      desc: 'Reviews discount violations & deal health radar',
-    },
-    {
-      role: 'Finance & Operations',
-      email: 'finance@dealflow360.io',
-      pass: 'Finance@123',
-      badge: 'Fulfillment',
-      desc: 'Manages warehouse split, billing & invoices',
-    },
-    {
-      role: 'Administrator',
-      email: 'admin@dealflow360.io',
-      pass: 'Admin@123',
-      badge: 'Full Access',
-      desc: 'Catalog, pricing rules, approval matrices',
-    },
-    {
-      role: 'Customer Portal',
-      email: 'customer@dealflow360.io',
-      pass: 'Customer@123',
-      badge: 'Client Portal',
-      desc: 'Zero-leak customer negotiation & confirmations',
-    },
-  ];
+  // Forced Password Change State
+  const [requirePasswordChange, setRequirePasswordChange] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changeError, setChangeError] = useState(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  const handleSelectDemo = (account) => {
-    setEmail(account.email);
-    setPassword(account.pass);
-    setError(null);
+  const handleLoginSuccess = (user) => {
+    const from = location.state?.from?.pathname;
+    if (from) {
+      navigate(from, { replace: true });
+    } else if (user.role === 'Customer') {
+      navigate('/portal/my-account', { replace: true });
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -68,20 +45,56 @@ export const LoginPage = () => {
 
     try {
       const res = await login({ email, password });
-      toast.success('Welcome Back', `Authenticated as ${res.user.fullName} (${res.user.role})`);
 
-      const from = location.state?.from?.pathname;
-      if (from) {
-        navigate(from, { replace: true });
-      } else if (res.user.role === 'Customer') {
-        navigate('/portal/my-account', { replace: true });
+      if (res.user.mustChangePassword) {
+        setPendingUser(res.user);
+        setCurrentPassword(password);
+        setRequirePasswordChange(true);
+        toast.info('Action Required', 'Please set a new secure password for your account.');
       } else {
-        navigate('/dashboard', { replace: true });
+        toast.success('Welcome Back', `Authenticated as ${res.user.fullName} (${res.user.role})`);
+        handleLoginSuccess(res.user);
       }
     } catch (err) {
       setError(err.message || 'Failed to authenticate. Please check your credentials.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePasswordChangeSubmit = async (e) => {
+    e.preventDefault();
+    setChangeError(null);
+
+    if (newPassword.length < 8) {
+      setChangeError('New password must be at least 8 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setChangeError('New passwords do not match.');
+      return;
+    }
+
+    if (newPassword === currentPassword) {
+      setChangeError('New password cannot be the same as the temporary password.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await authApi.changePassword({
+        currentPassword,
+        newPassword,
+      });
+
+      toast.success('Password Updated', 'Your new password is now active.');
+      setRequirePasswordChange(false);
+      handleLoginSuccess(pendingUser);
+    } catch (err) {
+      setChangeError(err.message || 'Failed to update password.');
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -112,13 +125,13 @@ export const LoginPage = () => {
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <Input
-              label="Work Email"
+              label="Work or Portal Email"
               type="email"
               required
               icon={Mail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="rep@dealflow360.io"
+              placeholder="name@company.com"
               autoComplete="email"
             />
 
@@ -158,52 +171,79 @@ export const LoginPage = () => {
             </div>
           </form>
 
-          {/* Quick Demo Credentials Panel */}
-          <div className="mt-6 pt-6 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Quick Demo Personas
-              </span>
-              <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                1-Click Select
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {demoAccounts.map((account) => {
-                const isSelected = email === account.email;
-                return (
-                  <button
-                    key={account.role}
-                    type="button"
-                    onClick={() => handleSelectDemo(account)}
-                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between text-xs ${
-                      isSelected
-                        ? 'border-blue-600 bg-blue-50/50 shadow-2xs'
-                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-900">{account.role}</span>
-                        <span className="text-[10px] font-medium px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                          {account.badge}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{account.desc}</p>
-                    </div>
-                    <UserCheck className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-slate-300'}`} />
-                  </button>
-                );
-              })}
-            </div>
+          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Production Identity System</span>
+            <span className="font-mono text-[11px] text-slate-400">ASP.NET Core • MSSQL</span>
           </div>
         </div>
 
         <p className="text-center text-xs text-slate-500 mt-6">
-          Powered by real ASP.NET Core Web API & Microsoft SQL Server.
+          DealFlow360 Enterprise CRM • High-Security Role-Based Access
         </p>
       </div>
+
+      {/* Forced Password Reset Modal */}
+      {requirePasswordChange && (
+        <Modal
+          isOpen={true}
+          onClose={() => {}}
+          title="Update Temporary Password"
+          description="Your administrator or system policy requires you to set a personal password before continuing."
+        >
+          <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
+            {changeError && <ErrorAlert message={changeError} />}
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-start gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                Welcome <span className="font-semibold">{pendingUser?.fullName}</span>! Please create a new password with at least 8 characters.
+              </div>
+            </div>
+
+            <Input
+              label="Temporary Password"
+              type="password"
+              required
+              icon={KeyRound}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter the temporary password you logged in with"
+            />
+
+            <Input
+              label="New Password"
+              type="password"
+              required
+              icon={Lock}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Minimum 8 characters"
+            />
+
+            <Input
+              label="Confirm New Password"
+              type="password"
+              required
+              icon={Lock}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat your new password"
+            />
+
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isChangingPassword}
+                icon={CheckCircle2}
+              >
+                Set Password & Continue
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };

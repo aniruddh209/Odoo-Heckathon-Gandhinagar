@@ -18,6 +18,8 @@ import {
   DealHealthPage,
   ReportsPage,
   CustomerListPage,
+  CustomerDetailPage,
+  UserManagementPage,
   CustomerAccountPage,
   CustomerPortalDetailPage,
   AdminCatalogPage,
@@ -64,6 +66,7 @@ export function App() {
             <Route path="workspace/quotations/:id" element={<QuotationDetailPage />} />
             <Route path="workspace/pipeline" element={<PipelinePage />} />
             <Route path="workspace/customers" element={<CustomerListPage />} />
+            <Route path="workspace/customers/:id" element={<CustomerDetailPage />} />
 
             {/* Governance & Approvals */}
             <Route
@@ -79,6 +82,14 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['SalesManager', 'Admin']}>
                   <DealHealthPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workspace/users"
+              element={
+                <ProtectedRoute allowedRoles={['SalesManager', 'Admin']}>
+                  <UserManagementPage />
                 </ProtectedRoute>
               }
             />
