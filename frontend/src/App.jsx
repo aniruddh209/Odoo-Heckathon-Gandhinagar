@@ -136,7 +136,7 @@ export function App() {
             <Route
               path="admin/discounts"
               element={
-                <ProtectedRoute allowedRoles={['Admin']}>
+                <ProtectedRoute allowedRoles={['Admin', 'SalesManager']}>
                   <AdminGovernancePage />
                 </ProtectedRoute>
               }
@@ -144,11 +144,12 @@ export function App() {
             <Route
               path="admin/approvals"
               element={
-                <ProtectedRoute allowedRoles={['Admin']}>
+                <ProtectedRoute allowedRoles={['Admin', 'SalesManager']}>
                   <AdminGovernancePage />
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="admin/warehouses"
               element={

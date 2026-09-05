@@ -334,9 +334,10 @@ public class QuotationService : IQuotationService
 
         await RecalculateAndSaveQuotationAsync(quotation);
 
-        var discountRules = await _context.DiscountRules.ToListAsync();
+        var discountRules = await _context.DiscountRules.Where(r => r.IsActive).ToListAsync();
+        var approvalRules = await _context.ApprovalRules.Where(r => r.IsActive).OrderBy(r => r.Sequence).ToListAsync();
         var evalResult = _governanceEngine.EvaluateDiscounts(quotation.Customer, quotation.Lines, discountRules);
-        var riskResult = _riskEngine.CalculateRiskScore(evalResult.PeakLineViolation, evalResult.WeightedMarginLoss, quotation.MarginPercent);
+        var riskResult = _riskEngine.CalculateRiskScore(evalResult.PeakLineViolation, evalResult.WeightedMarginLoss, quotation.MarginPercent, approvalRules);
 
         if (riskResult.IsAutoApproved)
         {

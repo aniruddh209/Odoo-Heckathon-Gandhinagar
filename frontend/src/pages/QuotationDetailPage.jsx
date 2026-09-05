@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { quotationApi, adminApi, fulfillmentApi } from '../api';
+import { quotationApi, adminApi, fulfillmentApi, approvalApi } from '../api';
 import {
   Button,
   StatusBadge,
@@ -10,6 +10,7 @@ import {
   Modal,
   Input,
   Select,
+  Textarea,
   LoadingSpinner,
   ErrorAlert,
 } from '../components/ui';
@@ -18,6 +19,10 @@ import {
   Plus,
   Send,
   CheckCircle,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  ShieldAlert,
   FileCheck,
   Sparkles,
   ExternalLink,
@@ -33,7 +38,8 @@ import {
 
 export const QuotationDetailPage = () => {
   const { id } = useParams();
-  const { isFinance, isAdmin } = useAuth();
+  const { user, isSalesManager, isFinance, isAdmin } = useAuth();
+  const isApprover = isSalesManager || isFinance || isAdmin;
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -43,6 +49,13 @@ export const QuotationDetailPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('lines'); // lines, negotiation, recommendations, approvals, fulfillment
+
+  // Governance decision modal state
+  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
+  const [decisionAction, setDecisionAction] = useState('Approve');
+  const [decisionReason, setDecisionReason] = useState('');
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
+
 
   // Drawer for adding a line item
   const [isAddLineOpen, setIsAddLineOpen] = useState(false);
@@ -267,6 +280,32 @@ export const QuotationDetailPage = () => {
     toast.info('Suggestion Dismissed', 'Recommendation hidden from view.');
   };
 
+  const handleQuotationApproval = async (actionType) => {
+    if ((actionType === 'Reject' || actionType === 'RequestRevision') && decisionReason.trim().length < 10) {
+      toast.error('Detailed Reason Required', 'Please provide an explanation of at least 10 characters.');
+      return;
+    }
+
+    setIsSubmittingDecision(true);
+    try {
+      await approvalApi.actionQuotationApproval(id, {
+        action: actionType,
+        reason: decisionReason.trim() || `Approved under standard authority by ${user?.fullName}.`,
+      });
+
+      const label = actionType === 'Approve' ? 'Approved' : actionType === 'RequestRevision' ? 'Returned for Revision' : 'Rejected';
+      toast.success('Governance Decision Processed', `Quotation ${quote.quotationNumber} marked as ${label}.`);
+      setIsDecisionModalOpen(false);
+      setDecisionReason('');
+      await loadQuoteData();
+    } catch (err) {
+      toast.error('Approval Action Failed', err.message);
+    } finally {
+      setIsSubmittingDecision(false);
+    }
+  };
+
+
   const loadFulfillmentPreview = async (orderId) => {
     if (!orderId) return;
     setIsLoadingFulfillment(true);
@@ -387,8 +426,75 @@ export const QuotationDetailPage = () => {
         </div>
       </div>
 
+      {/* ── Pending Governance Approval Action Banner ─────────── */}
+      {quote.status === 'PendingApproval' && (
+        <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-amber-950 text-sm">
+                  Quotation Requires Governance Authorization
+                </h3>
+                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-200/70 text-amber-900">
+                  Authority Level: {quote.approvalSteps?.find((s) => s.status === 'Pending')?.level || 'Manager'}
+                </span>
+                <StatusBadge type="risk" value={quote.riskScore} />
+              </div>
+              <p className="text-xs text-amber-800 mt-1">
+                <strong>Trigger Reason:</strong> {quote.approvalSteps?.find((s) => s.status === 'Pending')?.reason || 'Commercial terms exceed standard sales rep authorization ceiling.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Action buttons for authorized approvers */}
+          {isApprover && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="success"
+                size="sm"
+                icon={CheckCircle2}
+                onClick={() => {
+                  setDecisionAction('Approve');
+                  setDecisionReason('');
+                  setIsDecisionModalOpen(true);
+                }}
+              >
+                Approve
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={RotateCcw}
+                className="border-amber-400 text-amber-900 hover:bg-amber-100/60"
+                onClick={() => {
+                  setDecisionAction('RequestRevision');
+                  setDecisionReason('');
+                  setIsDecisionModalOpen(true);
+                }}
+              >
+                Return for Edit
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={XCircle}
+                onClick={() => {
+                  setDecisionAction('Reject');
+                  setDecisionReason('');
+                  setIsDecisionModalOpen(true);
+                }}
+              >
+                Reject
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Rejection / Revision Required Governance Banner ────── */}
       {(quote.status === 'Rejected' || quote.status === 'RevisionRequired' || quote.approvalStatus === 'Rejected' || quote.approvalStatus === 'RevisionRequired') && (
+
         <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/90 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
           <div className="flex-1 text-xs">
@@ -1091,8 +1197,62 @@ export const QuotationDetailPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* ── 7. Governance Decision Modal ──────────────────────────── */}
+      <Modal
+        isOpen={isDecisionModalOpen}
+        onClose={() => setIsDecisionModalOpen(false)}
+        title={
+          decisionAction === 'Approve'
+            ? 'Approve Commercial Quotation'
+            : decisionAction === 'RequestRevision'
+            ? 'Return Quotation for Revision'
+            : 'Reject Quotation Proposal'
+        }
+        description={`Quotation ${quote?.quotationNumber} • Account: ${quote?.customerName}`}
+      >
+        <div className="space-y-4">
+          <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-700 flex justify-between items-center">
+            <span>Blended Deal Risk Score:</span>
+            <StatusBadge type="risk" value={quote?.riskScore} />
+          </div>
+
+          <Textarea
+            label={decisionAction === 'Approve' ? 'Approval Justification (Optional)' : 'Audited Reason / Remarks'}
+            required={decisionAction !== 'Approve'}
+            placeholder={
+              decisionAction === 'Approve'
+                ? 'Authorized based on strategic account expansion...'
+                : 'Provide specific instructions (min 10 characters) explaining what needs adjustment...'
+            }
+            value={decisionReason}
+            onChange={(e) => setDecisionReason(e.target.value)}
+            rows={4}
+            helperText={
+              decisionAction !== 'Approve'
+                ? 'Minimum 10 characters required for governance audit trail.'
+                : 'Remarks will be recorded in approval ledger.'
+            }
+          />
+
+          <div className="pt-4 border-t border-slate-200 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsDecisionModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={decisionAction === 'Approve' ? 'success' : decisionAction === 'RequestRevision' ? 'primary' : 'danger'}
+              size="sm"
+              isLoading={isSubmittingDecision}
+              onClick={() => handleQuotationApproval(decisionAction)}
+            >
+              {decisionAction === 'Approve' ? 'Confirm Approval' : decisionAction === 'RequestRevision' ? 'Send Return Remarks' : 'Confirm Rejection'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
+
 
 export default QuotationDetailPage;

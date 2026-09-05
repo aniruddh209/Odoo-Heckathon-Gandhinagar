@@ -13,6 +13,11 @@ export const approvalApi = {
   actionApproval: async (id, { action, reason }) => {
     return apiClient.post(`approvals/${id}/action`, { action, reason });
   },
+
+  actionQuotationApproval: async (quotationId, { action, reason }) => {
+    return apiClient.post(`approvals/quotation/${quotationId}/action`, { action, reason });
+  },
 };
 
 export default approvalApi;
+

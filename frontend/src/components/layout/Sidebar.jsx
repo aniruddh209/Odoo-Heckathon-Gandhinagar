@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.js';
 import {
+  Activity,
   BarChart3,
   Box,
   CheckSquare,
@@ -65,13 +66,19 @@ export const Sidebar = () => {
       items: [
         {
           label: 'Approval Queue',
-          path: '/workspace/quotations?status=PendingApproval',
+          path: '/workspace/approvals',
           icon: <CheckSquare className="w-4 h-4" />,
           roles: ['SalesManager', 'FinanceOperations', 'Admin'],
         },
         {
+          label: 'Deal Health Radar',
+          path: '/workspace/deal-health',
+          icon: <Activity className="w-4 h-4" />,
+          roles: ['SalesManager', 'Admin'],
+        },
+        {
           label: 'Reports & Export',
-          path: '/reports',
+          path: '/workspace/reports',
           icon: <BarChart3 className="w-4 h-4" />,
           roles: ['SalesManager', 'FinanceOperations', 'Admin'],
         },
@@ -80,6 +87,12 @@ export const Sidebar = () => {
     {
       title: 'Master Configuration',
       items: [
+        {
+          label: 'Team & Users',
+          path: '/workspace/users',
+          icon: <Users className="w-4 h-4" />,
+          roles: ['SalesManager', 'Admin'],
+        },
         {
           label: 'Products & Variants',
           path: '/admin/products',
@@ -119,6 +132,7 @@ export const Sidebar = () => {
       ],
     },
   ];
+
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 border-r border-slate-800 select-none min-h-[calc(100vh-4rem)]">

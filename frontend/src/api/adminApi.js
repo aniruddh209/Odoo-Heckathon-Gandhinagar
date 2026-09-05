@@ -9,6 +9,7 @@ export const adminApi = {
   // Customer Tiers
   getCustomerTiers: () => apiClient.get('admin/customer-tiers'),
   createCustomerTier: (data) => apiClient.post('admin/customer-tiers', data),
+  updateCustomerTier: (id, data) => apiClient.put(`admin/customer-tiers/${id}`, data),
 
   // Categories
   getCategories: () => apiClient.get('admin/categories'),
@@ -27,10 +28,15 @@ export const adminApi = {
   // Discount Rules
   getDiscountRules: () => apiClient.get('admin/discount-rules'),
   createDiscountRule: (data) => apiClient.post('admin/discount-rules', data),
+  updateDiscountRule: (id, data) => apiClient.put(`admin/discount-rules/${id}`, data),
+  deleteDiscountRule: (id) => apiClient.delete(`admin/discount-rules/${id}`),
 
   // Approval Rules
   getApprovalRules: () => apiClient.get('admin/approval-rules'),
   createApprovalRule: (data) => apiClient.post('admin/approval-rules', data),
+  updateApprovalRule: (id, data) => apiClient.put(`admin/approval-rules/${id}`, data),
+  deleteApprovalRule: (id) => apiClient.delete(`admin/approval-rules/${id}`),
+
 
   // Warehouses
   getWarehouses: () => apiClient.get('admin/warehouses'),

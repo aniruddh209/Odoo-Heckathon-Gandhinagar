@@ -12,6 +12,7 @@ public interface IApprovalService
     Task<List<ApprovalQueueResponse>> GetPendingApprovalsAsync(ApprovalLevel? level = null);
     Task<ApprovalDetailResponse> GetApprovalByIdAsync(int id);
     Task<ApprovalDetailResponse> ActionApprovalAsync(int approvalRequestId, ApprovalActionRequest request, int actingUserId);
+    Task<ApprovalDetailResponse> ActionQuotationApprovalAsync(int quotationId, ApprovalActionRequest request, int actingUserId);
 }
 
 public class ApprovalService : IApprovalService
@@ -107,7 +108,25 @@ public class ApprovalService : IApprovalService
         var actingUser = await _context.Users.FindAsync(actingUserId);
         if (actingUser == null) throw new KeyNotFoundException($"User {actingUserId} not found.");
 
-        var actionEnum = Enum.Parse<ApprovalActionType>(request.Action, true);
+        ApprovalActionType actionEnum;
+        var normAction = (request.Action ?? string.Empty).Trim().ToLowerInvariant();
+        if (normAction == "approve" || normAction == "approved")
+        {
+            actionEnum = ApprovalActionType.Approve;
+        }
+        else if (normAction == "reject" || normAction == "rejected")
+        {
+            actionEnum = ApprovalActionType.Reject;
+        }
+        else if (normAction == "return" || normAction == "returned" || normAction == "requestrevision" || normAction == "returnforrevision")
+        {
+            actionEnum = ApprovalActionType.RequestRevision;
+        }
+        else
+        {
+            actionEnum = Enum.Parse<ApprovalActionType>(request.Action, true);
+        }
+
         _routingEngine.ValidateAction(ar.Quotation, actingUser, actionEnum, request.Reason);
 
         var (nextQuoteStatus, nextApprovalStatus) = _routingEngine.DetermineNextStatus(ar.Quotation, actingUser, actionEnum);
@@ -133,6 +152,21 @@ public class ApprovalService : IApprovalService
         _context.ApprovalRequests.Update(ar);
         _context.Quotations.Update(ar.Quotation);
 
+        // If Manager approved but risk warrants Finance escalation, automatically queue sequential stage
+        if (nextApprovalStatus == ApprovalStatus.ManagerApproved)
+        {
+            var nextApprovalRequest = new ApprovalRequest
+            {
+                QuotationId = ar.QuotationId,
+                Level = ApprovalLevel.Finance,
+                Status = ApprovalStatus.Pending,
+                Sequence = ar.Sequence + 1,
+                RequestedAtUtc = DateTime.UtcNow,
+                Reason = $"Escalated to Finance following Manager approval (Risk Score: {ar.Quotation.RiskScore:F2})"
+            };
+            _context.ApprovalRequests.Add(nextApprovalRequest);
+        }
+
         await _context.SaveChangesAsync();
 
         // Notify sales rep
@@ -146,4 +180,21 @@ public class ApprovalService : IApprovalService
 
         return await GetApprovalByIdAsync(approvalRequestId);
     }
+
+    public async Task<ApprovalDetailResponse> ActionQuotationApprovalAsync(int quotationId, ApprovalActionRequest request, int actingUserId)
+    {
+        var ar = await _context.ApprovalRequests
+            .Include(a => a.Quotation)
+            .Where(a => a.QuotationId == quotationId && a.Status == ApprovalStatus.Pending)
+            .OrderByDescending(a => a.Sequence)
+            .FirstOrDefaultAsync();
+
+        if (ar == null)
+        {
+            throw new InvalidOperationException($"No pending approval request found for quotation {quotationId}.");
+        }
+
+        return await ActionApprovalAsync(ar.Id, request, actingUserId);
+    }
 }
+

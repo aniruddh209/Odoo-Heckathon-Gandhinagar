@@ -24,10 +24,12 @@ public class DealHealthService : IDealHealthService
     public async Task<DealHealthSummaryResponse> GetDealHealthSummaryAsync()
     {
         var activeQuotations = await _context.Quotations
-            .Include(q => q.Customer)
+            .Include(q => q.Customer).ThenInclude(c => c.Tier)
             .Include(q => q.SalesRep)
+            .Include(q => q.ApprovalRequests)
             .ToListAsync();
 
         return _dealHealthEngine.EvaluateHealth(activeQuotations);
     }
+
 }

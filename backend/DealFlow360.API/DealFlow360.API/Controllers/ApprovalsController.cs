@@ -46,4 +46,13 @@ public class ApprovalsController : ControllerBase
         var result = await _approvalService.ActionApprovalAsync(id, request, userId);
         return Ok(result);
     }
+
+    [HttpPost("quotation/{quotationId}/action")]
+    public async Task<IActionResult> ActionQuotationApproval(int quotationId, [FromBody] ApprovalActionRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _approvalService.ActionQuotationApprovalAsync(quotationId, request, userId);
+        return Ok(result);
+    }
 }
+

@@ -413,10 +413,11 @@ export const DashboardPage = () => {
                       <Button
                         variant="outline"
                         size="xs"
-                        onClick={() => navigate(`/workspace/approvals/${req.quotationId || req.id}`)}
+                        onClick={() => navigate(`/workspace/quotations/${req.quotationId || req.id}`)}
                       >
                         Review
                       </Button>
+
                     </div>
                   </div>
                 ))}

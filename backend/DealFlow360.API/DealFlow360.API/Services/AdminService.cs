@@ -26,6 +26,7 @@ public interface IAdminService
     // Customer Tiers
     Task<List<CustomerTierResponse>> GetCustomerTiersAsync();
     Task<CustomerTierResponse> CreateCustomerTierAsync(CreateCustomerTierRequest request);
+    Task<CustomerTierResponse> UpdateCustomerTierAsync(int id, UpdateCustomerTierRequest request);
 
     // Categories
     Task<List<CategoryResponse>> GetCategoriesAsync();
@@ -44,10 +45,14 @@ public interface IAdminService
     // Discount Rules
     Task<List<DiscountRuleResponse>> GetDiscountRulesAsync();
     Task<DiscountRuleResponse> CreateDiscountRuleAsync(CreateDiscountRuleRequest request);
+    Task<DiscountRuleResponse> UpdateDiscountRuleAsync(int id, UpdateDiscountRuleRequest request);
+    Task<bool> DeleteDiscountRuleAsync(int id);
 
     // Approval Rules
     Task<List<ApprovalRuleResponse>> GetApprovalRulesAsync();
     Task<ApprovalRuleResponse> CreateApprovalRuleAsync(CreateApprovalRuleRequest request);
+    Task<ApprovalRuleResponse> UpdateApprovalRuleAsync(int id, UpdateApprovalRuleRequest request);
+    Task<bool> DeleteApprovalRuleAsync(int id);
 
     // Warehouses
     Task<List<WarehouseResponse>> GetWarehousesAsync();
@@ -183,7 +188,27 @@ public class AdminService : IAdminService
         };
     }
 
+    public async Task<CustomerTierResponse> UpdateCustomerTierAsync(int id, UpdateCustomerTierRequest request)
+    {
+        var tier = await _context.CustomerTiers.FindAsync(id);
+        if (tier == null) throw new KeyNotFoundException($"Customer tier {id} not found.");
+
+        tier.Name = request.Name;
+        tier.MaxDiscountPercent = request.MaxDiscountPercent;
+
+        _context.CustomerTiers.Update(tier);
+        await _context.SaveChangesAsync();
+
+        return new CustomerTierResponse
+        {
+            Id = tier.Id,
+            Name = tier.Name,
+            MaxDiscountPercent = tier.MaxDiscountPercent
+        };
+    }
+
     // Categories
+
     public async Task<List<CategoryResponse>> GetCategoriesAsync()
     {
         return await _context.ProductCategories
@@ -390,14 +415,19 @@ public class AdminService : IAdminService
     public async Task<List<DiscountRuleResponse>> GetDiscountRulesAsync()
     {
         return await _context.DiscountRules
+            .Include(dr => dr.Tier)
+            .Include(dr => dr.Category)
             .Select(dr => new DiscountRuleResponse
             {
                 Id = dr.Id,
                 TierId = dr.TierId,
+                TierName = dr.Tier.Name,
                 CategoryId = dr.CategoryId,
+                CategoryName = dr.Category != null ? dr.Category.Name : null,
                 MaxDiscountPercent = dr.MaxDiscountPercent,
                 ManagerThreshold = dr.ManagerThreshold,
-                FinanceThreshold = dr.FinanceThreshold
+                FinanceThreshold = dr.FinanceThreshold,
+                IsActive = dr.IsActive
             }).ToListAsync();
     }
 
@@ -410,27 +440,78 @@ public class AdminService : IAdminService
             MaxDiscountPercent = request.MaxDiscountPercent,
             ManagerThreshold = request.ManagerThreshold,
             FinanceThreshold = request.FinanceThreshold,
+            IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
 
         _context.DiscountRules.Add(rule);
         await _context.SaveChangesAsync();
 
+        var tier = await _context.CustomerTiers.FindAsync(rule.TierId);
+        var category = rule.CategoryId.HasValue ? await _context.ProductCategories.FindAsync(rule.CategoryId.Value) : null;
+
         return new DiscountRuleResponse
         {
             Id = rule.Id,
             TierId = rule.TierId,
+            TierName = tier?.Name ?? string.Empty,
             CategoryId = rule.CategoryId,
+            CategoryName = category?.Name,
             MaxDiscountPercent = rule.MaxDiscountPercent,
             ManagerThreshold = rule.ManagerThreshold,
-            FinanceThreshold = rule.FinanceThreshold
+            FinanceThreshold = rule.FinanceThreshold,
+            IsActive = rule.IsActive
         };
+    }
+
+    public async Task<DiscountRuleResponse> UpdateDiscountRuleAsync(int id, UpdateDiscountRuleRequest request)
+    {
+        var rule = await _context.DiscountRules.FindAsync(id);
+        if (rule == null) throw new KeyNotFoundException($"Discount rule {id} not found.");
+
+        rule.TierId = request.TierId;
+        rule.CategoryId = request.CategoryId;
+        rule.MaxDiscountPercent = request.MaxDiscountPercent;
+        rule.ManagerThreshold = request.ManagerThreshold;
+        rule.FinanceThreshold = request.FinanceThreshold;
+        rule.IsActive = request.IsActive;
+        rule.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.DiscountRules.Update(rule);
+        await _context.SaveChangesAsync();
+
+        var tier = await _context.CustomerTiers.FindAsync(rule.TierId);
+        var category = rule.CategoryId.HasValue ? await _context.ProductCategories.FindAsync(rule.CategoryId.Value) : null;
+
+        return new DiscountRuleResponse
+        {
+            Id = rule.Id,
+            TierId = rule.TierId,
+            TierName = tier?.Name ?? string.Empty,
+            CategoryId = rule.CategoryId,
+            CategoryName = category?.Name,
+            MaxDiscountPercent = rule.MaxDiscountPercent,
+            ManagerThreshold = rule.ManagerThreshold,
+            FinanceThreshold = rule.FinanceThreshold,
+            IsActive = rule.IsActive
+        };
+    }
+
+    public async Task<bool> DeleteDiscountRuleAsync(int id)
+    {
+        var rule = await _context.DiscountRules.FindAsync(id);
+        if (rule == null) throw new KeyNotFoundException($"Discount rule {id} not found.");
+
+        _context.DiscountRules.Remove(rule);
+        await _context.SaveChangesAsync();
+        return true;
     }
 
     // Approval Rules
     public async Task<List<ApprovalRuleResponse>> GetApprovalRulesAsync()
     {
         return await _context.ApprovalRules
+            .OrderBy(ar => ar.Sequence)
             .Select(ar => new ApprovalRuleResponse
             {
                 Id = ar.Id,
@@ -438,7 +519,8 @@ public class AdminService : IAdminService
                 MinRisk = ar.MinRisk,
                 MaxRisk = ar.MaxRisk,
                 RequiredRole = ar.RequiredRole,
-                Sequence = ar.Sequence
+                Sequence = ar.Sequence,
+                IsActive = ar.IsActive
             }).ToListAsync();
     }
 
@@ -451,6 +533,7 @@ public class AdminService : IAdminService
             MaxRisk = request.MaxRisk,
             RequiredRole = request.RequiredRole,
             Sequence = request.Sequence,
+            IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -464,9 +547,49 @@ public class AdminService : IAdminService
             MinRisk = rule.MinRisk,
             MaxRisk = rule.MaxRisk,
             RequiredRole = rule.RequiredRole,
-            Sequence = rule.Sequence
+            Sequence = rule.Sequence,
+            IsActive = rule.IsActive
         };
     }
+
+    public async Task<ApprovalRuleResponse> UpdateApprovalRuleAsync(int id, UpdateApprovalRuleRequest request)
+    {
+        var rule = await _context.ApprovalRules.FindAsync(id);
+        if (rule == null) throw new KeyNotFoundException($"Approval rule {id} not found.");
+
+        rule.Level = Enum.Parse<ApprovalLevel>(request.Level, true);
+        rule.MinRisk = request.MinRisk;
+        rule.MaxRisk = request.MaxRisk;
+        rule.RequiredRole = request.RequiredRole;
+        rule.Sequence = request.Sequence;
+        rule.IsActive = request.IsActive;
+        rule.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.ApprovalRules.Update(rule);
+        await _context.SaveChangesAsync();
+
+        return new ApprovalRuleResponse
+        {
+            Id = rule.Id,
+            Level = rule.Level.ToString(),
+            MinRisk = rule.MinRisk,
+            MaxRisk = rule.MaxRisk,
+            RequiredRole = rule.RequiredRole,
+            Sequence = rule.Sequence,
+            IsActive = rule.IsActive
+        };
+    }
+
+    public async Task<bool> DeleteApprovalRuleAsync(int id)
+    {
+        var rule = await _context.ApprovalRules.FindAsync(id);
+        if (rule == null) throw new KeyNotFoundException($"Approval rule {id} not found.");
+
+        _context.ApprovalRules.Remove(rule);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
 
     // Warehouses
     public async Task<List<WarehouseResponse>> GetWarehousesAsync()

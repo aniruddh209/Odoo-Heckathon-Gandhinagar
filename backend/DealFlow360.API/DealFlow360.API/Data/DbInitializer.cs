@@ -472,5 +472,108 @@ public static class DbInitializer
             });
         }
         await context.SaveChangesAsync();
+
+        // 14. Data-Driven Approval Rules
+        if (!await context.ApprovalRules.AnyAsync())
+        {
+            var approvalRules = new List<ApprovalRule>
+            {
+                new()
+                {
+                    Level = ApprovalLevel.None,
+                    MinRisk = 0.00m,
+                    MaxRisk = 29.99m,
+                    RequiredRole = "None",
+                    Sequence = 1,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new()
+                {
+                    Level = ApprovalLevel.Manager,
+                    MinRisk = 30.00m,
+                    MaxRisk = 69.99m,
+                    RequiredRole = "SalesManager",
+                    Sequence = 2,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new()
+                {
+                    Level = ApprovalLevel.Finance,
+                    MinRisk = 70.00m,
+                    MaxRisk = 100.00m,
+                    RequiredRole = "FinanceOperations",
+                    Sequence = 3,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            };
+            context.ApprovalRules.AddRange(approvalRules);
+            await context.SaveChangesAsync();
+        }
+
+        // 15. Data-Driven Discount Rules (Tier Ceilings & Category Overrides)
+        if (!await context.DiscountRules.AnyAsync())
+        {
+            var silverTier = await context.CustomerTiers.FirstOrDefaultAsync(t => t.Name == "Silver");
+            var bronzeTier = await context.CustomerTiers.FirstOrDefaultAsync(t => t.Name == "Bronze");
+
+            var discountRules = new List<DiscountRule>
+            {
+                new()
+                {
+                    TierId = goldTier.Id,
+                    CategoryId = null, // Global Order Ceiling for Gold
+                    MaxDiscountPercent = 15.00m,
+                    ManagerThreshold = 10.00m,
+                    FinanceThreshold = 15.00m,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new()
+                {
+                    TierId = goldTier.Id,
+                    CategoryId = hwCat.Id, // Hardware specific rule for Gold
+                    MaxDiscountPercent = 12.00m,
+                    ManagerThreshold = 8.00m,
+                    FinanceThreshold = 12.00m,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            };
+
+            if (silverTier != null)
+            {
+                discountRules.Add(new DiscountRule
+                {
+                    TierId = silverTier.Id,
+                    CategoryId = null,
+                    MaxDiscountPercent = 10.00m,
+                    ManagerThreshold = 7.00m,
+                    FinanceThreshold = 10.00m,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            if (bronzeTier != null)
+            {
+                discountRules.Add(new DiscountRule
+                {
+                    TierId = bronzeTier.Id,
+                    CategoryId = null,
+                    MaxDiscountPercent = 5.00m,
+                    ManagerThreshold = 3.00m,
+                    FinanceThreshold = 5.00m,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            context.DiscountRules.AddRange(discountRules);
+            await context.SaveChangesAsync();
+        }
     }
 }
+
