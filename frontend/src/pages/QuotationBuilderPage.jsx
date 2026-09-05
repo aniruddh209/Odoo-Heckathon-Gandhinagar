@@ -188,14 +188,14 @@ export const QuotationBuilderPage = () => {
   };
 
   const selectedCustomer = customers.find(
-    (c) => c.id === parseInt(selectedCustomerId, 10)
+    (c) => String(c.id) === String(selectedCustomerId)
   );
 
   const tierLimit = Number(selectedCustomer?.tierMaxDiscount ?? selectedCustomer?.maxDiscountPercent ?? 5);
 
   const handleCustomerChange = (customerId) => {
-    setSelectedCustomerId(customerId);
-    const cust = customers.find((c) => c.id === parseInt(customerId, 10));
+    setSelectedCustomerId(customerId ? String(customerId) : '');
+    const cust = customers.find((c) => String(c.id) === String(customerId));
     if (cust) {
       if (cust.currencyCode) setCurrencyCode(cust.currencyCode);
       const tierDisc = Number(cust.tierMaxDiscount ?? cust.maxDiscountPercent ?? 5);

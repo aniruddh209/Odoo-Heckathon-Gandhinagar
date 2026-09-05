@@ -41,7 +41,15 @@ export const Select = React.forwardRef(({
       )
     : normalizedOptions;
 
-  const selectedOption = normalizedOptions.find(opt => opt.value === value);
+  const isOptionSelected = (optVal, val) => {
+    if (optVal === val) return true;
+    if (optVal !== undefined && optVal !== null && val !== undefined && val !== null && val !== '') {
+      return String(optVal) === String(val);
+    }
+    return false;
+  };
+
+  const selectedOption = normalizedOptions.find(opt => isOptionSelected(opt.value, value));
 
   // Click outside to close
   useEffect(() => {
@@ -60,7 +68,7 @@ export const Select = React.forwardRef(({
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
-      setFocusedIndex(filteredOptions.findIndex(opt => opt.value === value));
+      setFocusedIndex(filteredOptions.findIndex(opt => isOptionSelected(opt.value, value)));
       if (searchable && searchInputRef.current) {
         setTimeout(() => searchInputRef.current.focus(), 50);
       }
@@ -218,7 +226,7 @@ export const Select = React.forwardRef(({
                 </li>
               ) : (
                 filteredOptions.map((opt, index) => {
-                  const isSelected = opt.value === value;
+                  const isSelected = isOptionSelected(opt.value, value);
                   const isFocused = index === focusedIndex;
 
                   return (
