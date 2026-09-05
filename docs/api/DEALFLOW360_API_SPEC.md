@@ -69,7 +69,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
                               ▼
 ┌────────────────────────────────────────────────────────────┐
 │                     Persistence Layer                      │
-│   Microsoft SQL Server / PostgreSQL (ACID Relational DB)   │
+│      Microsoft SQL Server (ACID Relational Database)       │
 └────────────────────────────────────────────────────────────┘
 ```
 
