@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using DealFlow360.API.DTOs.Reports;
 using DealFlow360.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +18,7 @@ public class ReportsController : ControllerBase
         _reportService = reportService;
     }
 
-    [HttpGet("dashboard")]
-    public async Task<IActionResult> GetDashboardMetrics([FromQuery] int? salesRepId)
+    private void EnforceRoleIsolation(ReportFilterRequest filter)
     {
         var role = User.FindFirstValue(ClaimTypes.Role);
         if (role == "SalesRep")
@@ -26,34 +26,50 @@ public class ReportsController : ControllerBase
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (int.TryParse(userIdClaim, out var currentUserId))
             {
-                salesRepId = currentUserId;
+                filter.SalesRepId = currentUserId; // Reps can only query their own data
             }
         }
+    }
 
-        var result = await _reportService.GetDashboardMetricsAsync(salesRepId);
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> GetDashboardMetrics([FromQuery] ReportFilterRequest? filter)
+    {
+        filter ??= new ReportFilterRequest();
+        EnforceRoleIsolation(filter);
+
+        var result = await _reportService.GetDashboardMetricsAsync(filter);
         return Ok(result);
     }
 
     [HttpGet("pipeline")]
-    public async Task<IActionResult> GetPipelineOverview()
+    public async Task<IActionResult> GetPipelineOverview([FromQuery] ReportFilterRequest? filter)
     {
-        var result = await _reportService.GetPipelineOverviewAsync();
+        filter ??= new ReportFilterRequest();
+        EnforceRoleIsolation(filter);
+
+        var result = await _reportService.GetPipelineOverviewAsync(filter);
         return Ok(result);
     }
 
     [HttpGet("export/xls")]
-    [Authorize(Roles = "SalesManager,FinanceOperations,Admin")]
-    public async Task<IActionResult> ExportXls()
+    [Authorize(Roles = "SalesManager,FinanceOperations,Admin,SalesRep")]
+    public async Task<IActionResult> ExportXls([FromQuery] ReportFilterRequest? filter)
     {
-        var bytes = await _reportService.GenerateSalesReportXlsAsync();
+        filter ??= new ReportFilterRequest();
+        EnforceRoleIsolation(filter);
+
+        var bytes = await _reportService.GenerateSalesReportXlsAsync(filter);
         return File(bytes, "application/vnd.ms-excel", $"DealFlow360_SalesReport_{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 
     [HttpGet("export/pdf")]
-    [Authorize(Roles = "SalesManager,FinanceOperations,Admin")]
-    public async Task<IActionResult> ExportPdf()
+    [Authorize(Roles = "SalesManager,FinanceOperations,Admin,SalesRep")]
+    public async Task<IActionResult> ExportPdf([FromQuery] ReportFilterRequest? filter)
     {
-        var bytes = await _reportService.GenerateSalesReportPdfAsync();
+        filter ??= new ReportFilterRequest();
+        EnforceRoleIsolation(filter);
+
+        var bytes = await _reportService.GenerateSalesReportPdfAsync(filter);
         return File(bytes, "application/pdf", $"DealFlow360_SalesReport_{DateTime.UtcNow:yyyyMMdd}.pdf");
     }
 }

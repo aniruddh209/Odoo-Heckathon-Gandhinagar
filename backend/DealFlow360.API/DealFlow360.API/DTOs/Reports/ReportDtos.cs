@@ -1,5 +1,17 @@
 namespace DealFlow360.API.DTOs.Reports;
 
+public class ReportFilterRequest
+{
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public int? SalesRepId { get; set; }
+    public int? SalesTeamId { get; set; }
+    public string? ApprovalStatus { get; set; }
+    public string? Status { get; set; }
+    public int? CategoryId { get; set; }
+    public string? Period { get; set; }
+}
+
 public class DashboardResponse
 {
     public int TotalQuotationsCount { get; set; }
