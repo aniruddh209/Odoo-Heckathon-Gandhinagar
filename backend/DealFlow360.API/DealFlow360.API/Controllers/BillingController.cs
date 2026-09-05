@@ -7,7 +7,7 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "FinanceOperations,Admin")]
+[Authorize(Roles = "FinanceOperations,Admin,SalesManager,SalesRep")]
 public class BillingController : ControllerBase
 {
     private readonly IBillingService _billingService;
@@ -18,6 +18,7 @@ public class BillingController : ControllerBase
     }
 
     [HttpPost("generate-order-billing/{orderId}")]
+    [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> GenerateOrderBilling(int orderId)
     {
         var result = await _billingService.GenerateBillingForOrderAsync(orderId);

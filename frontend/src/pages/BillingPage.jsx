@@ -73,12 +73,16 @@ export const BillingPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [invRes, schedRes, cnRes, planRes] = await Promise.all([
+      const results = await Promise.allSettled([
         billingApi.getInvoices(),
         billingApi.getSchedules(),
         billingApi.getCreditNotes(),
         adminApi.getSubscriptionPlans(),
       ]);
+
+      const [invRes, schedRes, cnRes, planRes] = results.map((r) =>
+        r.status === 'fulfilled' ? r.value : []
+      );
 
       const invList = Array.isArray(invRes) ? invRes : invRes?.value || [];
       const sList = Array.isArray(schedRes) ? schedRes : schedRes?.value || [];
@@ -89,6 +93,11 @@ export const BillingPage = () => {
       setSchedules(sList);
       setCreditNotes(cList);
       setPlans(pList);
+
+      const allRejected = results.every((r) => r.status === 'rejected');
+      if (allRejected) {
+        setError(results[0]?.reason?.message || 'Failed to load invoices and billing schedules.');
+      }
     } catch (err) {
       setError(err.message || 'Failed to load invoices and billing schedules.');
     } finally {

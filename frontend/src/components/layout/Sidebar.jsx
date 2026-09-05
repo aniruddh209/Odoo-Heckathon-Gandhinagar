@@ -37,12 +37,12 @@ export const Sidebar = ({ onCloseMobile, isMobile = false, isCollapsed = false }
     },
     {
       group: 'Operations & Governance',
-      visible: isSalesManager || isFinance || isAdmin,
+      visible: isSalesManager || isFinance || isAdmin || isSalesRep,
       items: [
         { label: 'Approvals Desk', path: '/workspace/approvals', icon: CheckSquare, visible: isSalesManager || isFinance || isAdmin },
         { label: 'Deal Health Radar', path: '/workspace/deal-health', icon: Activity, visible: isSalesManager || isAdmin },
         { label: 'Warehouse Allocation', path: '/workspace/fulfillment', icon: Truck, visible: isSalesRep || isSalesManager || isFinance || isAdmin },
-        { label: 'Billing & Invoices', path: '/workspace/billing', icon: CreditCard, visible: isFinance || isAdmin || isSalesManager },
+        { label: 'Billing & Invoices', path: '/workspace/billing', icon: CreditCard, visible: isFinance || isAdmin || isSalesManager || isSalesRep },
       ],
     },
     {

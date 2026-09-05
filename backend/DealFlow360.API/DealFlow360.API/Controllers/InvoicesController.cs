@@ -7,7 +7,7 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "FinanceOperations,Admin,SalesManager")]
+[Authorize(Roles = "FinanceOperations,Admin,SalesManager,SalesRep")]
 public class InvoicesController : ControllerBase
 {
     private readonly IBillingService _billingService;

@@ -138,7 +138,7 @@ export function App() {
             <Route
               path="workspace/billing"
               element={
-                <ProtectedRoute allowedRoles={['FinanceOperations', 'Admin', 'SalesManager']}>
+                <ProtectedRoute allowedRoles={['FinanceOperations', 'Admin', 'SalesManager', 'SalesRep']}>
                   <BillingPage />
                 </ProtectedRoute>
               }
