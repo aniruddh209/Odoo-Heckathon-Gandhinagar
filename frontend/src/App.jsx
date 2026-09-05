@@ -42,6 +42,10 @@ export function App() {
           {/* Customer Portal Magic Link (Cryptographically Isolated, No internal CRM frame) */}
           <Route path="/portal/quote/:token" element={<CustomerPortalDetailPage />} />
 
+          {/* Customer Portal Route Aliases */}
+          <Route path="/customer" element={<Navigate to="/portal/my-account" replace />} />
+          <Route path="/customer/dashboard" element={<Navigate to="/portal/my-account" replace />} />
+
           {/* Authenticated Customer Account Portal */}
           <Route
             path="/portal/my-account"

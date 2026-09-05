@@ -34,6 +34,7 @@ export const CustomerProposalView = ({
   token,
   onRefresh,
   onConfirmOverride,
+  onConnectSales,
   isEmbedded = false,
 }) => {
   const toast = useToast();
@@ -262,6 +263,17 @@ export const CustomerProposalView = ({
 
           <div className="flex items-center gap-3">
             <StatusBadge status={quote.status} />
+            {onConnectSales && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Sparkles}
+                onClick={onConnectSales}
+                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                Connect to Sales
+              </Button>
+            )}
             {!isFinalized && !isRejected && (
               <Button
                 variant="outline"

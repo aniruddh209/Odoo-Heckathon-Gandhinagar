@@ -45,7 +45,18 @@ export const CustomerAccountPage = () => {
   const [searchParams] = useSearchParams();
   const { id: routeQuoteId } = useParams();
 
-  const [activeTab, setActiveTab] = useState('quotes'); // quotes, connect, inquiries, orders, invoices, profile
+  const tabFromQuery = searchParams.get('tab');
+  const validTabs = ['quotes', 'connect', 'inquiries', 'orders', 'invoices', 'profile'];
+  const [activeTab, setActiveTab] = useState(
+    validTabs.includes(tabFromQuery) ? tabFromQuery : 'quotes'
+  ); // quotes, connect, inquiries, orders, invoices, profile
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && validTabs.includes(t)) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
   const [quotes, setQuotes] = useState([]);
   const [orders, setOrders] = useState([]);
   const [invoices, setInvoices] = useState([]);
@@ -536,6 +547,15 @@ export const CustomerAccountPage = () => {
 
           <div className="flex items-center gap-3">
             <Button
+              variant="primary"
+              size="sm"
+              icon={Sparkles}
+              onClick={() => setActiveTab('connect')}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs flex items-center gap-1.5"
+            >
+              Connect to Sales
+            </Button>
+            <Button
               variant="outline"
               size="xs"
               icon={RefreshCw}
@@ -556,8 +576,8 @@ export const CustomerAccountPage = () => {
 
         {error && <ErrorAlert message={error} onRetry={loadCustomerData} />}
 
-        {/* Action-Required Banner if Pending Proposals */}
-        {pendingQuotes.length > 0 && (
+        {/* Action-Required Banner if Pending Proposals, or Welcome Direct Connect Banner if Pristine */}
+        {pendingQuotes.length > 0 ? (
           <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
@@ -570,15 +590,52 @@ export const CustomerAccountPage = () => {
                 </p>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                icon={Sparkles}
+                onClick={() => setActiveTab('connect')}
+                className="bg-white text-blue-700 border-blue-200 hover:bg-blue-50 font-semibold"
+              >
+                Connect to Sales
+              </Button>
+              <Button
+                variant="primary"
+                size="xs"
+                onClick={() => {
+                  setActiveTab('quotes');
+                  handleOpenProposal(pendingQuotes[0]);
+                }}
+              >
+                Review Next Proposal
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white rounded-full">
+                  Direct Brand Procurement
+                </span>
+                <span className="text-xs text-blue-100 font-medium">Fast SLA Routing</span>
+              </div>
+              <h2 className="text-base font-bold text-white tracking-tight">
+                Connect Directly with Sales Representatives
+              </h2>
+              <p className="text-xs text-blue-100 max-w-2xl">
+                Ready to configure hardware, software licenses, or negotiate volume enterprise terms? Connect directly with our certified commercial team to get an instant customized quotation.
+              </p>
+            </div>
             <Button
-              variant="primary"
-              size="xs"
-              onClick={() => {
-                setActiveTab('quotes');
-                handleOpenProposal(pendingQuotes[0]);
-              }}
+              variant="secondary"
+              size="sm"
+              icon={Sparkles}
+              onClick={() => setActiveTab('connect')}
+              className="bg-white text-blue-700 hover:bg-blue-50 font-bold shrink-0 shadow-xs"
             >
-              Review Next Proposal
+              Connect to Sales
             </Button>
           </div>
         )}
@@ -635,7 +692,7 @@ export const CustomerAccountPage = () => {
         <div className="flex border-b border-slate-200 space-x-6 text-xs font-semibold overflow-x-auto">
           {[
             { id: 'quotes', label: `My Proposals (${quotes.length})`, icon: FileText },
-            { id: 'connect', label: 'Connect with Sales', icon: Sparkles },
+            { id: 'connect', label: 'Connect to Sales', icon: Sparkles },
             { id: 'inquiries', label: `My Inquiries (${inquiries.length})`, icon: UserCheck },
             { id: 'orders', label: `My Orders (${orders.length})`, icon: Package },
             { id: 'invoices', label: `Invoices & Billing (${invoices.length})`, icon: CreditCard },
@@ -684,16 +741,27 @@ export const CustomerAccountPage = () => {
                 size="xs"
                 icon={Sparkles}
                 onClick={() => setActiveTab('connect')}
-                className="bg-blue-600 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
               >
-                New Brand Inquiry
+                Connect to Sales
               </Button>
             </div>
             <DataTable
               columns={inquiryCols}
               data={inquiries}
               emptyMessage="No sales inquiries on file"
-              emptyDescription="Connect directly with certified brand representatives using the 'Connect with Sales' tab."
+              emptyDescription="Connect directly with certified brand representatives to configure equipment and receive formal quotations."
+              emptyAction={
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Sparkles}
+                  onClick={() => setActiveTab('connect')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  Connect to Sales
+                </Button>
+              }
             />
           </div>
         )}
@@ -701,11 +769,37 @@ export const CustomerAccountPage = () => {
         {/* Tab Content 1: Proposals */}
         {activeTab === 'quotes' && (
           <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Commercial Proposals &amp; Quotes</h3>
+                <p className="text-xs text-slate-500">Official commercial proposals prepared for your organization</p>
+              </div>
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Sparkles}
+                onClick={() => setActiveTab('connect')}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              >
+                Connect to Sales
+              </Button>
+            </div>
             <DataTable
               columns={quoteCols}
               data={quotes}
               emptyMessage="No commercial proposals on file"
-              emptyDescription="Proposals prepared by your dedicated account executive will appear here."
+              emptyDescription="Connect directly with our sales team to request a customized commercial proposal."
+              emptyAction={
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Sparkles}
+                  onClick={() => setActiveTab('connect')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  Connect to Sales
+                </Button>
+              }
             />
           </div>
         )}
@@ -713,11 +807,37 @@ export const CustomerAccountPage = () => {
         {/* Tab Content 2: Orders */}
         {activeTab === 'orders' && (
           <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Confirmed Orders &amp; Fulfillment</h3>
+                <p className="text-xs text-slate-500">Track shipments, warehouse allocations, and operational deliveries</p>
+              </div>
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Sparkles}
+                onClick={() => setActiveTab('connect')}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              >
+                Connect to Sales
+              </Button>
+            </div>
             <DataTable
               columns={orderCols}
               data={orders}
               emptyMessage="No confirmed orders yet"
               emptyDescription="Confirmed proposals will transition here into active fulfillment orders."
+              emptyAction={
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Sparkles}
+                  onClick={() => setActiveTab('connect')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  Connect to Sales
+                </Button>
+              }
             />
           </div>
         )}
@@ -730,6 +850,17 @@ export const CustomerAccountPage = () => {
               data={invoices}
               emptyMessage="No invoices on file"
               emptyDescription="Issued statements and billing schedules will appear here."
+              emptyAction={
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Sparkles}
+                  onClick={() => setActiveTab('connect')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  Connect to Sales
+                </Button>
+              }
             />
           </div>
         )}
@@ -803,13 +934,22 @@ export const CustomerAccountPage = () => {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Sparkles}
+                  onClick={() => setActiveTab('connect')}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold justify-center"
+                >
+                  Connect to Sales
+                </Button>
                 <a
                   href={`mailto:${profile?.assignedSalesRepEmail || 'sales@dealflow360.com'}?subject=Inquiry%20regarding%20account%20${encodeURIComponent(profile?.name || '')}`}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                 >
                   <Mail className="w-3.5 h-3.5" />
-                  Contact Account Executive
+                  Contact Account Executive via Email
                 </a>
               </div>
             </div>
@@ -830,6 +970,10 @@ export const CustomerAccountPage = () => {
             quote={selectedQuote}
             onRefresh={loadCustomerData}
             onConfirmOverride={handleConfirmQuotation}
+            onConnectSales={() => {
+              setIsDrawerOpen(false);
+              setActiveTab('connect');
+            }}
             isEmbedded
           />
         )}
