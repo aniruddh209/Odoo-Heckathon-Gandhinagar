@@ -434,125 +434,429 @@ flowchart TD
 
 ---
 
-## H. Database & Data Model
+## H. Database & Data Model (41-Entity Relational Schema)
 
-`[IMPLEMENTATION DECISION]` Grounded in enterprise relational schema design implemented on Microsoft SQL Server via Entity Framework Core.
+`[IMPLEMENTATION DECISION]` Grounded in enterprise relational schema design implemented on Microsoft SQL Server 2022 (`MSSQLSERVER` / T-SQL) via Entity Framework Core 9/8 (`Microsoft.EntityFrameworkCore.SqlServer`) Code-First migrations.
+
+The DealFlow360 relational database architecture comprises exactly **41 normalized entities** structured into 7 cohesive business domains. This model replaces the preliminary 30-entity draft by fully normalizing multi-attribute variants, multi-tier approval rule steps, inventory replenishment rules, immutable order conversion snapshots, line-level customer negotiation, and secure refresh token rotation.
 
 ```mermaid
 erDiagram
-    USERS ||--o{ QUOTATIONS : "creates / reps"
+    %% Core Sales & CRM
+    USERS ||--o{ QUOTATIONS : "reps / creates"
     CUSTOMERS ||--o{ QUOTATIONS : "customer"
+    SALES_TEAMS ||--o{ USERS : "belongs to"
     CUSTOMER_TIERS ||--o{ CUSTOMERS : "classifies"
+    CUSTOMER_TIERS ||--o{ DISCOUNT_RULES : "governs"
+    
+    %% Catalog & Variants
     PRODUCT_CATEGORIES ||--o{ PRODUCTS : "categorizes"
-    PRODUCT_CATEGORIES ||--|| CATEGORY_DISCOUNT_LIMITS : "defines limit"
-    PRODUCTS ||--o{ QUOTATION_LINES : "ordered item"
+    PRODUCTS ||--o{ PRODUCT_VARIANTS : "has variants"
+    PRODUCT_ATTRIBUTES ||--o{ ATTRIBUTE_VALUES : "defines"
+    PRODUCT_VARIANTS ||--o{ VARIANT_ATTRIBUTE_VALUES : "composed of"
+    ATTRIBUTE_VALUES ||--o{ VARIANT_ATTRIBUTE_VALUES : "instantiates"
+    PRICE_LISTS ||--o{ PRICE_LIST_ITEMS : "contains"
+    PRODUCTS ||--o{ PRICE_LIST_ITEMS : "priced in"
+    
+    %% Quotations, Lines & Negotiation
     QUOTATIONS ||--o{ QUOTATION_LINES : "contains"
+    PRODUCTS ||--o{ QUOTATION_LINES : "ordered item"
+    QUOTATION_LINES ||--o{ QUOTATION_LINE_COMMENTS : "customer comments"
+    QUOTATIONS ||--o{ QUOTATION_CHANGES : "negotiation audit"
+    
+    %% Approvals & Governance
+    APPROVAL_RULES ||--o{ APPROVAL_RULE_STEPS : "steps"
     QUOTATIONS ||--o{ APPROVAL_REQUESTS : "requires"
-    QUOTATIONS ||--o{ AUDIT_LOGS : "audited by"
-    QUOTATIONS ||--o{ FULFILLMENT_SPLITS : "fulfilled by"
-    WAREHOUSES ||--o{ FULFILLMENT_SPLITS : "source"
-    QUOTATIONS ||--o{ SUBSCRIPTION_CONTRACTS : "generates"
-    QUOTATIONS ||--o{ DEAL_HEALTH_ALERTS : "monitored by"
+    APPROVAL_REQUESTS ||--o{ APPROVAL_ACTIONS : "action audit"
+    
+    %% Orders, Fulfillment & Inventory
+    QUOTATIONS ||--|| ORDERS : "converts upon confirm"
+    ORDERS ||--o{ ORDER_LINES : "contains"
+    WAREHOUSES ||--o{ INVENTORY_STOCKS : "stores"
+    PRODUCTS ||--o{ INVENTORY_STOCKS : "stocked"
+    WAREHOUSES ||--o{ REPLENISHMENT_RULES : "governs"
+    ORDERS ||--o{ WAREHOUSE_ALLOCATIONS : "allocates"
+    ORDERS ||--o{ BACKORDERS : "tracks deficit"
+    
+    %% Hybrid Billing & Subscriptions
+    ORDERS ||--o{ INVOICES : "billed by"
+    INVOICES ||--o{ INVOICE_LINES : "contains"
+    INVOICES ||--o{ PAYMENTS : "reconciles"
+    ORDERS ||--o{ CREDIT_NOTES : "adjusts"
+    SUBSCRIPTION_PLANS ||--o{ SUBSCRIPTIONS : "instantiates"
+    ORDERS ||--o{ SUBSCRIPTIONS : "creates"
+    SUBSCRIPTIONS ||--o{ BILLING_SCHEDULES : "projects"
+    
+    %% Intelligence & Security
+    USERS ||--o{ REFRESH_TOKENS : "issues"
+    ROLES ||--o{ USERS : "assigned"
+    QUOTATIONS ||--o{ DEAL_HEALTH_SNAPSHOTS : "monitored by"
+    USERS ||--o{ NOTIFICATIONS : "notified"
+    USERS ||--o{ AUDIT_LOGS : "acted by"
 ```
 
-### Entity Specifications (Microsoft SQL Server & EF Core)
+---
 
-#### 1. `Customers` (Customer Master & Tiering)
-- `Id`: Primary Key (`INT IDENTITY(1,1)`)
-- `Name`: `NVARCHAR(255)`, Required
-- `Email`: `NVARCHAR(255)`, Required, Indexed
-- `CustomerTierId`: FK -> `CustomerTiers(Id)`, Required (Bronze, Silver, Gold)
-- `PortalToken`: `NVARCHAR(128)`, Unique, Cryptographic HMAC magic-link token
-- `PortalTokenExpiry`: `DATETIME2(7)`
-- `IsActive`: `BIT`, Default: 1
+### Domain 1: Identity, Access & Governance (Entities 1–3, 41)
 
-#### 2. `CustomerTiers`
-- `Id`: Primary Key (`INT IDENTITY(1,1)`)
-- `Name`: `NVARCHAR(50)` (`Bronze`, `Silver`, `Gold`), Unique
-- `MaxDiscountCeiling`: `DECIMAL(5, 2)`, Required (e.g., `5.00%`, `10.00%`, `15.00%`)
-- `DefaultPriceListId`: FK -> `PriceLists(Id)`, Nullable
-- `Description`: `NVARCHAR(255)`
+#### 1. `Roles` (Master Role Definitions)
+- **Purpose**: Defines system roles with granular permission masks (`Admin`, `Sales Manager`, `Sales Rep`, `Finance User`, `Customer Portal`).
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Attributes**: `Name` (`NVARCHAR(50)`, Unique, Not Null), `NormalizedName` (`NVARCHAR(50)`, Not Null), `Description` (`NVARCHAR(255)`), `CreatedAt` (`DATETIME2(7)` Default `SYSUTCDATETIME()`).
+- **Relationships & Cardinality**: 1:M to `Users` (One Role has many Users).
+- **Source Traceability**: REQ-AUTH-01, PDF Page 4.
 
-#### 3. `Products`
-- `Id`: Primary Key (`INT IDENTITY(1,1)`)
-- `Sku`: `NVARCHAR(100)`, Required, Unique
-- `Name`: `NVARCHAR(255)`, Required
-- `CategoryId`: FK -> `ProductCategories(Id)`, Required
-- `ProductType`: `NVARCHAR(50)` (`one_time_hardware`, `service`, `recurring_subscription`)
-- `ListPrice`: `DECIMAL(18, 4)`, Required
-- `StandardCostPrice`: `DECIMAL(18, 4)`, Required (Internal only, strictly shielded from portal)
-- `Uom`: `NVARCHAR(50)` (Units, Hours, Months)
-- `IsPromoted`: `BIT`, Default: 0
-- `MinMarginThreshold`: `DECIMAL(5, 2)`, Default: 20.00
+#### 2. `Users` (Internal & Portal User Master)
+- **Purpose**: Represents internal employees (Reps, Managers, Finance, Admins) and portal user credentials.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `RoleId` (FK -> `Roles(Id)`, Required), `SalesTeamId` (FK -> `SalesTeams(Id)`, Nullable for Admins/Ops).
+- **Attributes**: `Email` (`NVARCHAR(255)`, Unique, Indexed), `PasswordHash` (`NVARCHAR(500)`, Not Null), `FullName` (`NVARCHAR(255)`, Not Null), `HistoricalDiscountAvg` (`DECIMAL(5, 2)`, Default `0.00%` — used for rep anomaly detection), `IsActive` (`BIT`, Default `1`), `CreatedAt` (`DATETIME2(7)`), `UpdatedAt` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: M:1 to `Roles`, M:1 to `SalesTeams`, 1:M to `Quotations`, 1:M to `ApprovalActions`, 1:M to `RefreshTokens`, 1:M to `Notifications`.
+- **Source Traceability**: REQ-AUTH-01, REQ-HLTH-02, PDF Page 3, 4, 8, 9.
 
-#### 4. `CategoryDiscountLimits`
-- `Id`: Primary Key (`INT IDENTITY(1,1)`)
-- `CategoryId`: FK -> `ProductCategories(Id)`, Required, Unique
-- `MaxRepDiscount`: `DECIMAL(5, 2)`, Required (e.g., Hardware: 15.00%, Services: 10.00%)
-- `ManagerApprovalThreshold`: `DECIMAL(5, 2)`, Required (e.g., >15.00% up to 25.00%)
-- `FinanceApprovalThreshold`: `DECIMAL(5, 2)`, Required (e.g., >25.00%)
+#### 3. `RefreshTokens` (Cryptographic JWT Token Rotation)
+- **Purpose**: Enforces secure, revocable token refresh cycles for internal and portal sessions without transmitting credentials.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `UserId` (FK -> `Users(Id)`, Required, Cascade Delete).
+- **Attributes**: `Token` (`NVARCHAR(256)`, Unique, Indexed), `ExpiresAt` (`DATETIME2(7)`, Not Null), `IsRevoked` (`BIT`, Default `0`), `CreatedAt` (`DATETIME2(7)`), `ReplacedByToken` (`NVARCHAR(256)`).
+- **Relationships & Cardinality**: M:1 to `Users`.
+- **Source Traceability**: REQ-AUTH-01, Security Blueprint.
 
-#### 5. `Quotations` (Quotation / Deal Master Aggregate)
-- `Id`: Primary Key (`UNIQUEIDENTIFIER`, `NEWSEQUENTIALID()`)
-- `QuotationNumber`: `NVARCHAR(50)`, Required, Unique (e.g., `QT-2026-0001`)
-- `CustomerId`: FK -> `Customers(Id)`, Required
-- `SalesRepresentativeId`: FK -> `Users(Id)`, Required
-- `Status`: `NVARCHAR(50)` (`draft`, `pending_approval`, `approved`, `sent`, `negotiation_active`, `confirmed`, `rejected`, `revise_requested`, `cancelled`)
-- `BlendedDiscountRiskScore`: `DECIMAL(5, 2)`, Default: 0.00
-- `ApprovalLevelRequired`: `NVARCHAR(50)` (`auto_approved`, `level_1_manager`, `level_2_finance`)
-- `CurrentApprovalLevel`: `INT`, Default: 0
-- `TotalGrossAmount`: `DECIMAL(18, 4)`, Computed
-- `TotalDiscountAmount`: `DECIMAL(18, 4)`, Computed
-- `TotalNetAmount`: `DECIMAL(18, 4)`, Computed
-- `TotalCostAmount`: `DECIMAL(18, 4)`, Internal only
-- `OrderGrossMarginAmount`: `DECIMAL(18, 4)`, Internal only
-- `OrderGrossMarginPercent`: `DECIMAL(5, 2)`, Internal only
-- `CustomerCounterDiscount`: `DECIMAL(5, 2)`, Nullable
-- `CustomerSplitDeliveryConsent`: `BIT`, Default: 0
-- `CustomerNotes`: `NVARCHAR(MAX)`
-- `InternalRemarks`: `NVARCHAR(MAX)`, Internal only
-- `LastCustomerActivityDate`: `DATETIME2(7)`, Indexed
-- `PromisedDeliveryDate`: `DATETIME2(7)`
-- `ConcurrencyVersion`: `INT`, Default: 1 (Optimistic locking token)
+#### 4. `SalesTeams` (Sales Organizational Units)
+- **Purpose**: Groups sales reps for quota management, hierarchical approval routing, and team performance rollups.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `TeamLeadId` (FK -> `Users(Id)`, Nullable).
+- **Attributes**: `Name` (`NVARCHAR(100)`, Unique, Not Null), `Code` (`NVARCHAR(50)`, Unique), `CreatedAt` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: 1:M to `Users`, 1:M to `Quotations`.
+- **Source Traceability**: REQ-REP-01, PDF Page 4, 5.
 
-#### 6. `QuotationLines` (Quotation Line Items)
-- `Id`: Primary Key (`BIGINT IDENTITY(1,1)`)
-- `QuotationId`: FK -> `Quotations(Id)`, Required, Cascade Delete
-- `ProductId`: FK -> `Products(Id)`, Required
-- `Quantity`: `DECIMAL(18, 4)`, Required
-- `UnitPrice`: `DECIMAL(18, 4)`, Required
-- `DiscountPercentage`: `DECIMAL(5, 2)`, Default: 0.00
-- `EffectiveDiscountLimit`: `DECIMAL(5, 2)`, Resolved category/tier ceiling
-- `RequiresApproval`: `BIT`, Default: 0
-- `ApprovalReason`: `NVARCHAR(255)`
-- `SubtotalAmount`: `DECIMAL(18, 4)`, Computed
-- `UnitCostPrice`: `DECIMAL(18, 4)`, Internal only
-- `TotalCostAmount`: `DECIMAL(18, 4)`, Internal only
-- `LineMarginAmount`: `DECIMAL(18, 4)`, Internal only
-- `LineMarginPercent`: `DECIMAL(5, 2)`, Internal only
-- `LineItemType`: `NVARCHAR(50)` (`one_time_hardware`, `service`, `recurring_subscription`)
+---
 
-#### 7. `ApprovalRequests` & `ApprovalActions`
-- `ApprovalRequests`: `Id` (PK), `QuotationId` (FK), `RequiredLevel` (`INT`), `Status`, `BlendedRiskScore`, `PeakLineViolation`, `WeightedMarginLoss`, `RequestedAt`.
-- `ApprovalActions` (Immutable Audit Log): `Id` (PK), `ApprovalRequestId` (FK), `ReviewerId` (FK -> `Users(Id)`), `ActionTaken` (`approved`, `rejected`, `revision_requested`), `Remarks` (`NVARCHAR(1000)`, Min 10 chars), `ActionTimestamp`.
+### Domain 2: Customer & Pricing Architecture (Entities 4–5, 12–13)
 
-#### 8. `Warehouses` & `FulfillmentSplits`
-- `Warehouses`: `Id` (PK), `Code`, `Name`, `City`, `IsCentralDepot`.
-- `FulfillmentSplits`: `Id` (PK), `QuotationId` (FK), `WarehouseId` (FK), `EstimatedShippingCost` (`DECIMAL(18, 4)`), `EstimatedDeliveryDays`, `Status` (`allocated`, `dispatched`, `delivered`).
+#### 5. `CustomerTiers` (Classification Ceilings)
+- **Purpose**: Classifies customers into `Bronze`, `Silver`, and `Gold` tiers with distinct discount ceilings and pricing agreements.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Attributes**: `Name` (`NVARCHAR(50)`, Unique, Not Null — `Bronze`, `Silver`, `Gold`), `MaxDiscountCeiling` (`DECIMAL(5, 2)`, Not Null — e.g. 5.00%, 10.00%, 15.00%), `DefaultPriceListId` (FK -> `PriceLists(Id)`, Nullable), `Description` (`NVARCHAR(255)`).
+- **Relationships & Cardinality**: 1:M to `Customers`, 1:M to `DiscountRules`.
+- **Source Traceability**: REQ-PROD-03, REQ-DISC-01, PDF Page 4, 12.
 
-#### 9. `SubscriptionContracts` & `BillingSchedules`
-- `SubscriptionContracts`: `Id` (PK), `QuotationId` (FK), `CustomerId` (FK), `BillingInterval` (`monthly`, `quarterly`, `annually`), `RecurringAmount` (`DECIMAL(18, 4)`), `StartDate`, `NextBillingDate`, `Status`.
-- `BillingSchedules`: `Id` (PK), `SubscriptionContractId` (FK), `ScheduledDate`, `ProjectedAmount`, `Status`.
+#### 6. `Customers` (Customer Accounts & Portal Authentication)
+- **Purpose**: Master customer account registry. Stores delivery addresses, credit limits, and secure magic-link portal authentication tokens.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `CustomerTierId` (FK -> `CustomerTiers(Id)`, Required), `AssignedRepId` (FK -> `Users(Id)`, Nullable).
+- **Attributes**: `Name` (`NVARCHAR(255)`, Not Null), `Email` (`NVARCHAR(255)`, Not Null, Indexed), `Phone` (`NVARCHAR(50)`), `AddressLine1` (`NVARCHAR(255)`), `City` (`NVARCHAR(100)`), `Country` (`NVARCHAR(100)`), `PortalToken` (`NVARCHAR(128)`, Unique, Indexed, HMAC-signed), `PortalTokenExpiresAt` (`DATETIME2(7)`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: M:1 to `CustomerTiers`, 1:M to `Quotations`, 1:M to `Orders`, 1:M to `Subscriptions`.
+- **Security Rule**: `PortalToken` grants access ONLY to quotations where `CustomerId == Session.CustomerId`.
+- **Source Traceability**: REQ-AUTH-02, REQ-PORT-01, PDF Page 4, 8, 10.
 
-#### 10. `DealHealthAlerts`
-- `Id`: Primary Key (`INT IDENTITY(1,1)`)
-- `QuotationId`: FK -> `Quotations(Id)`, Required
-- `AssignedRepId`: FK -> `Users(Id)`, Required
-- `AlertType`: `NVARCHAR(50)` (`stalled_deal`, `discount_anomaly`, `delivery_slippage`)
-- `Severity`: `NVARCHAR(20)` (`info`, `warning`, `critical`)
-- `Message`: `NVARCHAR(500)`, Required
-- `IsResolved`: `BIT`, Default: 0
-- `CreatedAt`: `DATETIME2(7)`, Default: `SYSUTCDATETIME()`
+#### 7. `PriceLists` (Pricing Catalogs)
+- **Purpose**: Defines seasonal, regional, or tier-specific pricing schedules and currency bases.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Attributes**: `Name` (`NVARCHAR(100)`, Not Null), `CurrencyCode` (`NVARCHAR(10)`, Default `'USD'`), `IsActive` (`BIT`, Default `1`), `ValidFrom` (`DATETIME2(7)`), `ValidTo` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: 1:M to `PriceListItems`, 1:M to `CustomerTiers`.
+- **Source Traceability**: REQ-PROD-03, PDF Page 4.
+
+#### 8. `PriceListItems` (Itemized Price Overrides)
+- **Purpose**: Defines fixed price overrides or tiered volume rules for specific products within a price list.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `PriceListId` (FK -> `PriceLists(Id)`, Required, Cascade Delete), `ProductId` (FK -> `Products(Id)`, Required).
+- **Attributes**: `MinQuantity` (`DECIMAL(18, 4)`, Default `1.0`), `FixedPrice` (`DECIMAL(18, 4)`, Not Null).
+- **Relationships & Cardinality**: M:1 to `PriceLists`, M:1 to `Products`.
+- **Source Traceability**: REQ-PROD-03, PDF Page 4.
+
+---
+
+### Domain 3: Catalog & Multi-Attribute Variants (Entities 6–11)
+
+#### 9. `ProductCategories` (Hierarchy & Governance Scope)
+- **Purpose**: Groups products into `Hardware`, `Services`, `Recurring Subscriptions`. Acts as the primary anchor for category discount ceilings.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Attributes**: `Name` (`NVARCHAR(100)`, Unique, Not Null), `Code` (`NVARCHAR(50)`, Unique), `ParentCategoryId` (FK -> `ProductCategories(Id)`, Nullable), `MaxCategoryDiscount` (`DECIMAL(5, 2)`, Not Null — e.g. Hardware 15.00%, Services 10.00%).
+- **Relationships & Cardinality**: 1:M to `Products`, 1:M to `DiscountRules`.
+- **Source Traceability**: REQ-PROD-01, REQ-DISC-02, PDF Page 4, 12.
+
+#### 10. `Products` (Product Master)
+- **Purpose**: Catalog items spanning capital goods, hourly/fixed services, and SaaS licenses. Contains cost prices shielded from portal views.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `CategoryId` (FK -> `ProductCategories(Id)`, Required).
+- **Attributes**: `Sku` (`NVARCHAR(100)`, Unique, Not Null), `Name` (`NVARCHAR(255)`, Not Null), `ProductType` (`NVARCHAR(50)`, Not Null — `OneTimeHardware`, `Service`, `RecurringSubscription`), `ListPrice` (`DECIMAL(18, 4)`, Not Null), `StandardCostPrice` (`DECIMAL(18, 4)`, Not Null — **INTERNAL ONLY**), `Uom` (`NVARCHAR(50)`, Default `'Units'`), `TaxRatePercent` (`DECIMAL(5, 2)`, Default `0.00%`), `IsPromoted` (`BIT`, Default `0`), `MinMarginThreshold` (`DECIMAL(5, 2)`, Default `20.00%`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: M:1 to `ProductCategories`, 1:M to `ProductVariants`, 1:M to `InventoryStocks`, 1:M to `QuotationLines`.
+- **Source Traceability**: REQ-PROD-01, REQ-UP-01, PDF Page 4, 5.
+
+#### 11. `ProductAttributes` (Variant Axes)
+- **Purpose**: Master attribute types that differentiate product variants (e.g. `Size`, `Pack`, `Color`, `Warranty`).
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Attributes**: `Name` (`NVARCHAR(100)`, Unique, Not Null), `Description` (`NVARCHAR(255)`).
+- **Relationships & Cardinality**: 1:M to `AttributeValues`.
+- **Source Traceability**: REQ-PROD-02, PDF Page 4.
+
+#### 12. `AttributeValues` (Discrete Option Values)
+- **Purpose**: Specific values for an attribute (e.g. `Small`, `Medium`, `Large`; `10-Pack`, `25-Pack`).
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `ProductAttributeId` (FK -> `ProductAttributes(Id)`, Required, Cascade Delete).
+- **Attributes**: `Value` (`NVARCHAR(100)`, Not Null), `DisplayOrder` (`INT`, Default `0`).
+- **Relationships & Cardinality**: M:1 to `ProductAttributes`, 1:M to `VariantAttributeValues`.
+- **Source Traceability**: REQ-PROD-02, PDF Page 4.
+
+#### 13. `ProductVariants` (Sellable SKU Specializations)
+- **Purpose**: The physical sellable child variant derived from a parent product. Modifies list price and cost price.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `ProductId` (FK -> `Products(Id)`, Required, Cascade Delete).
+- **Attributes**: `Sku` (`NVARCHAR(100)`, Unique, Not Null), `VariantName` (`NVARCHAR(255)`, Not Null), `PriceExtra` (`DECIMAL(18, 4)`, Default `0.0000`), `CostExtra` (`DECIMAL(18, 4)`, Default `0.0000`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: M:1 to `Products`, 1:M to `VariantAttributeValues`, 1:M to `InventoryStocks`, 1:M to `QuotationLines`.
+- **Source Traceability**: REQ-PROD-02, PDF Page 4.
+
+#### 14. `VariantAttributeValues` (Attribute Join Bridge)
+- **Purpose**: Normalized junction bridge establishing the exact combination of attribute values that define a product variant.
+- **Keys**: `ProductVariantId`, `AttributeValueId` (Composite PK)
+- **Foreign Keys**: `ProductVariantId` (FK -> `ProductVariants(Id)`, Cascade Delete), `AttributeValueId` (FK -> `AttributeValues(Id)`).
+- **Relationships & Cardinality**: M:N bridge between `ProductVariants` and `AttributeValues`.
+- **Source Traceability**: REQ-PROD-02, Technical Implementation Spec Page 4.
+
+---
+
+### Domain 4: Discount Governance & Multi-Tier Approvals (Entities 14–16, 28–29)
+
+#### 15. `DiscountRules` (Configurable Discount Ceilings)
+- **Purpose**: Defines allowable rep discretion ceilings by combining Customer Tier, Product Category, and Order Thresholds.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `CustomerTierId` (FK -> `CustomerTiers(Id)`, Nullable), `ProductCategoryId` (FK -> `ProductCategories(Id)`, Nullable).
+- **Attributes**: `MaxRepDiscountPercent` (`DECIMAL(5, 2)`, Not Null), `ManagerApprovalFloorPercent` (`DECIMAL(5, 2)`, Not Null), `FinanceApprovalFloorPercent` (`DECIMAL(5, 2)`, Not Null), `EffectiveDate` (`DATETIME2(7)`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: M:1 to `CustomerTiers`, M:1 to `ProductCategories`.
+- **Source Traceability**: REQ-DISC-01, REQ-DISC-02, PDF Page 4, 12.
+
+#### 16. `ApprovalRules` (Multi-Tier Workflow Definitions)
+- **Purpose**: Defines dynamic workflow chains based on Deal Size, Blended Risk Score, or Deep Discounting.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Attributes**: `RuleName` (`NVARCHAR(100)`, Not Null), `MinRiskScore` (`DECIMAL(5, 2)`, Not Null), `MaxRiskScore` (`DECIMAL(5, 2)`, Nullable), `MinOrderValue` (`DECIMAL(18, 4)`, Default `0.0000`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: 1:M to `ApprovalRuleSteps`.
+- **Source Traceability**: REQ-DISC-03, REQ-DISC-04, PDF Page 4, 6.
+
+#### 17. `ApprovalRuleSteps` (Sequential Approver Hierarchy)
+- **Purpose**: Normalizes the ordered steps within an approval rule (e.g. Step 1: Sales Manager, Step 2: Finance User).
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `ApprovalRuleId` (FK -> `ApprovalRules(Id)`, Required, Cascade Delete), `RequiredRoleId` (FK -> `Roles(Id)`, Required).
+- **Attributes**: `StepOrder` (`INT`, Not Null — e.g. 1, 2), `StepName` (`NVARCHAR(100)`, Not Null), `CanAutoApprove` (`BIT`, Default `0`).
+- **Relationships & Cardinality**: M:1 to `ApprovalRules`, M:1 to `Roles`.
+- **Source Traceability**: REQ-DISC-03, REQ-DISC-05, PDF Page 4, 6.
+
+#### 18. `ApprovalRequests` (Transactional Deal Approval Instance)
+- **Purpose**: Created when a quotation exceeds rep ceilings. Tracks current step, overall status, and blended risk metrics.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `QuotationId` (FK -> `Quotations(Id)`, Required, Cascade Delete), `CurrentRuleStepId` (FK -> `ApprovalRuleSteps(Id)`, Nullable).
+- **Attributes**: `Status` (`NVARCHAR(50)`, Not Null — `Pending`, `Approved`, `Rejected`, `RevisionRequested`), `BlendedRiskScore` (`DECIMAL(5, 2)`, Not Null), `PeakLineViolation` (`DECIMAL(5, 2)`, Not Null), `WeightedMarginLoss` (`DECIMAL(18, 4)`, Not Null), `SubmittedAt` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`), `CompletedAt` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: 1:1 with active `Quotations`, 1:M to `ApprovalActions`.
+- **Source Traceability**: REQ-DISC-04, REQ-DISC-05, PDF Page 4, 6, 11.
+
+#### 19. `ApprovalActions` (Immutable Decision Ledger)
+- **Purpose**: Enforces non-repudiable audit compliance for every manager/finance approval, rejection, or revision request.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `ApprovalRequestId` (FK -> `ApprovalRequests(Id)`, Required, Cascade Delete), `ReviewerId` (FK -> `Users(Id)`, Required).
+- **Attributes**: `ActionTaken` (`NVARCHAR(50)`, Not Null — `Approved`, `Rejected`, `RevisionRequested`), `StepOrder` (`INT`, Not Null), `Remarks` (`NVARCHAR(1000)`, Not Null, Minimum 10 characters), `ActionTimestamp` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`), `IpAddress` (`NVARCHAR(50)`).
+- **Relationships & Cardinality**: M:1 to `ApprovalRequests`, M:1 to `Users`.
+- **Source Traceability**: REQ-DISC-06, PDF Page 4, 6.
+
+---
+
+### Domain 5: Warehouses, Logistics & Order Fulfillment (Entities 17–19, 31–34)
+
+#### 20. `Warehouses` (Facility Master)
+- **Purpose**: Physical inventory locations (e.g. `Main Warehouse`, `East Depot`). Contains shipping cost coefficients.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Attributes**: `Name` (`NVARCHAR(100)`, Unique, Not Null), `Code` (`NVARCHAR(50)`, Unique, Not Null), `AddressLine1` (`NVARCHAR(255)`), `City` (`NVARCHAR(100)`), `IsCentralDepot` (`BIT`, Default `0`), `ShippingCostWeight` (`DECIMAL(5, 2)`, Default `1.00`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: 1:M to `InventoryStocks`, 1:M to `ReplenishmentRules`, 1:M to `WarehouseAllocations`.
+- **Source Traceability**: REQ-WH-01, REQ-WH-03, PDF Page 4, 7.
+
+#### 21. `InventoryStocks` (Real-Time Stock Quantities)
+- **Purpose**: Tracks on-hand, reserved, and available-to-promise (ATP) physical stock per product per warehouse.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `WarehouseId` (FK -> `Warehouses(Id)`, Required), `ProductId` (FK -> `Products(Id)`, Required), `ProductVariantId` (FK -> `ProductVariants(Id)`, Nullable).
+- **Attributes**: `QuantityOnHand` (`DECIMAL(18, 4)`, Not Null), `QuantityReserved` (`DECIMAL(18, 4)`, Default `0.0000`), `QuantityAvailable` AS (`QuantityOnHand` - `QuantityReserved`) PERSISTED, `LastStockCheckAt` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: M:1 to `Warehouses`, M:1 to `Products`, M:1 to `ProductVariants`.
+- **Constraints**: Composite Unique on (`WarehouseId`, `ProductId`, `ProductVariantId`).
+- **Source Traceability**: REQ-WH-02, PDF Page 4.
+
+#### 22. `ReplenishmentRules` (Inventory Automation Ceilings)
+- **Purpose**: Defines automated reorder thresholds and minimum order quantities (MOQ) per warehouse.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `WarehouseId` (FK -> `Warehouses(Id)`, Required), `ProductId` (FK -> `Products(Id)`, Required).
+- **Attributes**: `MinStockLevel` (`DECIMAL(18, 4)`, Not Null), `MaxStockLevel` (`DECIMAL(18, 4)`, Not Null), `ReorderQuantity` (`DECIMAL(18, 4)`, Not Null), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: M:1 to `Warehouses`, M:1 to `Products`.
+- **Source Traceability**: REQ-WH-02, PDF Page 4.
+
+#### 23. `Orders` (Confirmed Commercial Agreement)
+- **Purpose**: The immutable post-confirmation sales contract. Converted from a Quotation upon customer signature/confirmation.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `QuotationId` (FK -> `Quotations(Id)`, Required, Unique), `CustomerId` (FK -> `Customers(Id)`, Required), `SalesRepresentativeId` (FK -> `Users(Id)`, Required).
+- **Attributes**: `OrderNumber` (`NVARCHAR(50)`, Unique, Not Null — e.g. `ORD-2026-0001`), `Status` (`NVARCHAR(50)`, Not Null — `Confirmed`, `PartiallyAllocated`, `FullyAllocated`, `Dispatched`, `Delivered`, `Cancelled`), `ConfirmedDate` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`), `TotalGrossAmount` (`DECIMAL(18, 4)`, Not Null), `TotalDiscountAmount` (`DECIMAL(18, 4)`, Not Null), `TotalNetAmount` (`DECIMAL(18, 4)`, Not Null), `TotalCostAmount` (`DECIMAL(18, 4)`, Not Null — **INTERNAL ONLY**), `PromisedDeliveryDate` (`DATETIME2(7)`), `CustomerSplitDeliveryConsent` (`BIT`, Default `0`).
+- **Relationships & Cardinality**: 1:1 with `Quotations`, 1:M to `OrderLines`, 1:M to `WarehouseAllocations`, 1:M to `Backorders`, 1:M to `Invoices`, 1:M to `Subscriptions`, 1:M to `CreditNotes`.
+- **Source Traceability**: REQ-TEST-01, PDF Page 3, 7, 11.
+
+#### 24. `OrderLines` (Ordered Line Snapshots)
+- **Purpose**: Immutable snapshot of quantities, negotiated unit prices, and discounts at the time of order placement.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `OrderId` (FK -> `Orders(Id)`, Required, Cascade Delete), `ProductId` (FK -> `Products(Id)`, Required), `ProductVariantId` (FK -> `ProductVariants(Id)`, Nullable).
+- **Attributes**: `QuantityOrdered` (`DECIMAL(18, 4)`, Not Null), `QuantityFulfilled` (`DECIMAL(18, 4)`, Default `0.0000`), `UnitPrice` (`DECIMAL(18, 4)`, Not Null), `DiscountPercentage` (`DECIMAL(5, 2)`, Not Null), `NetTotal` (`DECIMAL(18, 4)`, Not Null), `UnitCostPrice` (`DECIMAL(18, 4)`, Not Null — **INTERNAL ONLY**), `LineItemType` (`NVARCHAR(50)`, Not Null).
+- **Relationships & Cardinality**: M:1 to `Orders`, M:1 to `Products`, M:1 to `ProductVariants`.
+- **Source Traceability**: REQ-TEST-01, PDF Page 7, 11.
+
+#### 25. `WarehouseAllocations` (Fulfillment Split Execution)
+- **Purpose**: Records the optimized multi-warehouse split distribution for each order line.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `OrderId` (FK -> `Orders(Id)`, Required, Cascade Delete), `OrderLineId` (FK -> `OrderLines(Id)`, Required), `WarehouseId` (FK -> `Warehouses(Id)`, Required).
+- **Attributes**: `AllocatedQuantity` (`DECIMAL(18, 4)`, Not Null), `EstimatedShippingCost` (`DECIMAL(18, 4)`, Default `0.0000`), `EstimatedDeliveryDays` (`INT`, Default `3`), `Status` (`NVARCHAR(50)`, Not Null — `Allocated`, `Picked`, `Dispatched`, `Delivered`), `IsManualOverride` (`BIT`, Default `0`), `DispatchedAt` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: M:1 to `Orders`, M:1 to `OrderLines`, M:1 to `Warehouses`.
+- **Source Traceability**: REQ-WH-03, REQ-WH-04, PDF Page 4, 7, 11.
+
+#### 26. `Backorders` (Stock Deficit & Consolidation Engine)
+- **Purpose**: Tracks unfulfilled product quantities across warehouses. Powers automated backorder consolidation prompts upon stock arrival.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `OrderId` (FK -> `Orders(Id)`, Required, Cascade Delete), `OrderLineId` (FK -> `OrderLines(Id)`, Required), `TargetWarehouseId` (FK -> `Warehouses(Id)`, Required).
+- **Attributes**: `BackorderNumber` (`NVARCHAR(50)`, Unique, Not Null — e.g. `BO-102`), `DeficitQuantity` (`DECIMAL(18, 4)`, Not Null), `Status` (`NVARCHAR(50)`, Not Null — `AwaitingStock`, `StockArrived`, `Consolidated`, `Cancelled`), `ArrivedStockQuantity` (`DECIMAL(18, 4)`, Default `0.0000`), `StockArrivedAt` (`DATETIME2(7)`), `ConsolidatedAt` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: M:1 to `Orders`, M:1 to `OrderLines`, M:1 to `Warehouses`.
+- **Source Traceability**: REQ-WH-05, PDF Page 7, 11.
+
+---
+
+### Domain 6: Hybrid Billing, Subscriptions & Financial Reconciliations (Entities 20–22, 35–38)
+
+#### 27. `SubscriptionPlans` (Recurring Product Blueprints)
+- **Purpose**: Master plans for recurring billing cycles (Monthly, Quarterly, Annually) linked to SaaS or maintenance products.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `ProductId` (FK -> `Products(Id)`, Required).
+- **Attributes**: `Name` (`NVARCHAR(100)`, Not Null), `BillingInterval` (`NVARCHAR(50)`, Not Null — `Monthly`, `Quarterly`, `Yearly`), `IntervalCount` (`INT`, Default `1`), `GracePeriodDays` (`INT`, Default `14`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: M:1 to `Products`, 1:M to `Subscriptions`.
+- **Source Traceability**: REQ-SUB-01, PDF Page 5, 8.
+
+#### 28. `Subscriptions` (Active Recurring Contracts)
+- **Purpose**: Active customer recurring service contract created from recurring order lines.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `CustomerId` (FK -> `Customers(Id)`, Required), `OrderId` (FK -> `Orders(Id)`, Required), `SubscriptionPlanId` (FK -> `SubscriptionPlans(Id)`, Required).
+- **Attributes**: `SubscriptionNumber` (`NVARCHAR(50)`, Unique, Not Null — e.g. `SUB-2026-0001`), `CurrentQuantity` (`DECIMAL(18, 4)`, Not Null), `UnitPrice` (`DECIMAL(18, 4)`, Not Null), `DiscountPercent` (`DECIMAL(5, 2)`, Default `0.00%`), `RecurringAmount` (`DECIMAL(18, 4)`, Not Null), `Status` (`NVARCHAR(50)`, Not Null — `Active`, `Paused`, `Cancelled`, `Expired`), `StartDate` (`DATETIME2(7)`, Not Null), `CurrentPeriodStart` (`DATETIME2(7)`, Not Null), `CurrentPeriodEnd` (`DATETIME2(7)`, Not Null), `NextBillingDate` (`DATETIME2(7)`, Not Null), `CancelledAt` (`DATETIME2(7)`).
+- **Relationships & Cardinality**: M:1 to `Customers`, M:1 to `Orders`, M:1 to `SubscriptionPlans`, 1:M to `BillingSchedules`.
+- **Source Traceability**: REQ-SUB-01, REQ-SUB-02, PDF Page 5, 8, 11.
+
+#### 29. `BillingSchedules` (Prorated Future Invoicing Ledger)
+- **Purpose**: Forward-looking projection of upcoming billing cycles and calculated mid-cycle proration adjustments.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `SubscriptionId` (FK -> `Subscriptions(Id)`, Required, Cascade Delete), `InvoiceId` (FK -> `Invoices(Id)`, Nullable).
+- **Attributes**: `ScheduledDate` (`DATETIME2(7)`, Not Null), `ProjectedAmount` (`DECIMAL(18, 4)`, Not Null), `ProrationAdjustment` (`DECIMAL(18, 4)`, Default `0.0000`), `Status` (`NVARCHAR(50)`, Not Null — `Scheduled`, `Invoiced`, `Skipped`, `Cancelled`).
+- **Relationships & Cardinality**: M:1 to `Subscriptions`, 1:1 with `Invoices` (when generated).
+- **Source Traceability**: REQ-SUB-01, REQ-SUB-02, PDF Page 5, 8.
+
+#### 30. `Invoices` (Financial Receivables Aggregate)
+- **Purpose**: Official financial receivables document for one-time goods or recurring subscription periods.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `OrderId` (FK -> `Orders(Id)`, Required), `CustomerId` (FK -> `Customers(Id)`, Required).
+- **Attributes**: `InvoiceNumber` (`NVARCHAR(50)`, Unique, Not Null — e.g. `INV-2026-0001`), `InvoiceType` (`NVARCHAR(50)`, Not Null — `StandardOneTime`, `SubscriptionRecurring`), `Status` (`NVARCHAR(50)`, Not Null — `Draft`, `Posted`, `Paid`, `PartiallyPaid`, `Cancelled`), `IssueDate` (`DATETIME2(7)`, Not Null), `DueDate` (`DATETIME2(7)`, Not Null), `TotalAmount` (`DECIMAL(18, 4)`, Not Null), `PaidAmount` (`DECIMAL(18, 4)`, Default `0.0000`), `BalanceDue` AS (`TotalAmount` - `PaidAmount`) PERSISTED.
+- **Relationships & Cardinality**: M:1 to `Orders`, M:1 to `Customers`, 1:M to `InvoiceLines`, 1:M to `Payments`.
+- **Source Traceability**: REQ-SUB-01, REQ-TEST-01, PDF Page 5, 8, 11.
+
+#### 31. `InvoiceLines` (Receivable Line Items)
+- **Purpose**: Itemized breakdown of invoiced goods and services.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `InvoiceId` (FK -> `Invoices(Id)`, Required, Cascade Delete), `ProductId` (FK -> `Products(Id)`, Required).
+- **Attributes**: `Description` (`NVARCHAR(255)`, Not Null), `Quantity` (`DECIMAL(18, 4)`, Not Null), `UnitPrice` (`DECIMAL(18, 4)`, Not Null), `DiscountPercent` (`DECIMAL(5, 2)`, Default `0.00%`), `LineTotal` (`DECIMAL(18, 4)`, Not Null).
+- **Relationships & Cardinality**: M:1 to `Invoices`, M:1 to `Products`.
+- **Source Traceability**: REQ-SUB-01, PDF Page 5, 11.
+
+#### 32. `Payments` (Payment Reconciliation Ledger)
+- **Purpose**: Records cash/bank/card payments applied against invoices.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `InvoiceId` (FK -> `Invoices(Id)`, Required, Cascade Delete).
+- **Attributes**: `PaymentReference` (`NVARCHAR(100)`, Unique, Not Null — e.g. `PAY-2026-0001`), `Amount` (`DECIMAL(18, 4)`, Not Null), `PaymentMethod` (`NVARCHAR(50)`, Not Null — `CreditCard`, `BankTransfer`, `Check`), `PaymentDate` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`), `Status` (`NVARCHAR(50)`, Not Null — `Completed`, `Failed`, `Refunded`).
+- **Relationships & Cardinality**: M:1 to `Invoices`.
+- **Source Traceability**: REQ-TEST-01, PDF Page 11.
+
+#### 33. `CreditNotes` (Refunds & Early Cancellation Adjustments)
+- **Purpose**: Emits legally binding credit notes and refund records when a subscription is cancelled or downgraded mid-cycle.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `OrderId` (FK -> `Orders(Id)`, Required), `CustomerId` (FK -> `Customers(Id)`, Required), `SubscriptionId` (FK -> `Subscriptions(Id)`, Nullable).
+- **Attributes**: `CreditNoteNumber` (`NVARCHAR(50)`, Unique, Not Null — e.g. `CN-2026-0001`), `Amount` (`DECIMAL(18, 4)`, Not Null), `Reason` (`NVARCHAR(255)`, Not Null), `IssueDate` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`), `Status` (`NVARCHAR(50)`, Not Null — `Issued`, `Applied`, `Refunded`).
+- **Relationships & Cardinality**: M:1 to `Orders`, M:1 to `Customers`, M:1 to `Subscriptions`.
+- **Source Traceability**: REQ-SUB-03, PDF Page 5, 8.
+
+---
+
+### Domain 7: Deal Intelligence, Negotiation & Platform Auditing (Entities 23–27, 30, 39–40)
+
+#### 34. `UpsellCrossSellRules` (Recommendation Association Matrix)
+- **Purpose**: Configures co-purchase pairings, promotional boosts, and minimum margin thresholds for live quote suggestions.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `SourceProductId` (FK -> `Products(Id)`, Required), `RecommendedProductId` (FK -> `Products(Id)`, Required).
+- **Attributes**: `RuleType` (`NVARCHAR(50)`, Not Null — `CrossSell`, `Upsell`, `BundleAddon`), `ConfidenceScore` (`DECIMAL(5, 2)`, Default `85.00%`), `IsPromoted` (`BIT`, Default `0`), `PromotionalText` (`NVARCHAR(255)`), `MinMarginThreshold` (`DECIMAL(5, 2)`, Default `25.00%`), `IsActive` (`BIT`, Default `1`).
+- **Relationships & Cardinality**: M:1 to `Products` (Source), M:1 to `Products` (Recommended).
+- **Source Traceability**: REQ-UP-01, REQ-UP-02, PDF Page 5, 7.
+
+#### 35. `Quotations` (Quotation / Negotiation Aggregate Master)
+- **Purpose**: The central commercial draft entity throughout deal building, discount governance, and customer negotiation.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `CustomerId` (FK -> `Customers(Id)`, Required), `SalesRepresentativeId` (FK -> `Users(Id)`, Required), `SalesTeamId` (FK -> `SalesTeams(Id)`, Nullable).
+- **Attributes**: `QuotationNumber` (`NVARCHAR(50)`, Unique, Not Null — e.g. `QT-2026-0001`), `Status` (`NVARCHAR(50)`, Not Null — `Draft`, `PendingApproval`, `Approved`, `Sent`, `UnderNegotiation`, `Confirmed`, `Rejected`, `RevisionRequested`), `BlendedDiscountRiskScore` (`DECIMAL(5, 2)`, Default `0.00`), `TotalGrossAmount` (`DECIMAL(18, 4)`, Not Null), `TotalDiscountAmount` (`DECIMAL(18, 4)`, Not Null), `TotalNetAmount` (`DECIMAL(18, 4)`, Not Null), `TotalCostAmount` (`DECIMAL(18, 4)`, Not Null — **INTERNAL ONLY**), `OrderGrossMarginAmount` (`DECIMAL(18, 4)`, Not Null — **INTERNAL ONLY**), `OrderGrossMarginPercent` (`DECIMAL(5, 2)`, Not Null — **INTERNAL ONLY**), `CustomerCounterDiscount` (`DECIMAL(5, 2)`, Nullable), `CustomerSplitDeliveryConsent` (`BIT`, Default `0`), `CustomerNotes` (`NVARCHAR(MAX)`), `InternalRemarks` (`NVARCHAR(MAX)` — **INTERNAL ONLY**), `LastCustomerActivityDate` (`DATETIME2(7)`, Indexed), `PromisedDeliveryDate` (`DATETIME2(7)`), `ConcurrencyVersion` (`ROWVERSION` / `byte[]`, Concurrency Token).
+- **Relationships & Cardinality**: M:1 to `Customers`, M:1 to `Users`, 1:M to `QuotationLines`, 1:M to `QuotationChanges`, 1:1 with `ApprovalRequests`, 1:1 with `Orders`, 1:M to `DealHealthSnapshots`.
+- **Source Traceability**: REQ-OVR-01, REQ-PORT-01, PDF Page 4, 6, 8, 10, 11.
+
+#### 36. `QuotationLines` (Quotation Line Items)
+- **Purpose**: Items in the active quotation builder. Reactive calculation of margin deltas and discount compliance.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `QuotationId` (FK -> `Quotations(Id)`, Required, Cascade Delete), `ProductId` (FK -> `Products(Id)`, Required), `ProductVariantId` (FK -> `ProductVariants(Id)`, Nullable).
+- **Attributes**: `Quantity` (`DECIMAL(18, 4)`, Not Null), `UnitPrice` (`DECIMAL(18, 4)`, Not Null), `DiscountPercentage` (`DECIMAL(5, 2)`, Default `0.00%`), `EffectiveDiscountLimit` (`DECIMAL(5, 2)`, Not Null), `RequiresApproval` (`BIT`, Default `0`), `ApprovalReason` (`NVARCHAR(255)`), `SubtotalAmount` (`DECIMAL(18, 4)`, Not Null), `UnitCostPrice` (`DECIMAL(18, 4)`, Not Null — **INTERNAL ONLY**), `LineMarginAmount` (`DECIMAL(18, 4)`, Not Null — **INTERNAL ONLY**), `LineMarginPercent` (`DECIMAL(5, 2)`, Not Null — **INTERNAL ONLY**), `LineItemType` (`NVARCHAR(50)`, Not Null).
+- **Relationships & Cardinality**: M:1 to `Quotations`, M:1 to `Products`, 1:M to `QuotationLineComments`.
+- **Source Traceability**: REQ-OVR-01, REQ-UP-03, PDF Page 4, 6, 11.
+
+#### 37. `QuotationLineComments` (Customer Line-Level Negotiation Notes)
+- **Purpose**: Stores customer comments and questions posted directly against specific quote line items in the negotiation portal.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `QuotationLineId` (FK -> `QuotationLines(Id)`, Required, Cascade Delete), `AuthorUserId` (FK -> `Users(Id)`, Nullable).
+- **Attributes**: `AuthorType` (`NVARCHAR(50)`, Not Null — `Customer`, `SalesRep`), `CommentText` (`NVARCHAR(1000)`, Not Null), `CreatedAt` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`).
+- **Relationships & Cardinality**: M:1 to `QuotationLines`.
+- **Source Traceability**: REQ-PORT-02, PDF Page 8, 11.
+
+#### 38. `QuotationChanges` (Negotiation Counter-Offer History)
+- **Purpose**: Records counter-discounts, quantity adjustment proposals, and stage revisions submitted by the customer portal.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `QuotationId` (FK -> `Quotations(Id)`, Required, Cascade Delete).
+- **Attributes**: `ChangeType` (`NVARCHAR(50)`, Not Null — `CounterDiscount`, `QuantityChange`, `TermsProposal`), `PreviousValue` (`NVARCHAR(255)`), `ProposedValue` (`NVARCHAR(255)`), `Status` (`NVARCHAR(50)`, Not Null — `Proposed`, `Accepted`, `Rejected`), `CreatedAt` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`).
+- **Relationships & Cardinality**: M:1 to `Quotations`.
+- **Source Traceability**: REQ-PORT-02, REQ-PORT-03, PDF Page 8, 11.
+
+#### 39. `DealHealthSnapshots` (Rolling Anomaly & Velocity Metrics)
+- **Purpose**: Stores rolling activity health, inactivity days, rep discount deviations, and slippage indicators.
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `QuotationId` (FK -> `Quotations(Id)`, Required, Cascade Delete), `AssignedRepId` (FK -> `Users(Id)`, Required).
+- **Attributes**: `DaysInactive` (`INT`, Not Null), `RepDiscountDeviation` (`DECIMAL(5, 2)`, Not Null), `DeliveryRiskSeverity` (`NVARCHAR(20)`, Not Null — `Low`, `Medium`, `High`, `Critical`), `OverallHealthScore` (`INT`, Not Null — 0 to 100), `AlertFlags` (`NVARCHAR(255)` — e.g. `'STALLED,ANOMALY'`), `EvaluatedAt` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`).
+- **Relationships & Cardinality**: M:1 to `Quotations`, M:1 to `Users`.
+- **Source Traceability**: REQ-HLTH-01, REQ-HLTH-02, REQ-HLTH-03, PDF Page 8, 9.
+
+#### 40. `AuditLogs` (Enterprise Compliance Ledger)
+- **Purpose**: Non-repudiable platform audit ledger recording every state transition, approval action, discount edit, and portal confirmation.
+- **Keys**: `Id` (`BIGINT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `UserId` (FK -> `Users(Id)`, Nullable for automated system tasks).
+- **Attributes**: `EntityName` (`NVARCHAR(100)`, Not Null — e.g. `'Quotations'`, `'ApprovalRequests'`), `EntityId` (`NVARCHAR(100)`, Not Null), `Action` (`NVARCHAR(50)`, Not Null — `Create`, `Update`, `Approve`, `Reject`, `CounterOffer`, `Confirm`), `OldValues` (`NVARCHAR(MAX)`), `NewValues` (`NVARCHAR(MAX)`), `Timestamp` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`), `IpAddress` (`NVARCHAR(50)`).
+- **Relationships & Cardinality**: Append-only log with M:1 to `Users`.
+- **Source Traceability**: REQ-DISC-06, PDF Page 4, 6.
+
+#### 41. `Notifications` (Internal User Alerts & Nudges)
+- **Purpose**: System alerts delivered to reps and managers (e.g. stalled deal alerts, approval assignments, manager nudges).
+- **Keys**: `Id` (`INT IDENTITY(1,1)` PK)
+- **Foreign Keys**: `UserId` (FK -> `Users(Id)`, Required, Cascade Delete), `QuotationId` (FK -> `Quotations(Id)`, Nullable).
+- **Attributes**: `Title` (`NVARCHAR(255)`, Not Null), `Message` (`NVARCHAR(1000)`, Not Null), `NotificationType` (`NVARCHAR(50)`, Not Null — `ApprovalRequired`, `DealStalled`, `DiscountAnomaly`, `CounterReceived`), `IsRead` (`BIT`, Default `0`), `CreatedAt` (`DATETIME2(7)`, Default `SYSUTCDATETIME()`).
+- **Relationships & Cardinality**: M:1 to `Users`, M:1 to `Quotations`.
+- **Source Traceability**: REQ-HLTH-03, REQ-DISC-05, PDF Page 8, 9.
+
+---
+
+### Key Architectural Enhancements Over Preliminary Draft
+
+1. **Normalized Variant Modeling**: Replaced flat attributes with a canonical 4-tier model (`ProductAttributes` -> `AttributeValues` -> `ProductVariants` -> `VariantAttributeValues`), allowing products to have multi-attribute combinations (e.g. Size + Pack) with independent price and cost adjustments.
+2. **Data-Driven Multi-Tier Approvals**: Decoupled approval routing from hardcoded application logic by introducing `ApprovalRules` and `ApprovalRuleSteps`. Level 1 (Manager) and Level 2 (Manager + Finance) chains are configured relationally.
+3. **Quotation vs. Order Separation**: Separated mutable negotiation proposals (`Quotations`, `QuotationLines`) from immutable post-confirmation commercial agreements (`Orders`, `OrderLines`). This guarantees that post-confirmation warehouse splitting and billing operate on tamper-proof contract records.
+4. **Dedicated Negotiation History**: Replaced generic chat threads with domain-specific `QuotationLineComments` (direct line feedback) and `QuotationChanges` (formal counter-offer auditing).
+5. **Backorder & Replenishment Automation**: Formalized `Backorders` and `ReplenishmentRules` as first-class entities to cleanly implement the automated *"Consolidate Remaining Backorder"* prompt (REQ-WH-05).
+6. **GAAP/IFRS Financial Compliance**: Added `CreditNotes` to represent refunds and proration cancellations cleanly without modifying posted invoices.
+7. **Security & Session Hygiene**: Added `Roles` (relational RBAC) and `RefreshTokens` (secure, revocable JWT rotation).
+8. **Zero-Leak Customer Boundary**: Strict database-level isolation: fields marked **`INTERNAL ONLY`** (`StandardCostPrice`, `TotalCostAmount`, `OrderGrossMarginAmount`, `OrderGrossMarginPercent`, `UnitCostPrice`, `LineMarginAmount`, `LineMarginPercent`, `InternalRemarks`) are strictly excluded from all customer-facing portal queries and projections.
 
 ---
 
