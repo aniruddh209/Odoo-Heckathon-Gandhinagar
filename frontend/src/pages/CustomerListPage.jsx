@@ -38,7 +38,7 @@ export const CustomerListPage = () => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [tierId, setTierId] = useState('');
-  const [currencyCode, setCurrencyCode] = useState('USD');
+  const [currencyCode, setCurrencyCode] = useState('INR');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Credentials Generated Modal
@@ -236,7 +236,7 @@ export const CustomerListPage = () => {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Acme Global Solutions"
+            placeholder="e.g. Sharma Technologies Pvt. Ltd."
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -245,13 +245,13 @@ export const CustomerListPage = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="contact@company.com"
+              placeholder="contact@sharmatech.in"
             />
             <Input
               label="Phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1-555-0100"
+              placeholder="+91 98201 12345"
             />
           </div>
 
@@ -272,10 +272,10 @@ export const CustomerListPage = () => {
               value={currencyCode}
               onChange={(e) => setCurrencyCode(e.target.value)}
               options={[
+                { value: 'INR', label: 'INR (₹)' },
                 { value: 'USD', label: 'USD ($)' },
                 { value: 'EUR', label: 'EUR (€)' },
                 { value: 'GBP', label: 'GBP (£)' },
-                { value: 'INR', label: 'INR (₹)' },
               ]}
             />
           </div>

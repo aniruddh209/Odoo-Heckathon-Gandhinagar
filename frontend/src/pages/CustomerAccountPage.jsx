@@ -895,7 +895,7 @@ export const CustomerAccountPage = () => {
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-50">
                   <span className="text-slate-500 font-medium">Account Currency:</span>
-                  <span className="font-mono font-bold text-slate-800">{profile?.currencyCode || 'USD'}</span>
+                  <span className="font-mono font-bold text-slate-800">{profile?.currencyCode || 'INR'}</span>
                 </div>
                 <div className="flex justify-between py-1.5">
                   <span className="text-slate-500 font-medium">Customer Since:</span>

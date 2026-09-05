@@ -292,7 +292,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   const handleOpenAddPriceList = () => {
     setEditingPriceList(null);
     setPlName('');
-    setPlCurrency('USD');
+    setPlCurrency('INR');
     setPlTierId('');
     setIsPriceListModalOpen(true);
   };
@@ -300,7 +300,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   const handleOpenEditPriceList = (pl) => {
     setEditingPriceList(pl);
     setPlName(pl.name);
-    setPlCurrency(pl.currencyCode || 'USD');
+    setPlCurrency(pl.currencyCode || 'INR');
     setPlTierId(pl.tierId ? pl.tierId.toString() : '');
     setIsPriceListModalOpen(true);
   };
@@ -1344,8 +1344,8 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
               value={plCurrency}
               onChange={(e) => setPlCurrency(e.target.value)}
               options={[
-                { value: 'USD', label: 'USD ($)' },
                 { value: 'INR', label: 'INR (₹)' },
+                { value: 'USD', label: 'USD ($)' },
                 { value: 'EUR', label: 'EUR (€)' },
                 { value: 'GBP', label: 'GBP (£)' },
               ]}

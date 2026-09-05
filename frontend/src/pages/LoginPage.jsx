@@ -44,11 +44,11 @@ export const LoginPage = () => {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const quickRoles = [
-    { role: 'Admin', email: 'admin@dealflow360.io', password: 'Admin@123', name: 'System Administrator', badge: 'Full Platform Access' },
-    { role: 'Sales Manager', email: 'manager@dealflow360.io', password: 'Manager@123', name: 'Michael Vance', badge: 'Approvals & Team Mgmt' },
-    { role: 'Sales Rep', email: 'rep@dealflow360.io', password: 'Rep@123', name: 'Sarah Jenkins', badge: 'CPQ & Deal Pipeline' },
-    { role: 'Finance', email: 'finance@dealflow360.io', password: 'Finance@123', name: 'David Kim', badge: 'Gross Margin & Invoicing' },
-    { role: 'Customer', email: 'customer@dealflow360.io', password: 'Customer@123', name: 'Alice Smith (Acme Global)', badge: 'Client Portal Collaboration' },
+    { role: 'Admin', email: 'admin@dealflow360.io', password: 'Admin@123', name: 'Arjun Mehta (Admin)', badge: 'Full Platform Access' },
+    { role: 'Sales Manager', email: 'manager@dealflow360.io', password: 'Manager@123', name: 'Rohan Sharma', badge: 'Approvals & Team Mgmt' },
+    { role: 'Sales Rep', email: 'rep@dealflow360.io', password: 'Rep@123', name: 'Priya Patel', badge: 'CPQ & Deal Pipeline' },
+    { role: 'Finance', email: 'finance@dealflow360.io', password: 'Finance@123', name: 'Sneha Iyer', badge: 'Gross Margin & Invoicing' },
+    { role: 'Customer', email: 'customer@dealflow360.io', password: 'Customer@123', name: 'Rahul Verma (Sharma Tech)', badge: 'Client Portal Collaboration' },
   ];
 
   const handleSelectQuickRole = (item) => {

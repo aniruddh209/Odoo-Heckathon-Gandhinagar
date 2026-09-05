@@ -19,19 +19,18 @@
  */
 export function formatCurrency(val, currency = 'INR') {
   if (val === null || val === undefined || val === '') {
-    return '₹0';
+    return '₹0.00';
   }
   const num = typeof val === 'number' ? val : parseFloat(val);
-  if (isNaN(num)) return '₹0';
+  if (isNaN(num)) return '₹0.00';
 
   const curr = currency === 'USD' ? 'USD' : 'INR';
-  const hasFractions = num % 1 !== 0;
 
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: curr,
-    maximumFractionDigits: hasFractions ? 2 : 0,
-    minimumFractionDigits: hasFractions ? 2 : 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(num);
 }
 

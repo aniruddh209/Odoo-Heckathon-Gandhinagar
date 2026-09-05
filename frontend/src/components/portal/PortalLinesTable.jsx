@@ -3,7 +3,7 @@ import { MessageSquare } from 'lucide-react';
 
 export const PortalLinesTable = ({
   lines = [],
-  currency = 'USD',
+  currency = 'INR',
   onOpenLineChat,
   canNegotiate = true,
 }) => {
