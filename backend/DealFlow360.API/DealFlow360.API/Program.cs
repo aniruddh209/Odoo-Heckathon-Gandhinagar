@@ -110,8 +110,11 @@ public class Program
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IAdminService, AdminService>();
         builder.Services.AddScoped<ICustomerService, CustomerService>();
+        builder.Services.AddScoped<IProductService, ProductService>();
+        builder.Services.AddScoped<IDiscountRuleService, DiscountRuleService>();
         builder.Services.AddScoped<IQuotationService, QuotationService>();
         builder.Services.AddScoped<IApprovalService, ApprovalService>();
+        builder.Services.AddScoped<IOrderService, OrderService>();
         builder.Services.AddScoped<IFulfillmentService, FulfillmentService>();
         builder.Services.AddScoped<IBillingService, BillingService>();
         builder.Services.AddScoped<IPortalService, PortalService>();
