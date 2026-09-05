@@ -12,7 +12,7 @@ import {
   ErrorAlert,
   Badge,
 } from '../components/ui';
-import { Shield, Layers, Truck, Plus, RefreshCw, Settings, Edit2, Trash2, Box, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Shield, Layers, Truck, Plus, RefreshCw, Settings, Edit2, Trash2, Box, CheckCircle2, XCircle, AlertTriangle, Sparkles, ShoppingBag, ArrowUpRight } from 'lucide-react';
 
 export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
   const toast = useToast();
@@ -24,6 +24,29 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
   const [warehouses, setWarehouses] = useState([]);
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
+  const [replenishmentRules, setReplenishmentRules] = useState([]);
+  const [upsellRules, setUpsellRules] = useState([]);
+
+  // Replenishment Rule Modal State
+  const [isReplenishModalOpen, setIsReplenishModalOpen] = useState(false);
+  const [editingReplenishRule, setEditingReplenishRule] = useState(null);
+  const [replenishWarehouseId, setReplenishWarehouseId] = useState('');
+  const [replenishProductId, setReplenishProductId] = useState('');
+  const [replenishMinStock, setReplenishMinStock] = useState('10');
+  const [replenishReorderQty, setReplenishReorderQty] = useState('25');
+  const [replenishIsActive, setReplenishIsActive] = useState(true);
+  const [isSubmittingReplenish, setIsSubmittingReplenish] = useState(false);
+
+  // Upsell / Cross-Sell Rule Modal State
+  const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
+  const [editingUpsellRule, setEditingUpsellRule] = useState(null);
+  const [upsellTriggerProductId, setUpsellTriggerProductId] = useState('');
+  const [upsellSuggestedProductId, setUpsellSuggestedProductId] = useState('');
+  const [upsellRuleType, setUpsellRuleType] = useState('Upsell');
+  const [upsellScore, setUpsellScore] = useState('1.0');
+  const [upsellIsPromoted, setUpsellIsPromoted] = useState(false);
+  const [upsellIsActive, setUpsellIsActive] = useState(true);
+  const [isSubmittingUpsell, setIsSubmittingUpsell] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -94,7 +117,7 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const [tRes, cRes, dRes, aRes, wRes, pRes, prodRes] = await Promise.all([
+      const [tRes, cRes, dRes, aRes, wRes, pRes, prodRes, repRes, upRes] = await Promise.all([
         adminApi.getCustomerTiers(),
         adminApi.getCategories().catch(() => []),
         adminApi.getDiscountRules(),
@@ -102,6 +125,8 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
         adminApi.getWarehouses(),
         adminApi.getSubscriptionPlans(),
         adminApi.getProducts().catch(() => []),
+        adminApi.getReplenishmentRules().catch(() => []),
+        adminApi.getUpsellRules().catch(() => []),
       ]);
 
       const tList = Array.isArray(tRes) ? tRes : tRes?.value || [];
@@ -111,6 +136,8 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
       const wList = Array.isArray(wRes) ? wRes : wRes?.value || [];
       const pList = Array.isArray(pRes) ? pRes : pRes?.value || [];
       const prodList = Array.isArray(prodRes) ? prodRes : prodRes?.value || [];
+      const repList = Array.isArray(repRes) ? repRes : repRes?.value || [];
+      const upList = Array.isArray(upRes) ? upRes : upRes?.value || [];
 
       setTiers(tList);
       setCategories(cList);
@@ -119,6 +146,8 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
       setWarehouses(wList);
       setPlans(pList);
       setProducts(prodList);
+      setReplenishmentRules(repList);
+      setUpsellRules(upList);
       if (tList.length > 0 && !discountTierId) setDiscountTierId(tList[0].id.toString());
     } catch (err) {
       setError(err.message || 'Failed to load governance matrix.');
@@ -434,6 +463,133 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
     }
   };
 
+  // Replenishment Rule Handlers
+  const handleOpenCreateReplenishRule = () => {
+    setEditingReplenishRule(null);
+    setReplenishWarehouseId(warehouses[0]?.id?.toString() || '1');
+    setReplenishProductId(products[0]?.id?.toString() || '1');
+    setReplenishMinStock('10');
+    setReplenishReorderQty('25');
+    setReplenishIsActive(true);
+    setIsReplenishModalOpen(true);
+  };
+
+  const handleOpenEditReplenishRule = (rule) => {
+    setEditingReplenishRule(rule);
+    setReplenishWarehouseId(rule.warehouseId?.toString() || (warehouses[0]?.id?.toString() || '1'));
+    setReplenishProductId(rule.productId?.toString() || (products[0]?.id?.toString() || '1'));
+    setReplenishMinStock(rule.minStockLevel?.toString() || '10');
+    setReplenishReorderQty(rule.reorderQuantity?.toString() || '25');
+    setReplenishIsActive(rule.isActive !== false);
+    setIsReplenishModalOpen(true);
+  };
+
+  const handleSaveReplenishRule = async (e) => {
+    e.preventDefault();
+    setIsSubmittingReplenish(true);
+    try {
+      const payload = {
+        warehouseId: parseInt(replenishWarehouseId, 10),
+        productId: parseInt(replenishProductId, 10),
+        minStockLevel: parseInt(replenishMinStock, 10) || 0,
+        reorderQuantity: parseInt(replenishReorderQty, 10) || 0,
+        isActive: replenishIsActive,
+      };
+
+      if (editingReplenishRule) {
+        await adminApi.updateReplenishmentRule(editingReplenishRule.id, payload);
+        toast.success('Replenishment Rule Updated', `Rule RR-${editingReplenishRule.id} updated successfully.`);
+      } else {
+        await adminApi.createReplenishmentRule(payload);
+        toast.success('Replenishment Rule Created', 'Automated replenishment trigger active.');
+      }
+      setIsReplenishModalOpen(false);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to save replenishment rule', err.message);
+    } finally {
+      setIsSubmittingReplenish(false);
+    }
+  };
+
+  const handleDeleteReplenishRule = async (ruleId) => {
+    if (!window.confirm(`Delete replenishment rule RR-${ruleId}?`)) return;
+    try {
+      await adminApi.deleteReplenishmentRule(ruleId);
+      toast.success('Rule Deleted', `Replenishment rule RR-${ruleId} removed.`);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to delete rule', err.message);
+    }
+  };
+
+  // Upsell / Cross-Sell Rule Handlers
+  const handleOpenCreateUpsellRule = () => {
+    setEditingUpsellRule(null);
+    setUpsellTriggerProductId(products[0]?.id?.toString() || '1');
+    setUpsellSuggestedProductId(products[1]?.id?.toString() || products[0]?.id?.toString() || '1');
+    setUpsellRuleType('Upsell');
+    setUpsellScore('1.0');
+    setUpsellIsPromoted(false);
+    setUpsellIsActive(true);
+    setIsUpsellModalOpen(true);
+  };
+
+  const handleOpenEditUpsellRule = (rule) => {
+    setEditingUpsellRule(rule);
+    setUpsellTriggerProductId(rule.triggerProductId?.toString() || (products[0]?.id?.toString() || '1'));
+    setUpsellSuggestedProductId(rule.suggestedProductId?.toString() || (products[1]?.id?.toString() || '1'));
+    setUpsellRuleType(rule.ruleType || 'Upsell');
+    setUpsellScore((rule.score || 1.0).toString());
+    setUpsellIsPromoted(rule.isPromoted === true);
+    setUpsellIsActive(rule.isActive !== false);
+    setIsUpsellModalOpen(true);
+  };
+
+  const handleSaveUpsellRule = async (e) => {
+    e.preventDefault();
+    if (upsellTriggerProductId === upsellSuggestedProductId) {
+      toast.error('Validation Error', 'Trigger product and suggested product cannot be the same item.');
+      return;
+    }
+    setIsSubmittingUpsell(true);
+    try {
+      const payload = {
+        triggerProductId: parseInt(upsellTriggerProductId, 10),
+        suggestedProductId: parseInt(upsellSuggestedProductId, 10),
+        ruleType: upsellRuleType,
+        score: parseFloat(upsellScore) || 1.0,
+        isPromoted: upsellIsPromoted,
+        isActive: upsellIsActive,
+      };
+
+      if (editingUpsellRule) {
+        await adminApi.updateUpsellRule(editingUpsellRule.id, payload);
+        toast.success('Recommendation Rule Updated', `Rule UR-${editingUpsellRule.id} updated successfully.`);
+      } else {
+        await adminApi.createUpsellRule(payload);
+        toast.success('Recommendation Rule Created', `${upsellRuleType} strategy rule active.`);
+      }
+      setIsUpsellModalOpen(false);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to save upsell rule', err.message);
+    } finally {
+      setIsSubmittingUpsell(false);
+    }
+  };
+
+  const handleDeleteUpsellRule = async (ruleId) => {
+    if (!window.confirm(`Delete recommendation rule UR-${ruleId}?`)) return;
+    try {
+      await adminApi.deleteUpsellRule(ruleId);
+      toast.success('Rule Deleted', `Recommendation rule UR-${ruleId} removed.`);
+      await loadGovernanceData();
+    } catch (err) {
+      toast.error('Failed to delete rule', err.message);
+    }
+  };
+
   if (isLoading) {
     return <SkeletonDashboard />;
   }
@@ -620,6 +776,94 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
     },
   ];
 
+  const replenishCols = [
+    { header: 'Rule #', accessor: 'id', render: (r) => <span className="font-mono font-bold text-slate-700">RR-{r.id}</span> },
+    { header: 'Depot / Warehouse', accessor: 'warehouseName', render: (r) => <span className="font-semibold text-slate-900">{r.warehouseName || `Warehouse #${r.warehouseId}`}</span> },
+    {
+      header: 'Product Item',
+      accessor: 'productName',
+      render: (r) => (
+        <div>
+          <span className="font-semibold text-slate-900 block">{r.productName}</span>
+          <span className="text-[11px] font-mono text-slate-400">{r.productSku}</span>
+        </div>
+      ),
+    },
+    { header: 'Min Stock Level', accessor: 'minStockLevel', render: (r) => <span className="font-mono font-bold text-amber-600">{r.minStockLevel} Units</span> },
+    { header: 'Reorder Quantity', accessor: 'reorderQuantity', render: (r) => <span className="font-mono font-bold text-blue-600">{r.reorderQuantity} Units</span> },
+    {
+      header: 'Status',
+      accessor: 'isActive',
+      render: (r) => <Badge variant={r.isActive ? 'success' : 'neutral'}>{r.isActive ? 'Active' : 'Inactive'}</Badge>,
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (r) => (
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" icon={Edit2} onClick={() => handleOpenEditReplenishRule(r)} className="text-xs py-1 px-2 h-7">
+            Edit
+          </Button>
+          <Button variant="danger" size="sm" icon={Trash2} onClick={() => handleDeleteReplenishRule(r.id)} className="text-xs py-1 px-2 h-7">
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  const upsellCols = [
+    { header: 'Rule #', accessor: 'id', render: (u) => <span className="font-mono font-bold text-slate-700">UR-{u.id}</span> },
+    {
+      header: 'Trigger Product',
+      accessor: 'triggerProductName',
+      render: (u) => <span className="font-semibold text-slate-900">{u.triggerProductName || `Product #${u.triggerProductId}`}</span>,
+    },
+    {
+      header: 'Suggested Product',
+      accessor: 'suggestedProductName',
+      render: (u) => <span className="font-semibold text-blue-700">{u.suggestedProductName || `Product #${u.suggestedProductId}`}</span>,
+    },
+    {
+      header: 'Strategy Type',
+      accessor: 'ruleType',
+      render: (u) => (
+        <Badge variant={u.ruleType === 'Upsell' ? 'indigo' : 'cyan'}>
+          {u.ruleType}
+        </Badge>
+      ),
+    },
+    { header: 'Affinity Score', accessor: 'score', render: (u) => <span className="font-mono font-bold text-slate-800">{u.score?.toFixed(1) || '1.0'}</span> },
+    {
+      header: 'Promoted',
+      accessor: 'isPromoted',
+      render: (u) => (
+        <Badge variant={u.isPromoted ? 'warning' : 'neutral'}>
+          {u.isPromoted ? 'Promoted' : 'Standard'}
+        </Badge>
+      ),
+    },
+    {
+      header: 'Status',
+      accessor: 'isActive',
+      render: (u) => <Badge variant={u.isActive ? 'success' : 'neutral'}>{u.isActive ? 'Active' : 'Inactive'}</Badge>,
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      render: (u) => (
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" icon={Edit2} onClick={() => handleOpenEditUpsellRule(u)} className="text-xs py-1 px-2 h-7">
+            Edit
+          </Button>
+          <Button variant="danger" size="sm" icon={Trash2} onClick={() => handleDeleteUpsellRule(u.id)} className="text-xs py-1 px-2 h-7">
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   const stockCols = [
     { header: 'SKU', accessor: 'productSKU', render: (s) => <span className="font-mono font-bold text-slate-800">{s.productSKU}</span> },
     { header: 'Product Name', accessor: 'productName', render: (s) => <span className="font-medium text-slate-900">{s.productName}</span> },
@@ -681,6 +925,16 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
                 Add Warehouse
               </Button>
             )}
+            {activeTab === 'replenishment' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateReplenishRule}>
+                Add Replenishment Rule
+              </Button>
+            )}
+            {activeTab === 'upsell' && (
+              <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreateUpsellRule}>
+                Add Upsell / Cross-Sell Rule
+              </Button>
+            )}
             {activeTab === 'plans' && (
               <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenCreatePlan}>
                 Add Subscription Plan
@@ -699,6 +953,8 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
           { id: 'discounts', label: `Discount Rules (${discountRules.length})`, icon: Shield },
           { id: 'approvals', label: `Approval Chains (${approvalRules.length})`, icon: Settings },
           { id: 'warehouses', label: `Warehouses (${warehouses.length})`, icon: Truck },
+          { id: 'replenishment', label: `Replenishment Rules (${replenishmentRules.length})`, icon: Box },
+          { id: 'upsell', label: `Upsell & Cross-Sell (${upsellRules.length})`, icon: Sparkles },
           { id: 'plans', label: `Subscription Plans (${plans.length})`, icon: Settings },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -724,6 +980,8 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
       {activeTab === 'discounts' && <DataTable columns={discountCols} data={discountRules} />}
       {activeTab === 'approvals' && <DataTable columns={approvalCols} data={approvalRules} />}
       {activeTab === 'warehouses' && <DataTable columns={warehouseCols} data={warehouses} />}
+      {activeTab === 'replenishment' && <DataTable columns={replenishCols} data={replenishmentRules} emptyMessage="No replenishment rules configured" emptyDescription="Define safety stocks and reorder thresholds across warehouses." />}
+      {activeTab === 'upsell' && <DataTable columns={upsellCols} data={upsellRules} emptyMessage="No upsell / cross-sell rules configured" emptyDescription="Define cross-sell recommendations and bundle upsells." />}
       {activeTab === 'plans' && <DataTable columns={planCols} data={plans} />}
 
       {/* Edit Tier Modal */}
@@ -1038,6 +1296,192 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Replenishment Rule Modal */}
+      <Modal
+        isOpen={isReplenishModalOpen}
+        onClose={() => setIsReplenishModalOpen(false)}
+        title={editingReplenishRule ? `Edit Replenishment Rule RR-${editingReplenishRule.id}` : 'Add Replenishment Rule'}
+        description="Configure automated reorder triggers and safety stock thresholds per warehouse."
+      >
+        <form onSubmit={handleSaveReplenishRule} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Target Warehouse / Depot</label>
+            <select
+              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={replenishWarehouseId}
+              onChange={(e) => setReplenishWarehouseId(e.target.value)}
+              required
+            >
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Target Product Line</label>
+            <select
+              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={replenishProductId}
+              onChange={(e) => setReplenishProductId(e.target.value)}
+              required
+            >
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.sku}] {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Input
+            label="Minimum Safety Stock Level"
+            type="number"
+            min="0"
+            required
+            value={replenishMinStock}
+            onChange={(e) => setReplenishMinStock(e.target.value)}
+            helperText="Inventory dropping below this threshold triggers automated replenishment orders."
+          />
+
+          <Input
+            label="Standard Reorder Quantity"
+            type="number"
+            min="1"
+            required
+            value={replenishReorderQty}
+            onChange={(e) => setReplenishReorderQty(e.target.value)}
+            helperText="Batch units ordered automatically upon hitting the minimum safety stock."
+          />
+
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="replenishIsActive"
+              checked={replenishIsActive}
+              onChange={(e) => setReplenishIsActive(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="replenishIsActive" className="text-xs font-medium text-slate-700">
+              Rule is active and actively monitored by inventory daemon
+            </label>
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsReplenishModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" isLoading={isSubmittingReplenish}>
+              {editingReplenishRule ? 'Save Changes' : 'Create Rule'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Upsell / Cross-Sell Rule Modal */}
+      <Modal
+        isOpen={isUpsellModalOpen}
+        onClose={() => setIsUpsellModalOpen(false)}
+        title={editingUpsellRule ? `Edit Recommendation Rule UR-${editingUpsellRule.id}` : 'Add Upsell / Cross-Sell Rule'}
+        description="Configure product affinity triggers and AI recommendation scores for quotation workflows."
+      >
+        <form onSubmit={handleSaveUpsellRule} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Trigger Product (In Quote)</label>
+            <select
+              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={upsellTriggerProductId}
+              onChange={(e) => setUpsellTriggerProductId(e.target.value)}
+              required
+            >
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.sku}] {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Suggested Product (Recommendation)</label>
+            <select
+              className="w-full h-9 px-2 text-xs rounded border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={upsellSuggestedProductId}
+              onChange={(e) => setUpsellSuggestedProductId(e.target.value)}
+              required
+            >
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.sku}] {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Select
+            label="Recommendation Strategy"
+            required
+            value={upsellRuleType}
+            onChange={(e) => setUpsellRuleType(e.target.value)}
+            options={[
+              { value: 'Upsell', label: 'Upsell (Higher tier / upgraded model)' },
+              { value: 'CrossSell', label: 'Cross-Sell (Complementary accessories / add-ons)' },
+            ]}
+          />
+
+          <Input
+            label="Affinity Score (0.1 - 10.0)"
+            type="number"
+            step="0.1"
+            min="0.1"
+            max="10.0"
+            required
+            value={upsellScore}
+            onChange={(e) => setUpsellScore(e.target.value)}
+            helperText="Relative weight ranking for AI recommendations in the sales rep workspace."
+          />
+
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="upsellIsPromoted"
+                checked={upsellIsPromoted}
+                onChange={(e) => setUpsellIsPromoted(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="upsellIsPromoted" className="text-xs font-medium text-slate-700">
+                Promote with special badge in sales representative quote builder
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="upsellIsActive"
+                checked={upsellIsActive}
+                onChange={(e) => setUpsellIsActive(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="upsellIsActive" className="text-xs font-medium text-slate-700">
+                Rule is active and eligible for AI recommendation engine
+              </label>
+            </div>
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => setIsUpsellModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" isLoading={isSubmittingUpsell}>
+              {editingUpsellRule ? 'Save Changes' : 'Create Rule'}
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       {/* Subscription Plan Modal (Create & Edit) */}

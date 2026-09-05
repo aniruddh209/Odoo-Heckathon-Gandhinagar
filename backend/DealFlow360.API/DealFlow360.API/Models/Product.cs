@@ -14,6 +14,9 @@ public class Product
     [Required, MaxLength(200)]
     public string Name { get; set; } = string.Empty;
 
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
     public int CategoryId { get; set; }
 
     public ProductType ProductType { get; set; }

@@ -38,6 +38,8 @@ export const QuotationBuilderPage = () => {
 
   // Cart Lines
   const [lines, setLines] = useState([]);
+  const [variantsMap, setVariantsMap] = useState({});
+  const [orderDiscountPercent, setOrderDiscountPercent] = useState('');
 
   useEffect(() => {
     loadPrerequisites();
@@ -57,6 +59,19 @@ export const QuotationBuilderPage = () => {
 
       setCustomers(custList);
       setProducts(prodList);
+
+      // Preload variants for products
+      const varEntries = await Promise.all(
+        prodList.map(async (p) => {
+          try {
+            const vars = await adminApi.getProductVariants(p.id);
+            return [p.id, Array.isArray(vars) ? vars : []];
+          } catch {
+            return [p.id, []];
+          }
+        })
+      );
+      setVariantsMap(Object.fromEntries(varEntries));
 
       if (custList.length > 0) {
         setSelectedCustomerId(custList[0].id.toString());
@@ -79,6 +94,7 @@ export const QuotationBuilderPage = () => {
       ...prev,
       {
         productId: defaultProduct.id,
+        variantId: '',
         quantity: 1,
         unitPrice: defaultProduct.basePrice || 0,
         discountPercent: 0,
@@ -92,15 +108,32 @@ export const QuotationBuilderPage = () => {
       const item = { ...updated[index], [field]: value };
 
       if (field === 'productId') {
+        item.variantId = '';
         const prod = products.find((p) => p.id === parseInt(value, 10));
         if (prod) {
           item.unitPrice = prod.basePrice || 0;
         }
       }
 
+      if (field === 'variantId') {
+        item.variantId = value;
+        const prod = products.find((p) => p.id === parseInt(item.productId, 10));
+        const prodVars = variantsMap[item.productId] || [];
+        const variant = prodVars.find((v) => v.id === parseInt(value, 10));
+        const addPrice = variant ? parseFloat(variant.additionalPrice) || 0 : 0;
+        item.unitPrice = (prod?.basePrice || 0) + addPrice;
+      }
+
       updated[index] = item;
       return updated;
     });
+  };
+
+  const handleApplyOrderDiscount = () => {
+    if (!orderDiscountPercent && orderDiscountPercent !== 0) return;
+    const p = Math.max(0, Math.min(100, parseFloat(orderDiscountPercent) || 0));
+    setLines((prev) => prev.map((l) => ({ ...l, discountPercent: p })));
+    toast.success('Order Discount Applied', `Applied ${p}% discount across all ${lines.length} line(s).`);
   };
 
   const handleRemoveLine = (index) => {
@@ -147,6 +180,7 @@ export const QuotationBuilderPage = () => {
         notes,
         lines: lines.map((l) => ({
           productId: parseInt(l.productId, 10),
+          variantId: l.variantId ? parseInt(l.variantId, 10) : null,
           quantity: parseInt(l.quantity, 10) || 1,
           unitPrice: parseFloat(l.unitPrice) || 0,
           discountPercent: parseFloat(l.discountPercent) || 0,
@@ -282,7 +316,8 @@ export const QuotationBuilderPage = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50/80">
-                      <th className="py-2.5 px-3 min-w-[200px]">Product / Service</th>
+                      <th className="py-2.5 px-3 min-w-[180px]">Product / Service</th>
+                      <th className="py-2.5 px-3 min-w-[160px]">Product Variant</th>
                       <th className="py-2.5 px-3 w-20 text-center">Qty</th>
                       <th className="py-2.5 px-3 w-28 text-right">Unit Price ($)</th>
                       <th className="py-2.5 px-3 w-24 text-center">Discount (%)</th>
@@ -299,13 +334,28 @@ export const QuotationBuilderPage = () => {
                         <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                           <td className="py-2.5 px-3">
                             <select
-                              className="w-full h-8 px-2 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full h-8 px-2 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
                               value={line.productId}
                               onChange={(e) => handleUpdateLine(idx, 'productId', e.target.value)}
                             >
                               {products.map((p) => (
                                 <option key={p.id} value={p.id}>
                                   [{p.sku}] {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <select
+                              className="w-full h-8 px-2 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700"
+                              value={line.variantId || ''}
+                              onChange={(e) => handleUpdateLine(idx, 'variantId', e.target.value)}
+                            >
+                              <option value="">Base / Standard</option>
+                              {(variantsMap[line.productId] || []).map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.name} (+${v.additionalPrice})
                                 </option>
                               ))}
                             </select>

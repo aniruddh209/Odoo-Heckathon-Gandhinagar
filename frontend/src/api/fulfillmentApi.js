@@ -24,6 +24,14 @@ export const fulfillmentApi = {
   replenishStock: async (warehouseId, productId) => {
     return apiClient.post(`fulfillment/replenish?warehouseId=${warehouseId}&productId=${productId}`);
   },
+
+  overrideAllocation: async (orderId, allocations) => {
+    return apiClient.put(`fulfillment/override/${orderId}`, { allocations });
+  },
+
+  consolidateBackorders: async (orderId) => {
+    return apiClient.post(`fulfillment/consolidate/${orderId}`);
+  },
 };
 
 export default fulfillmentApi;

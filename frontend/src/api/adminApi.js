@@ -78,6 +78,20 @@ export const adminApi = {
   // Upsell Rules
   getUpsellRules: () => apiClient.get('admin/upsell-rules'),
   createUpsellRule: (data) => apiClient.post('admin/upsell-rules', data),
+  updateUpsellRule: (id, data) => apiClient.put(`admin/upsell-rules/${id}`, data),
+  deleteUpsellRule: (id) => apiClient.delete(`admin/upsell-rules/${id}`),
+
+  // Product Variants
+  getProductVariants: (productId) => apiClient.get(`admin/products/${productId}/variants`),
+  createProductVariant: (productId, data) => apiClient.post(`admin/products/${productId}/variants`, data),
+  updateProductVariant: (productId, variantId, data) => apiClient.put(`admin/products/${productId}/variants/${variantId}`, data),
+  deleteProductVariant: (productId, variantId) => apiClient.delete(`admin/products/${productId}/variants/${variantId}`),
+
+  // Replenishment Rules
+  getReplenishmentRules: (warehouseId) => apiClient.get(warehouseId ? `admin/replenishment-rules?warehouseId=${warehouseId}` : 'admin/replenishment-rules'),
+  createReplenishmentRule: (data) => apiClient.post('admin/replenishment-rules', data),
+  updateReplenishmentRule: (id, data) => apiClient.put(`admin/replenishment-rules/${id}`, data),
+  deleteReplenishmentRule: (id) => apiClient.delete(`admin/replenishment-rules/${id}`),
 };
 
 export default adminApi;

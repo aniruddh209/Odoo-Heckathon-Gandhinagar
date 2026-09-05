@@ -29,4 +29,18 @@ public class ReportsController : ControllerBase
         var result = await _reportService.GetPipelineOverviewAsync();
         return Ok(result);
     }
+
+    [HttpGet("export/xls")]
+    public async Task<IActionResult> ExportXls()
+    {
+        var bytes = await _reportService.GenerateSalesReportXlsAsync();
+        return File(bytes, "application/vnd.ms-excel", $"DealFlow360_SalesReport_{DateTime.UtcNow:yyyyMMdd}.csv");
+    }
+
+    [HttpGet("export/pdf")]
+    public async Task<IActionResult> ExportPdf()
+    {
+        var bytes = await _reportService.GenerateSalesReportPdfAsync();
+        return File(bytes, "application/pdf", $"DealFlow360_SalesReport_{DateTime.UtcNow:yyyyMMdd}.pdf");
+    }
 }

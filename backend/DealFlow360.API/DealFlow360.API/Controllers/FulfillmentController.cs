@@ -1,3 +1,4 @@
+using DealFlow360.API.DTOs.Fulfillment;
 using DealFlow360.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -59,5 +60,20 @@ public class FulfillmentController : ControllerBase
     {
         await _fulfillmentService.ConsolidateOnReplenishmentAsync(warehouseId, productId);
         return Ok(new { message = "Stock replenished and backorders consolidated successfully." });
+    }
+    [HttpPut("override/{orderId}")]
+    [Authorize(Roles = "FinanceOperations,Admin")]
+    public async Task<IActionResult> OverrideAllocation(int orderId, [FromBody] FulfillmentOverrideRequest request)
+    {
+        var result = await _fulfillmentService.OverrideAllocationAsync(orderId, request);
+        return Ok(result);
+    }
+
+    [HttpPost("consolidate/{orderId}")]
+    [Authorize(Roles = "FinanceOperations,Admin")]
+    public async Task<IActionResult> ConsolidateOrderBackorders(int orderId)
+    {
+        var result = await _fulfillmentService.ConsolidateOrderBackordersAsync(orderId);
+        return Ok(result);
     }
 }

@@ -7,6 +7,7 @@ import {
   Modal,
   Input,
   Select,
+  Textarea,
   PageHeader,
   SkeletonDashboard,
   ErrorAlert,
@@ -53,7 +54,17 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
   const [productCostPrice, setProductCostPrice] = useState('');
   const [productTaxRate, setProductTaxRate] = useState('18.00');
   const [productUnit, setProductUnit] = useState('Each');
+  const [productDescription, setProductDescription] = useState('');
   const [isProductSubmitting, setIsProductSubmitting] = useState(false);
+
+  // Variant Modal State
+  const [isVariantsModalOpen, setIsVariantsModalOpen] = useState(false);
+  const [selectedProductForVariants, setSelectedProductForVariants] = useState(null);
+  const [variantsList, setVariantsList] = useState([]);
+  const [isVariantsLoading, setIsVariantsLoading] = useState(false);
+  const [newVariantName, setNewVariantName] = useState('');
+  const [newVariantPrice, setNewVariantPrice] = useState('');
+  const [isVariantSubmitting, setIsVariantSubmitting] = useState(false);
 
   // Price List Modals & Overrides State
   const [isPriceListModalOpen, setIsPriceListModalOpen] = useState(false);
@@ -118,6 +129,7 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
     setProductCostPrice('');
     setProductTaxRate('18.00');
     setProductUnit('Each');
+    setProductDescription('');
     setIsProductModalOpen(true);
   };
 
@@ -320,7 +332,10 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
       render: (p) => (
         <div>
           <span className="font-semibold text-slate-900 block">{p.name}</span>
-          <span className="text-[11px] text-slate-500 font-mono">{p.productType}</span>
+          {p.description && (
+            <p className="text-[11px] text-slate-500 line-clamp-1 italic max-w-xs">{p.description}</p>
+          )}
+          <span className="text-[10px] text-slate-400 font-mono">{p.productType}</span>
         </div>
       ),
     },
@@ -382,6 +397,15 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
       accessor: 'actions',
       render: (p) => (
         <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Layers}
+            onClick={() => handleOpenVariantsModal(p)}
+            className="text-xs py-1 px-2 h-7 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 border-indigo-200"
+          >
+            Variants
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -864,6 +888,95 @@ export const AdminCatalogPage = ({ defaultTab = 'products' }) => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Manage Variants Modal (Section 4 A2) */}
+      <Modal
+        isOpen={isVariantsModalOpen}
+        onClose={() => setIsVariantsModalOpen(false)}
+        title={`Product Variants: ${selectedProductForVariants?.name || ''}`}
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex justify-between items-center">
+            <div>
+              <span className="font-bold text-slate-800">SKU: {selectedProductForVariants?.sku}</span>
+              <span className="text-slate-500 ml-3">Base Price: ${selectedProductForVariants?.basePrice?.toFixed(2)}</span>
+            </div>
+            <span className="text-slate-500 text-[11px]">Storage/RAM/tier modifiers</span>
+          </div>
+
+          {/* Form to add variant */}
+          <form onSubmit={handleCreateVariant} className="p-3 bg-white border border-slate-200 rounded-lg space-y-3">
+            <h4 className="text-xs font-bold uppercase text-slate-700">Add New Variant</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Variant Name"
+                placeholder="e.g. 32GB RAM / 1TB SSD"
+                value={newVariantName}
+                onChange={(e) => setNewVariantName(e.target.value)}
+                required
+              />
+              <Input
+                label="Additional Price ($)"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={newVariantPrice}
+                onChange={(e) => setNewVariantPrice(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" variant="primary" size="xs" icon={Plus} disabled={isVariantSubmitting}>
+                {isVariantSubmitting ? 'Adding...' : 'Add Variant'}
+              </Button>
+            </div>
+          </form>
+
+          {/* Existing variants list */}
+          <div>
+            <h4 className="text-xs font-bold uppercase text-slate-700 mb-2">
+              Existing Variants ({variantsList.length})
+            </h4>
+            {variantsList.length === 0 ? (
+              <p className="text-xs text-slate-500 italic py-4 text-center border border-dashed rounded-lg bg-slate-50">
+                No variants defined for this product yet.
+              </p>
+            ) : (
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                {variantsList.map((v) => (
+                  <div key={v.id} className="p-3 bg-white hover:bg-slate-50 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-semibold text-slate-900">{v.name}</span>
+                      <span className="ml-2 font-mono text-emerald-700 font-bold">
+                        (+${v.additionalPrice?.toFixed(2)})
+                      </span>
+                      <span className="ml-2 text-slate-400">
+                        Total: ${((selectedProductForVariants?.basePrice || 0) + (v.additionalPrice || 0)).toFixed(2)}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="xs"
+                      icon={Trash2}
+                      onClick={() => handleDeleteVariant(v.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button variant="outline" size="sm" onClick={() => setIsVariantsModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

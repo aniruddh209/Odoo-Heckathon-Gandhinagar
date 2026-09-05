@@ -12,6 +12,11 @@ import {
   Shield,
   Activity,
   Bell,
+  RotateCw,
+  ExternalLink,
+  FileText,
+  Kanban,
+  XSquare,
 } from 'lucide-react';
 import { Button } from '../ui';
 
@@ -113,16 +118,62 @@ export const TopHeader = ({ onOpenMobile }) => {
         </form>
       </div>
 
-      {/* Right: Engine Status, Role Badge, Quick Action, Profile */}
-      <div className="flex items-center gap-3">
+      {/* Right: Section 4 B1 Top Menu Actions, Role Badge, Quick Action, Profile */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Section 4 B1 Workspace Top Menu */}
+        <div className="hidden lg:flex items-center gap-1 border-r border-slate-200 pr-2 sm:pr-3">
+          <Link
+            to="/workspace/quotations"
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${location.pathname.includes('/quotations') ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Quotations</span>
+          </Link>
+          <Link
+            to="/workspace/pipeline"
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${location.pathname.includes('/pipeline') ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            <Kanban className="w-3.5 h-3.5" />
+            <span>Pipeline</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            title="Reload Workspace Data"
+            className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center gap-1.5"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Reload</span>
+          </button>
+          {(isAdmin || isSalesManager) && (
+            <Link
+              to="/admin/products"
+              title="Go to Back-end Configuration"
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center gap-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Back-end</span>
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => logout()}
+            title="Close Workspace / Log Out"
+            className="px-2 py-1 rounded-lg text-xs font-medium text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-colors flex items-center gap-1"
+          >
+            <XSquare className="w-3.5 h-3.5" />
+            <span>Close</span>
+          </button>
+        </div>
+
         {/* Engine Status */}
         <div className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] font-mono text-slate-500">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span>MSSQL Live</span>
         </div>
 
-        {/* Role Pill */}
-        <span className={`hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${roleInfo.bg}`}>
+        {/* Role Pill - Prominently Displayed */}
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border shadow-2xs ${roleInfo.bg}`}>
           {roleInfo.label}
         </span>
 
@@ -133,7 +184,7 @@ export const TopHeader = ({ onOpenMobile }) => {
             size="xs"
             icon={Plus}
             onClick={() => navigate('/workspace/quotations/new')}
-            className="hidden sm:inline-flex h-8 shadow-xs"
+            className="hidden sm:inline-flex h-8 shadow-xs font-semibold"
           >
             New Quote
           </Button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dealHealthApi } from '../api';
+import { useToast } from '../context/ToastContext';
 import {
   Button,
   StatusBadge,
@@ -19,13 +20,17 @@ import {
   RefreshCw,
   ArrowRight,
   Zap,
+  Bell,
+  Send,
 } from 'lucide-react';
 
 export const DealHealthPage = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   useEffect(() => {
     loadHealthData();
@@ -41,6 +46,38 @@ export const DealHealthPage = () => {
       setError(err.message || 'Failed to query deal health surveillance telemetry.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleNudgeRep = async (alert) => {
+    const qId = alert.quotationId || alert.entityId;
+    if (!qId) return;
+    setActionLoadingId(`nudge-${qId}`);
+    try {
+      const res = await dealHealthApi.nudgeRep(qId, {
+        message: `Surveillance Alert (${alert.signalType || 'Stalled'}): ${alert.message}`,
+      });
+      toast.success('Rep Nudged', res.message || 'Follow-up notification sent to sales representative.');
+    } catch (err) {
+      toast.error('Failed to nudge rep', err.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleEscalateDeal = async (alert) => {
+    const qId = alert.quotationId || alert.entityId;
+    if (!qId) return;
+    setActionLoadingId(`esc-${qId}`);
+    try {
+      const res = await dealHealthApi.escalateDeal(qId, {
+        reason: `Automated Risk Escalation: ${alert.message}`,
+      });
+      toast.success('Deal Escalated', res.message || 'Critical anomaly escalated to Sales Governance management.');
+    } catch (err) {
+      toast.error('Failed to escalate deal', err.message);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -95,16 +132,42 @@ export const DealHealthPage = () => {
       render: (a) => <span className="text-xs text-slate-600">{a.message}</span>,
     },
     {
-      header: 'Action',
-      render: (a) => (
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => navigate(`/workspace/quotations/${a.quotationId}`)}
-        >
-          Rescue Deal
-        </Button>
-      ),
+      header: 'Governance Actions',
+      render: (a) => {
+        const qId = a.quotationId || a.entityId;
+        return (
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="xs"
+              icon={Bell}
+              isLoading={actionLoadingId === `nudge-${qId}`}
+              onClick={() => handleNudgeRep(a)}
+              className="text-amber-700 border-amber-200 hover:bg-amber-50"
+            >
+              Nudge Rep
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              icon={ShieldAlert}
+              isLoading={actionLoadingId === `esc-${qId}`}
+              onClick={() => handleEscalateDeal(a)}
+              className="text-rose-700 border-rose-200 hover:bg-rose-50"
+            >
+              Escalate
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              icon={ArrowRight}
+              onClick={() => navigate(`/workspace/quotations/${qId}`)}
+            >
+              Inspect
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 

@@ -94,6 +94,7 @@ public class QuotationService : IQuotationService
             .Include(q => q.Customer).ThenInclude(c => c.Tier)
             .Include(q => q.SalesRep)
             .Include(q => q.Lines).ThenInclude(l => l.Product)
+            .Include(q => q.Lines).ThenInclude(l => l.Variant)
             .Include(q => q.Lines).ThenInclude(l => l.Comments).ThenInclude(c => c.User)
             .Include(q => q.ApprovalRequests).ThenInclude(a => a.ActedBy)
             .Include(q => q.ApprovalRequests).ThenInclude(a => a.Actions)
@@ -148,7 +149,7 @@ public class QuotationService : IQuotationService
                         throw new InvalidOperationException($"Product '{product.Name}' is inactive/deactivated and cannot be added to new quotes.");
                     }
 
-                    decimal resolvedPrice = lReq.UnitPrice > 0 ? lReq.UnitPrice : await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, product);
+                    decimal resolvedPrice = lReq.UnitPrice > 0 ? lReq.UnitPrice : await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, product, lReq.VariantId);
                     var line = new QuotationLine
                     {
                         QuotationId = quotation.Id,
@@ -200,7 +201,7 @@ public class QuotationService : IQuotationService
             throw new InvalidOperationException($"Product '{product.Name}' is inactive/deactivated and cannot be added to new quotes.");
         }
 
-        decimal resolvedPrice = request.UnitPrice > 0 ? request.UnitPrice : await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, product);
+        decimal resolvedPrice = request.UnitPrice > 0 ? request.UnitPrice : await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, product, request.VariantId);
 
         var line = new QuotationLine
         {
@@ -336,7 +337,7 @@ public class QuotationService : IQuotationService
         {
             if (line.Product != null)
             {
-                var currentPrice = await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, line.Product);
+                var currentPrice = await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, line.Product, line.VariantId);
                 line.UnitPrice = currentPrice;
                 _marginEngine.CalculateLine(line, line.Product);
             }
@@ -514,12 +515,13 @@ public class QuotationService : IQuotationService
         await _context.SaveChangesAsync();
     }
 
-    private async Task<decimal> ResolveProductPriceAsync(int? priceListId, int customerId, Product product)
+    private async Task<decimal> ResolveProductPriceAsync(int? priceListId, int customerId, Product product, int? variantId = null)
     {
+        decimal baseResolved = product.BasePrice;
         if (priceListId.HasValue)
         {
             var pli = await _context.PriceListItems.FirstOrDefaultAsync(p => p.PriceListId == priceListId.Value && p.ProductId == product.Id);
-            if (pli != null && pli.UnitPrice > 0) return pli.UnitPrice;
+            if (pli != null && pli.UnitPrice > 0) baseResolved = pli.UnitPrice;
         }
         else
         {
@@ -530,11 +532,21 @@ public class QuotationService : IQuotationService
                 if (tierPriceList != null)
                 {
                     var pli = await _context.PriceListItems.FirstOrDefaultAsync(p => p.PriceListId == tierPriceList.Id && p.ProductId == product.Id);
-                    if (pli != null && pli.UnitPrice > 0) return pli.UnitPrice;
+                    if (pli != null && pli.UnitPrice > 0) baseResolved = pli.UnitPrice;
                 }
             }
         }
-        return product.BasePrice;
+
+        if (variantId.HasValue)
+        {
+            var variant = await _context.ProductVariants.FirstOrDefaultAsync(v => v.Id == variantId.Value && v.ProductId == product.Id);
+            if (variant != null && variant.IsActive)
+            {
+                baseResolved += variant.AdditionalPrice;
+            }
+        }
+
+        return baseResolved;
     }
 
     private static QuotationDetailResponse MapToDetailResponse(Quotation q, Order? order = null)
@@ -576,6 +588,7 @@ public class QuotationService : IQuotationService
                 ProductSKU = l.Product?.SKU ?? string.Empty,
                 ProductType = l.Product?.ProductType.ToString() ?? string.Empty,
                 VariantId = l.VariantId,
+                VariantName = l.Variant?.Name,
                 Quantity = l.Quantity,
                 UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent,

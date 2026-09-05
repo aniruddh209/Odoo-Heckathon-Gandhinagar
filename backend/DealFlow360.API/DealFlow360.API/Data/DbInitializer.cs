@@ -265,6 +265,17 @@ public static class DbInitializer
         var setupSrv = await context.Products.FirstAsync(p => p.SKU == "SRV-SETUP-01");
         var premSub = await context.Products.FirstAsync(p => p.SKU == "SUB-PREM-01");
 
+        // 7b. Product Variants
+        if (!await context.ProductVariants.AnyAsync(v => v.ProductId == laptop.Id))
+        {
+            context.ProductVariants.AddRange(new List<ProductVariant>
+            {
+                new() { ProductId = laptop.Id, Name = "32GB RAM / 1TB NVMe Edition", AdditionalPrice = 250.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+                new() { ProductId = laptop.Id, Name = "64GB RAM / 2TB NVMe Workstation", AdditionalPrice = 550.00m, IsActive = true, CreatedAtUtc = DateTime.UtcNow }
+            });
+            await context.SaveChangesAsync();
+        }
+
         // 8. Price List
         if (!await context.PriceLists.AnyAsync(pl => pl.Name == "Standard Commercial Price List 2026"))
         {
@@ -406,6 +417,18 @@ public static class DbInitializer
             context.InventoryStocks.Add(new InventoryStock { WarehouseId = eastWh.Id, ProductId = dock.Id, OnHand = 30, Reserved = 0, CreatedAtUtc = DateTime.UtcNow });
         }
         await context.SaveChangesAsync();
+
+        // 11b. Replenishment Rules
+        if (!await context.ReplenishmentRules.AnyAsync())
+        {
+            context.ReplenishmentRules.AddRange(new List<ReplenishmentRule>
+            {
+                new() { WarehouseId = centralWh.Id, ProductId = laptop.Id, ReorderLevel = 15, ReorderQuantity = 30, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+                new() { WarehouseId = centralWh.Id, ProductId = dock.Id, ReorderLevel = 25, ReorderQuantity = 50, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
+                new() { WarehouseId = eastWh.Id, ProductId = laptop.Id, ReorderLevel = 10, ReorderQuantity = 20, IsActive = true, CreatedAtUtc = DateTime.UtcNow }
+            });
+            await context.SaveChangesAsync();
+        }
 
         // 12. Subscription Plans
         if (!await context.SubscriptionPlans.AnyAsync(sp => sp.Name == "Monthly Enterprise Plan"))

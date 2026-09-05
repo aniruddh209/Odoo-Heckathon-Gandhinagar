@@ -40,6 +40,10 @@ public interface IAdminService
     Task<ProductDetailResponse> CreateProductAsync(CreateProductRequest request, int? actingUserId = null);
     Task<ProductDetailResponse> UpdateProductAsync(int id, UpdateProductRequest request, int? actingUserId = null);
     Task<ProductDetailResponse> ToggleProductStatusAsync(int id, int? actingUserId = null);
+    Task<List<VariantResponse>> GetProductVariantsAsync(int productId);
+    Task<VariantResponse> CreateProductVariantAsync(int productId, CreateVariantRequest request, int? actingUserId = null);
+    Task<VariantResponse> UpdateProductVariantAsync(int productId, int variantId, UpdateVariantRequest request, int? actingUserId = null);
+    Task<bool> DeleteProductVariantAsync(int productId, int variantId, int? actingUserId = null);
 
     // Price Lists
     Task<List<PriceListResponse>> GetPriceListsAsync();
@@ -72,6 +76,10 @@ public interface IAdminService
     Task<List<StockResponse>> GetWarehouseStocksAsync(int warehouseId);
     Task<List<StockResponse>> GetAllInventoryStocksAsync();
     Task<StockResponse> AdjustStockAsync(int warehouseId, AdjustStockRequest request, int? actingUserId = null);
+    Task<List<ReplenishmentRuleResponse>> GetReplenishmentRulesAsync(int? warehouseId = null);
+    Task<ReplenishmentRuleResponse> CreateReplenishmentRuleAsync(CreateReplenishmentRuleRequest request, int? actingUserId = null);
+    Task<ReplenishmentRuleResponse> UpdateReplenishmentRuleAsync(int id, UpdateReplenishmentRuleRequest request, int? actingUserId = null);
+    Task<bool> DeleteReplenishmentRuleAsync(int id, int? actingUserId = null);
 
     // Sales Teams
     Task<List<SalesTeamResponse>> GetSalesTeamsAsync();
@@ -86,6 +94,8 @@ public interface IAdminService
     // Upsell Rules
     Task<List<UpsellRuleResponse>> GetUpsellRulesAsync();
     Task<UpsellRuleResponse> CreateUpsellRuleAsync(CreateUpsellRuleRequest request, int? actingUserId = null);
+    Task<UpsellRuleResponse> UpdateUpsellRuleAsync(int id, UpdateUpsellRuleRequest request, int? actingUserId = null);
+    Task<bool> DeleteUpsellRuleAsync(int id, int? actingUserId = null);
 
     // Platform Analytics & Audit
     Task<PlatformOverviewResponse> GetPlatformOverviewAsync();
@@ -349,6 +359,7 @@ public class AdminService : IAdminService
                 Id = p.Id,
                 SKU = p.SKU,
                 Name = p.Name,
+                Description = p.Description,
                 CategoryName = p.Category.Name,
                 ProductType = p.ProductType.ToString(),
                 BasePrice = p.BasePrice,
@@ -372,6 +383,7 @@ public class AdminService : IAdminService
             Id = product.Id,
             SKU = product.SKU,
             Name = product.Name,
+            Description = product.Description,
             CategoryId = product.CategoryId,
             CategoryName = product.Category?.Name ?? string.Empty,
             ProductType = product.ProductType.ToString(),
@@ -389,6 +401,94 @@ public class AdminService : IAdminService
             }).ToList()
         };
     }
+    public async Task<List<VariantResponse>> GetProductVariantsAsync(int productId)
+    {
+        var product = await _context.Products.FindAsync(productId);
+        if (product == null) throw new KeyNotFoundException($"Product {productId} not found.");
+
+        return await _context.ProductVariants
+            .Where(v => v.ProductId == productId)
+            .OrderBy(v => v.Name)
+            .Select(v => new VariantResponse
+            {
+                Id = v.Id,
+                Name = v.Name,
+                AdditionalPrice = v.AdditionalPrice,
+                IsActive = v.IsActive
+            }).ToListAsync();
+    }
+
+    public async Task<VariantResponse> CreateProductVariantAsync(int productId, CreateVariantRequest request, int? actingUserId = null)
+    {
+        var product = await _context.Products.FindAsync(productId);
+        if (product == null) throw new KeyNotFoundException($"Product {productId} not found.");
+
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Variant name is required.");
+
+        var variant = new ProductVariant
+        {
+            ProductId = productId,
+            Name = request.Name.Trim(),
+            AdditionalPrice = request.AdditionalPrice,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.ProductVariants.Add(variant);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "ProductVariant", variant.Id, "ProductVariantCreated", $"Created variant '{variant.Name}' (+$ {variant.AdditionalPrice:F2}) for product {product.Name}", null, variant);
+
+        return new VariantResponse
+        {
+            Id = variant.Id,
+            Name = variant.Name,
+            AdditionalPrice = variant.AdditionalPrice,
+            IsActive = variant.IsActive
+        };
+    }
+
+    public async Task<VariantResponse> UpdateProductVariantAsync(int productId, int variantId, UpdateVariantRequest request, int? actingUserId = null)
+    {
+        var variant = await _context.ProductVariants.FirstOrDefaultAsync(v => v.Id == variantId && v.ProductId == productId);
+        if (variant == null) throw new KeyNotFoundException($"Variant {variantId} for product {productId} not found.");
+
+        if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Variant name is required.");
+
+        var oldSnapshot = new { variant.Name, variant.AdditionalPrice, variant.IsActive };
+
+        variant.Name = request.Name.Trim();
+        variant.AdditionalPrice = request.AdditionalPrice;
+        variant.IsActive = request.IsActive;
+        variant.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.ProductVariants.Update(variant);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "ProductVariant", variant.Id, "ProductVariantUpdated", $"Updated variant '{variant.Name}' for product {productId}", oldSnapshot, variant);
+
+        return new VariantResponse
+        {
+            Id = variant.Id,
+            Name = variant.Name,
+            AdditionalPrice = variant.AdditionalPrice,
+            IsActive = variant.IsActive
+        };
+    }
+
+    public async Task<bool> DeleteProductVariantAsync(int productId, int variantId, int? actingUserId = null)
+    {
+        var variant = await _context.ProductVariants.FirstOrDefaultAsync(v => v.Id == variantId && v.ProductId == productId);
+        if (variant == null) throw new KeyNotFoundException($"Variant {variantId} for product {productId} not found.");
+
+        _context.ProductVariants.Remove(variant);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "ProductVariant", variantId, "ProductVariantDeleted", $"Deleted variant '{variant.Name}' from product {productId}");
+        return true;
+    }
+
 
     public async Task<ProductDetailResponse> CreateProductAsync(CreateProductRequest request, int? actingUserId = null)
     {
@@ -409,6 +509,7 @@ public class AdminService : IAdminService
         {
             SKU = skuNormalized,
             Name = request.Name.Trim(),
+            Description = request.Description?.Trim(),
             CategoryId = request.CategoryId,
             ProductType = Enum.Parse<ProductType>(request.ProductType, true),
             BasePrice = request.BasePrice,
@@ -430,6 +531,7 @@ public class AdminService : IAdminService
             Id = product.Id,
             SKU = product.SKU,
             Name = product.Name,
+            Description = product.Description,
             CategoryId = product.CategoryId,
             CategoryName = category.Name,
             ProductType = product.ProductType.ToString(),
@@ -465,6 +567,7 @@ public class AdminService : IAdminService
         var oldSnapshot = new { product.Name, product.SKU, product.BasePrice, product.CostPrice, product.TaxRate, product.IsActive };
 
         product.Name = request.Name.Trim();
+        product.Description = request.Description?.Trim();
         product.CategoryId = request.CategoryId;
         product.ProductType = Enum.Parse<ProductType>(request.ProductType, true);
         product.BasePrice = request.BasePrice;
@@ -484,6 +587,7 @@ public class AdminService : IAdminService
             Id = product.Id,
             SKU = product.SKU,
             Name = product.Name,
+            Description = product.Description,
             CategoryId = product.CategoryId,
             CategoryName = category.Name,
             ProductType = product.ProductType.ToString(),
@@ -513,6 +617,7 @@ public class AdminService : IAdminService
             Id = product.Id,
             SKU = product.SKU,
             Name = product.Name,
+            Description = product.Description,
             CategoryId = product.CategoryId,
             CategoryName = product.Category?.Name ?? string.Empty,
             ProductType = product.ProductType.ToString(),
@@ -1134,6 +1239,136 @@ public class AdminService : IAdminService
             Available = stock.OnHand - stock.Reserved
         };
     }
+    public async Task<List<ReplenishmentRuleResponse>> GetReplenishmentRulesAsync(int? warehouseId = null)
+    {
+        var query = _context.ReplenishmentRules
+            .Include(r => r.Warehouse)
+            .Include(r => r.Product)
+            .AsQueryable();
+
+        if (warehouseId.HasValue)
+        {
+            query = query.Where(r => r.WarehouseId == warehouseId.Value);
+        }
+
+        var stocks = await _context.InventoryStocks.ToListAsync();
+        var stockMap = stocks.ToDictionary(s => $"{s.WarehouseId}_{s.ProductId}", s => s.OnHand);
+
+        var rules = await query.OrderBy(r => r.Warehouse.Name).ThenBy(r => r.Product.Name).ToListAsync();
+
+        return rules.Select(r => new ReplenishmentRuleResponse
+        {
+            Id = r.Id,
+            WarehouseId = r.WarehouseId,
+            WarehouseName = r.Warehouse?.Name ?? string.Empty,
+            ProductId = r.ProductId,
+            ProductName = r.Product?.Name ?? string.Empty,
+            ProductSKU = r.Product?.SKU ?? string.Empty,
+            ReorderLevel = r.ReorderLevel,
+            ReorderQuantity = r.ReorderQuantity,
+            IsActive = r.IsActive,
+            CurrentStock = stockMap.GetValueOrDefault($"{r.WarehouseId}_{r.ProductId}", 0)
+        }).ToList();
+    }
+
+    public async Task<ReplenishmentRuleResponse> CreateReplenishmentRuleAsync(CreateReplenishmentRuleRequest request, int? actingUserId = null)
+    {
+        var warehouse = await _context.Warehouses.FindAsync(request.WarehouseId);
+        if (warehouse == null) throw new KeyNotFoundException($"Warehouse {request.WarehouseId} not found.");
+
+        var product = await _context.Products.FindAsync(request.ProductId);
+        if (product == null) throw new KeyNotFoundException($"Product {request.ProductId} not found.");
+
+        if (request.ReorderLevel < 0) throw new ArgumentException("Reorder level cannot be negative.");
+        if (request.ReorderQuantity <= 0) throw new ArgumentException("Reorder quantity must be greater than 0.");
+
+        var rule = new ReplenishmentRule
+        {
+            WarehouseId = request.WarehouseId,
+            ProductId = request.ProductId,
+            ReorderLevel = request.ReorderLevel,
+            ReorderQuantity = request.ReorderQuantity,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.ReplenishmentRules.Add(rule);
+        await _context.SaveChangesAsync();
+
+        var stock = await _context.InventoryStocks.FirstOrDefaultAsync(s => s.WarehouseId == rule.WarehouseId && s.ProductId == rule.ProductId);
+
+        await LogAuditAsync(actingUserId, "ReplenishmentRule", rule.Id, "ReplenishmentRuleCreated", $"Created replenishment rule for {product.Name} at {warehouse.Name} (Min: {rule.ReorderLevel}, Reorder: {rule.ReorderQuantity})", null, rule);
+
+        return new ReplenishmentRuleResponse
+        {
+            Id = rule.Id,
+            WarehouseId = rule.WarehouseId,
+            WarehouseName = warehouse.Name,
+            ProductId = rule.ProductId,
+            ProductName = product.Name,
+            ProductSKU = product.SKU,
+            ReorderLevel = rule.ReorderLevel,
+            ReorderQuantity = rule.ReorderQuantity,
+            IsActive = rule.IsActive,
+            CurrentStock = stock?.OnHand ?? 0
+        };
+    }
+
+    public async Task<ReplenishmentRuleResponse> UpdateReplenishmentRuleAsync(int id, UpdateReplenishmentRuleRequest request, int? actingUserId = null)
+    {
+        var rule = await _context.ReplenishmentRules
+            .Include(r => r.Warehouse)
+            .Include(r => r.Product)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (rule == null) throw new KeyNotFoundException($"Replenishment rule {id} not found.");
+
+        if (request.ReorderLevel < 0) throw new ArgumentException("Reorder level cannot be negative.");
+        if (request.ReorderQuantity <= 0) throw new ArgumentException("Reorder quantity must be greater than 0.");
+
+        var oldSnapshot = new { rule.ReorderLevel, rule.ReorderQuantity, rule.IsActive };
+
+        rule.WarehouseId = request.WarehouseId;
+        rule.ProductId = request.ProductId;
+        rule.ReorderLevel = request.ReorderLevel;
+        rule.ReorderQuantity = request.ReorderQuantity;
+        rule.IsActive = request.IsActive;
+        rule.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.ReplenishmentRules.Update(rule);
+        await _context.SaveChangesAsync();
+
+        var stock = await _context.InventoryStocks.FirstOrDefaultAsync(s => s.WarehouseId == rule.WarehouseId && s.ProductId == rule.ProductId);
+
+        await LogAuditAsync(actingUserId, "ReplenishmentRule", rule.Id, "ReplenishmentRuleUpdated", $"Updated replenishment rule {rule.Id}", oldSnapshot, rule);
+
+        return new ReplenishmentRuleResponse
+        {
+            Id = rule.Id,
+            WarehouseId = rule.WarehouseId,
+            WarehouseName = rule.Warehouse?.Name ?? string.Empty,
+            ProductId = rule.ProductId,
+            ProductName = rule.Product?.Name ?? string.Empty,
+            ProductSKU = rule.Product?.SKU ?? string.Empty,
+            ReorderLevel = rule.ReorderLevel,
+            ReorderQuantity = rule.ReorderQuantity,
+            IsActive = rule.IsActive,
+            CurrentStock = stock?.OnHand ?? 0
+        };
+    }
+
+    public async Task<bool> DeleteReplenishmentRuleAsync(int id, int? actingUserId = null)
+    {
+        var rule = await _context.ReplenishmentRules.FindAsync(id);
+        if (rule == null) throw new KeyNotFoundException($"Replenishment rule {id} not found.");
+
+        _context.ReplenishmentRules.Remove(rule);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "ReplenishmentRule", id, "ReplenishmentRuleDeleted", $"Deleted replenishment rule {id}");
+        return true;
+    }
+
 
     // ─── Sales Teams ────────────────────────────────────────────
     public async Task<List<SalesTeamResponse>> GetSalesTeamsAsync()
@@ -1272,11 +1507,15 @@ public class AdminService : IAdminService
     public async Task<List<UpsellRuleResponse>> GetUpsellRulesAsync()
     {
         return await _context.UpsellCrossSellRules
+            .Include(ur => ur.TriggerProduct)
+            .Include(ur => ur.SuggestedProduct)
             .Select(ur => new UpsellRuleResponse
             {
                 Id = ur.Id,
                 TriggerProductId = ur.TriggerProductId,
+                TriggerProductName = ur.TriggerProduct.Name,
                 SuggestedProductId = ur.SuggestedProductId,
+                SuggestedProductName = ur.SuggestedProduct.Name,
                 RuleType = ur.RuleType,
                 Score = ur.Score,
                 IsPromoted = ur.IsPromoted,
@@ -1313,6 +1552,57 @@ public class AdminService : IAdminService
             IsActive = ur.IsActive
         };
     }
+
+    public async Task<UpsellRuleResponse> UpdateUpsellRuleAsync(int id, UpdateUpsellRuleRequest request, int? actingUserId = null)
+    {
+        var ur = await _context.UpsellCrossSellRules
+            .Include(r => r.TriggerProduct)
+            .Include(r => r.SuggestedProduct)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (ur == null) throw new KeyNotFoundException($"Upsell rule {id} not found.");
+
+        var oldSnapshot = new { ur.TriggerProductId, ur.SuggestedProductId, ur.RuleType, ur.Score, ur.IsPromoted, ur.IsActive };
+
+        ur.TriggerProductId = request.TriggerProductId;
+        ur.SuggestedProductId = request.SuggestedProductId;
+        ur.RuleType = request.RuleType;
+        ur.Score = request.Score;
+        ur.IsPromoted = request.IsPromoted;
+        ur.IsActive = request.IsActive;
+        ur.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.UpsellCrossSellRules.Update(ur);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "UpsellRule", ur.Id, "UpsellRuleUpdated", $"Updated upsell rule {ur.Id}", oldSnapshot, ur);
+
+        return new UpsellRuleResponse
+        {
+            Id = ur.Id,
+            TriggerProductId = ur.TriggerProductId,
+            TriggerProductName = ur.TriggerProduct?.Name ?? string.Empty,
+            SuggestedProductId = ur.SuggestedProductId,
+            SuggestedProductName = ur.SuggestedProduct?.Name ?? string.Empty,
+            RuleType = ur.RuleType,
+            Score = ur.Score,
+            IsPromoted = ur.IsPromoted,
+            IsActive = ur.IsActive
+        };
+    }
+
+    public async Task<bool> DeleteUpsellRuleAsync(int id, int? actingUserId = null)
+    {
+        var ur = await _context.UpsellCrossSellRules.FindAsync(id);
+        if (ur == null) throw new KeyNotFoundException($"Upsell rule {id} not found.");
+
+        _context.UpsellCrossSellRules.Remove(ur);
+        await _context.SaveChangesAsync();
+
+        await LogAuditAsync(actingUserId, "UpsellRule", id, "UpsellRuleDeleted", $"Deleted upsell rule {id}");
+        return true;
+    }
+
 
     // ─── Platform Analytics & Audit ─────────────────────────────
     public async Task<PlatformOverviewResponse> GetPlatformOverviewAsync()

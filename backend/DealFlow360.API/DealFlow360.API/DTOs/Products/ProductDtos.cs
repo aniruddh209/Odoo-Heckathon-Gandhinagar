@@ -4,6 +4,7 @@ public class CreateProductRequest
 {
     public string SKU { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public int CategoryId { get; set; }
     public string ProductType { get; set; } = "OneTime";
     public decimal BasePrice { get; set; }
@@ -16,6 +17,7 @@ public class UpdateProductRequest
 {
     public string? SKU { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public int CategoryId { get; set; }
     public string ProductType { get; set; } = "OneTime";
     public decimal BasePrice { get; set; }
@@ -31,11 +33,19 @@ public class CreateVariantRequest
     public decimal AdditionalPrice { get; set; }
 }
 
+public class UpdateVariantRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal AdditionalPrice { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
 public class ProductListResponse
 {
     public int Id { get; set; }
     public string SKU { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public string ProductType { get; set; } = string.Empty;
     public decimal BasePrice { get; set; }
@@ -49,6 +59,7 @@ public class ProductDetailResponse
     public int Id { get; set; }
     public string SKU { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public int CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public string ProductType { get; set; } = string.Empty;

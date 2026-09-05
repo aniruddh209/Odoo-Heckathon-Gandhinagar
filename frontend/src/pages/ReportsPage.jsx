@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { reportApi, quotationApi, adminApi } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import {
   Button,
   StatusBadge,
@@ -15,11 +16,14 @@ import { Download, RefreshCw, Filter, Layers, DollarSign, TrendingUp, ShieldAler
 
 export const ReportsPage = () => {
   const { isAdmin, isSalesManager, isFinance } = useAuth();
+  const toast = useToast();
   const [metrics, setMetrics] = useState(null);
   const [platformOverview, setPlatformOverview] = useState(null);
   const [quotes, setQuotes] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingXls, setIsExportingXls] = useState(false);
   const [error, setError] = useState(null);
 
   // Multi-Filter State
@@ -159,6 +163,30 @@ export const ReportsPage = () => {
     a.click();
   };
 
+  const handleExportPDF = async () => {
+    setIsExportingPdf(true);
+    try {
+      await reportApi.downloadPdf();
+      toast.success('PDF Export Successful', 'Executive Sales & Pipeline report PDF generated.');
+    } catch (err) {
+      toast.error('PDF Export Failed', err.message);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleExportXLS = async () => {
+    setIsExportingXls(true);
+    try {
+      await reportApi.downloadXls();
+      toast.success('XLS Export Successful', 'Sales Operations and KPIs spreadsheet generated.');
+    } catch (err) {
+      toast.error('XLS Export Failed', err.message);
+    } finally {
+      setIsExportingXls(false);
+    }
+  };
+
   const clearFilters = () => {
     setSelectedSalesRep('');
     setSelectedTier('');
@@ -271,9 +299,27 @@ export const ReportsPage = () => {
         subtitle="Operational revenue governance, subscription MRR/ARR run-rates, and multi-filter margin compliance audits."
         badge={`${filteredQuotes.length} Deals Analyzed`}
         actions={
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" icon={RefreshCw} onClick={loadReports}>
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              isLoading={isExportingPdf}
+              onClick={handleExportPDF}
+            >
+              Export PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              isLoading={isExportingXls}
+              onClick={handleExportXLS}
+            >
+              Export XLS
             </Button>
             <Button variant="primary" size="sm" icon={Download} onClick={handleExportCSV}>
               Export Filtered CSV ({filteredQuotes.length})

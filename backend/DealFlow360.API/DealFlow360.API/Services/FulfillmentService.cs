@@ -15,6 +15,8 @@ public interface IFulfillmentService
     Task<List<BackorderResponse>> GetBackordersAsync();
     Task<BackorderResponse> CancelBackorderAsync(int backorderId);
     Task ConsolidateOnReplenishmentAsync(int warehouseId, int productId);
+    Task<FulfillmentPreviewResponse> OverrideAllocationAsync(int orderId, FulfillmentOverrideRequest request);
+    Task<ConsolidateBackorderResponse> ConsolidateOrderBackordersAsync(int orderId);
 }
 
 public class FulfillmentService : IFulfillmentService
@@ -244,5 +246,242 @@ public class FulfillmentService : IFulfillmentService
 
             await _context.SaveChangesAsync();
         }
+    }
+    public async Task<FulfillmentPreviewResponse> OverrideAllocationAsync(int orderId, FulfillmentOverrideRequest request)
+    {
+        var order = await _context.Orders
+            .Include(o => o.Lines).ThenInclude(ol => ol.Product)
+            .Include(o => o.Backorders)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        if (order == null) throw new KeyNotFoundException($"Order {orderId} not found.");
+
+        if (order.Status == OrderStatus.Fulfilled)
+        {
+            throw new InvalidOperationException($"Order {order.OrderNumber} has already been fulfilled and cannot be re-allocated.");
+        }
+
+        var orderLineIds = order.Lines.Select(l => l.Id).ToList();
+
+        // Release any existing allocations and backorders
+        var existingAllocations = await _context.WarehouseAllocations
+            .Where(a => orderLineIds.Contains(a.OrderLineId))
+            .ToListAsync();
+
+        if (existingAllocations.Any())
+        {
+            foreach (var alloc in existingAllocations)
+            {
+                var line = order.Lines.FirstOrDefault(l => l.Id == alloc.OrderLineId);
+                if (line != null)
+                {
+                    var stock = await _context.InventoryStocks.FirstOrDefaultAsync(s => s.WarehouseId == alloc.WarehouseId && s.ProductId == line.ProductId);
+                    if (stock != null)
+                    {
+                        stock.Reserved = Math.Max(0, stock.Reserved - alloc.Quantity);
+                    }
+                }
+            }
+            _context.WarehouseAllocations.RemoveRange(existingAllocations);
+        }
+
+        if (order.Backorders.Any())
+        {
+            _context.Backorders.RemoveRange(order.Backorders);
+        }
+
+        var warehouses = await _context.Warehouses.ToListAsync();
+        var warehouseMap = warehouses.ToDictionary(w => w.Id);
+
+        var newAllocations = new List<WarehouseAllocation>();
+        var newBackorders = new List<Backorder>();
+
+        // Group requested allocations by order line
+        var requestedByLine = request.Allocations
+            .GroupBy(a => a.OrderLineId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var line in order.Lines)
+        {
+            var requestedAllocations = requestedByLine.GetValueOrDefault(line.Id) ?? new List<AllocationOverride>();
+            int allocatedQtyForLine = 0;
+
+            foreach (var reqAlloc in requestedAllocations)
+            {
+                if (reqAlloc.Quantity <= 0) continue;
+
+                var wh = warehouseMap.GetValueOrDefault(reqAlloc.WarehouseId);
+                if (wh == null) throw new KeyNotFoundException($"Warehouse {reqAlloc.WarehouseId} not found.");
+
+                var stock = await _context.InventoryStocks.FirstOrDefaultAsync(s => s.WarehouseId == wh.Id && s.ProductId == line.ProductId);
+                if (stock == null)
+                {
+                    stock = new InventoryStock { WarehouseId = wh.Id, ProductId = line.ProductId, OnHand = 0, Reserved = 0, CreatedAtUtc = DateTime.UtcNow };
+                    _context.InventoryStocks.Add(stock);
+                }
+
+                // Reserve stock
+                stock.Reserved += reqAlloc.Quantity;
+                stock.UpdatedAtUtc = DateTime.UtcNow;
+
+                decimal shipmentCost = wh.ShippingCostWeight * 10.00m;
+
+                newAllocations.Add(new WarehouseAllocation
+                {
+                    OrderLineId = line.Id,
+                    WarehouseId = wh.Id,
+                    Quantity = reqAlloc.Quantity,
+                    ShipmentCost = shipmentCost,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+
+                allocatedQtyForLine += reqAlloc.Quantity;
+            }
+
+            int unallocatedQty = line.Quantity - allocatedQtyForLine;
+            if (unallocatedQty > 0)
+            {
+                newBackorders.Add(new Backorder
+                {
+                    OrderId = order.Id,
+                    OrderLineId = line.Id,
+                    ProductId = line.ProductId,
+                    Quantity = unallocatedQty,
+                    Status = "Pending",
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+        }
+
+        _context.WarehouseAllocations.AddRange(newAllocations);
+        _context.Backorders.AddRange(newBackorders);
+
+        if (newBackorders.Any())
+        {
+            order.Status = newAllocations.Any() ? OrderStatus.PartiallyAllocated : OrderStatus.Confirmed;
+        }
+        else
+        {
+            order.Status = OrderStatus.Allocated;
+        }
+
+        order.UpdatedAtUtc = DateTime.UtcNow;
+        _context.Orders.Update(order);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = "Order",
+            EntityId = order.Id,
+            Action = "ManualFulfillmentOverride",
+            Reason = $"Manual override applied: {newAllocations.Count} allocation(s), {newBackorders.Count} backorder(s). Resulting status: {order.Status}",
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return await PreviewAllocationAsync(orderId);
+    }
+
+    public async Task<ConsolidateBackorderResponse> ConsolidateOrderBackordersAsync(int orderId)
+    {
+        var order = await _context.Orders
+            .Include(o => o.Lines).ThenInclude(ol => ol.Product)
+            .Include(o => o.Backorders)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        if (order == null) throw new KeyNotFoundException($"Order {orderId} not found.");
+
+        var pendingBackorders = order.Backorders.Where(b => b.Status == "Pending").ToList();
+        if (!pendingBackorders.Any())
+        {
+            return new ConsolidateBackorderResponse
+            {
+                OrderId = orderId,
+                Message = "No pending backorders exist for this order.",
+                ConsolidatedAllocationsCount = 0,
+                RemainingBackordersCount = 0,
+                NewOrderStatus = order.Status.ToString()
+            };
+        }
+
+        var warehouses = await _context.Warehouses.Where(w => w.IsActive).OrderBy(w => w.ShippingCostWeight).ToListAsync();
+        int consolidatedCount = 0;
+
+        foreach (var bo in pendingBackorders)
+        {
+            int remainingNeeded = bo.Quantity;
+
+            foreach (var wh in warehouses)
+            {
+                if (remainingNeeded <= 0) break;
+
+                var stock = await _context.InventoryStocks.FirstOrDefaultAsync(s => s.WarehouseId == wh.Id && s.ProductId == bo.ProductId);
+                if (stock == null) continue;
+
+                int available = stock.OnHand - stock.Reserved;
+                if (available > 0)
+                {
+                    int take = Math.Min(available, remainingNeeded);
+                    stock.Reserved += take;
+                    stock.UpdatedAtUtc = DateTime.UtcNow;
+
+                    _context.WarehouseAllocations.Add(new WarehouseAllocation
+                    {
+                        OrderLineId = bo.OrderLineId,
+                        WarehouseId = wh.Id,
+                        Quantity = take,
+                        ShipmentCost = wh.ShippingCostWeight * 10.00m,
+                        CreatedAtUtc = DateTime.UtcNow
+                    });
+
+                    remainingNeeded -= take;
+                    consolidatedCount++;
+                }
+            }
+
+            if (remainingNeeded <= 0)
+            {
+                bo.Status = "Fulfilled";
+                bo.UpdatedAtUtc = DateTime.UtcNow;
+            }
+            else
+            {
+                bo.Quantity = remainingNeeded;
+                bo.UpdatedAtUtc = DateTime.UtcNow;
+            }
+        }
+
+        bool allResolved = order.Backorders.All(b => b.Status != "Pending");
+        if (allResolved)
+        {
+            order.Status = OrderStatus.Allocated;
+        }
+        else if (consolidatedCount > 0)
+        {
+            order.Status = OrderStatus.PartiallyAllocated;
+        }
+
+        order.UpdatedAtUtc = DateTime.UtcNow;
+        _context.Orders.Update(order);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = "Order",
+            EntityId = order.Id,
+            Action = "BackordersConsolidated",
+            Reason = $"Consolidated backorders for order {order.OrderNumber}. {consolidatedCount} allocation(s) created. Remaining pending backorders: {order.Backorders.Count(b => b.Status == "Pending")}",
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new ConsolidateBackorderResponse
+        {
+            OrderId = orderId,
+            Message = consolidatedCount > 0 ? $"Successfully consolidated backorders. Created {consolidatedCount} allocation(s)." : "No available inventory to fulfill remaining backorders.",
+            ConsolidatedAllocationsCount = consolidatedCount,
+            RemainingBackordersCount = order.Backorders.Count(b => b.Status == "Pending"),
+            NewOrderStatus = order.Status.ToString()
+        };
     }
 }

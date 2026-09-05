@@ -47,3 +47,21 @@ public class HealthSignal
     public string Severity { get; set; } = string.Empty;
     public int PenaltyPoints { get; set; }
 }
+
+public class NudgeRepRequest
+{
+    public string? Message { get; set; }
+}
+
+public class EscalateDealRequest
+{
+    public string? Reason { get; set; }
+}
+
+public class DealHealthActionResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int? NotificationId { get; set; }
+    public string? RecipientName { get; set; }
+}

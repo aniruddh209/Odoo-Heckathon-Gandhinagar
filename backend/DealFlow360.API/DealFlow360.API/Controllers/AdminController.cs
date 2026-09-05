@@ -109,6 +109,26 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> ToggleProductStatus(int id)
         => Ok(await _adminService.ToggleProductStatusAsync(id, GetCurrentUserId()));
 
+    [HttpGet("products/{productId}/variants")]
+    [Authorize(Roles = "Admin,SalesRep,SalesManager,FinanceOperations")]
+    public async Task<IActionResult> GetProductVariants(int productId)
+        => Ok(await _adminService.GetProductVariantsAsync(productId));
+
+    [HttpPost("products/{productId}/variants")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> CreateProductVariant(int productId, [FromBody] CreateVariantRequest request)
+        => Ok(await _adminService.CreateProductVariantAsync(productId, request, GetCurrentUserId()));
+
+    [HttpPut("products/{productId}/variants/{variantId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateProductVariant(int productId, int variantId, [FromBody] UpdateVariantRequest request)
+        => Ok(await _adminService.UpdateProductVariantAsync(productId, variantId, request, GetCurrentUserId()));
+
+    [HttpDelete("products/{productId}/variants/{variantId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteProductVariant(int productId, int variantId)
+        => Ok(await _adminService.DeleteProductVariantAsync(productId, variantId, GetCurrentUserId()));
+
     // ─── Price Lists ────────────────────────────────────────────
     [HttpGet("price-lists")]
     [Authorize(Roles = "Admin,SalesRep,SalesManager,FinanceOperations")]
@@ -225,6 +245,39 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> AdjustStock(int id, [FromBody] AdjustStockRequest request)
         => Ok(await _adminService.AdjustStockAsync(id, request, GetCurrentUserId()));
 
+    [HttpGet("replenishment-rules")]
+    [Authorize(Roles = "Admin,FinanceOperations")]
+    public async Task<IActionResult> GetReplenishmentRules([FromQuery] int? warehouseId)
+        => Ok(await _adminService.GetReplenishmentRulesAsync(warehouseId));
+
+    [HttpGet("warehouses/{warehouseId}/replenishment-rules")]
+    [Authorize(Roles = "Admin,FinanceOperations")]
+    public async Task<IActionResult> GetWarehouseReplenishmentRules(int warehouseId)
+        => Ok(await _adminService.GetReplenishmentRulesAsync(warehouseId));
+
+    [HttpPost("replenishment-rules")]
+    [Authorize(Roles = "Admin,FinanceOperations")]
+    public async Task<IActionResult> CreateReplenishmentRule([FromBody] CreateReplenishmentRuleRequest request)
+        => Ok(await _adminService.CreateReplenishmentRuleAsync(request, GetCurrentUserId()));
+
+    [HttpPost("warehouses/{warehouseId}/replenishment-rules")]
+    [Authorize(Roles = "Admin,FinanceOperations")]
+    public async Task<IActionResult> CreateWarehouseReplenishmentRule(int warehouseId, [FromBody] CreateReplenishmentRuleRequest request)
+    {
+        request.WarehouseId = warehouseId;
+        return Ok(await _adminService.CreateReplenishmentRuleAsync(request, GetCurrentUserId()));
+    }
+
+    [HttpPut("replenishment-rules/{id}")]
+    [Authorize(Roles = "Admin,FinanceOperations")]
+    public async Task<IActionResult> UpdateReplenishmentRule(int id, [FromBody] UpdateReplenishmentRuleRequest request)
+        => Ok(await _adminService.UpdateReplenishmentRuleAsync(id, request, GetCurrentUserId()));
+
+    [HttpDelete("replenishment-rules/{id}")]
+    [Authorize(Roles = "Admin,FinanceOperations")]
+    public async Task<IActionResult> DeleteReplenishmentRule(int id)
+        => Ok(await _adminService.DeleteReplenishmentRuleAsync(id, GetCurrentUserId()));
+
     // ─── Sales Teams ────────────────────────────────────────────
     [HttpGet("sales-teams")]
     [Authorize(Roles = "Admin,SalesManager")]
@@ -264,4 +317,14 @@ public class AdminController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateUpsellRule([FromBody] CreateUpsellRuleRequest request)
         => Ok(await _adminService.CreateUpsellRuleAsync(request, GetCurrentUserId()));
+
+    [HttpPut("upsell-rules/{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateUpsellRule(int id, [FromBody] UpdateUpsellRuleRequest request)
+        => Ok(await _adminService.UpdateUpsellRuleAsync(id, request, GetCurrentUserId()));
+
+    [HttpDelete("upsell-rules/{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteUpsellRule(int id)
+        => Ok(await _adminService.DeleteUpsellRuleAsync(id, GetCurrentUserId()));
 }

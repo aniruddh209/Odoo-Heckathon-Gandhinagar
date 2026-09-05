@@ -85,3 +85,12 @@ public class OrderFulfillmentSummaryResponse
     public bool HasAllocations { get; set; }
     public bool HasBackorders { get; set; }
 }
+
+public class ConsolidateBackorderResponse
+{
+    public int OrderId { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int ConsolidatedAllocationsCount { get; set; }
+    public int RemainingBackordersCount { get; set; }
+    public string NewOrderStatus { get; set; } = string.Empty;
+}
