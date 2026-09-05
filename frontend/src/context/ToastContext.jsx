@@ -22,9 +22,33 @@ export const ToastProvider = ({ children }) => {
   }, []);
 
   const toast = {
-    success: (title, message) => addToast({ title, message, type: 'success' }),
-    error: (title, message) => addToast({ title, message, type: 'error', duration: 6000 }),
-    info: (title, message) => addToast({ title, message, type: 'info' }),
+    success: (title, message) => addToast({
+      title: message ? title : 'Success',
+      message: message || (typeof title === 'string' ? title : ''),
+      type: 'success',
+    }),
+    error: (title, message) => addToast({
+      title: message ? title : 'Error',
+      message: message || (typeof title === 'string' ? title : 'An unexpected error occurred.'),
+      type: 'error',
+      duration: 6000,
+    }),
+    info: (title, message) => addToast({
+      title: message ? title : 'Notice',
+      message: message || (typeof title === 'string' ? title : ''),
+      type: 'info',
+    }),
+    showSuccess: (message, title = 'Success') => addToast({
+      title: typeof title === 'string' && title !== 'Success' ? title : 'Success',
+      message: typeof message === 'string' ? message : (message?.message || 'Action completed successfully.'),
+      type: 'success',
+    }),
+    showError: (message, title = 'Error') => addToast({
+      title: typeof title === 'string' && title !== 'Error' ? title : 'Error',
+      message: typeof message === 'string' ? message : (message?.message || 'Action could not be completed.'),
+      type: 'error',
+      duration: 6000,
+    }),
   };
 
   return (

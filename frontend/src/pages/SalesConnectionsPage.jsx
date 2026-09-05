@@ -214,15 +214,15 @@ export const SalesConnectionsPage = () => {
       const updated = await salesConnectionApi.acceptInquiry(selectedInquiry.id, {
         notes: acceptNotes.trim() || undefined,
       });
-      toast.showSuccess(`Inquiry #${updated.requestNumber} accepted and claimed into your active pipeline.`);
+      toast.success('Inquiry Accepted', `Inquiry #${updated.requestNumber} accepted and claimed into your active pipeline.`);
       setActiveModal(null);
       setSelectedInquiry(updated);
       loadData();
     } catch (err) {
       if (err.status === 409 || err.message?.includes('already') || err.message?.includes('conflict')) {
-        toast.showError('Conflict: This inquiry has already been modified or claimed by another session. Refreshed.');
+        toast.error('Conflict', 'This inquiry has already been modified or claimed by another session. Refreshed.');
       } else {
-        toast.showError(err.message || 'Failed to accept inquiry.');
+        toast.error('Acceptance Failed', err.message || 'Failed to accept inquiry.');
       }
       loadData();
     } finally {
@@ -234,7 +234,7 @@ export const SalesConnectionsPage = () => {
     e?.preventDefault();
     if (!selectedInquiry) return;
     if (!contactNotes.trim()) {
-      toast.showError('Please record customer interaction notes before saving.');
+      toast.error('Validation Error', 'Please record customer interaction notes before saving.');
       return;
     }
     setIsSubmittingAction(true);
@@ -244,15 +244,15 @@ export const SalesConnectionsPage = () => {
         notes: contactNotes.trim(),
         outcome: contactOutcome.trim(),
       });
-      toast.showSuccess(`Customer outreach logged for #${updated.requestNumber}. Status is now Contacted.`);
+      toast.success('Outreach Logged', `Customer outreach logged for #${updated.requestNumber}. Status is now Contacted.`);
       setActiveModal(null);
       setSelectedInquiry(updated);
       loadData();
     } catch (err) {
       if (err.status === 409 || err.message?.includes('conflict')) {
-        toast.showError('Conflict: Inquiry state was changed. Data refreshed.');
+        toast.error('Conflict', 'Inquiry state was changed. Data refreshed.');
       } else {
-        toast.showError(err.message || 'Failed to log customer interaction.');
+        toast.error('Log Failed', err.message || 'Failed to log customer interaction.');
       }
       loadData();
     } finally {
@@ -264,7 +264,7 @@ export const SalesConnectionsPage = () => {
     e?.preventDefault();
     if (!selectedInquiry) return;
     if (!qualifyNotes.trim()) {
-      toast.showError('Please provide qualification notes (budget, timeline, technical scope).');
+      toast.error('Validation Error', 'Please provide qualification notes (budget, timeline, technical scope).');
       return;
     }
     setIsSubmittingAction(true);
@@ -272,15 +272,15 @@ export const SalesConnectionsPage = () => {
       const updated = await salesConnectionApi.qualifyInquiry(selectedInquiry.id, {
         repNotes: qualifyNotes.trim(),
       });
-      toast.showSuccess(`Inquiry #${updated.requestNumber} successfully Qualified! Ready for commercial quotation.`);
+      toast.success('Inquiry Qualified', `Inquiry #${updated.requestNumber} successfully Qualified! Ready for commercial quotation.`);
       setActiveModal(null);
       setSelectedInquiry(updated);
       loadData();
     } catch (err) {
       if (err.status === 409 || err.message?.includes('conflict')) {
-        toast.showError('Conflict: Inquiry state was updated elsewhere. Refreshed.');
+        toast.error('Conflict', 'Inquiry state was updated elsewhere. Refreshed.');
       } else {
-        toast.showError(err.message || 'Failed to qualify inquiry.');
+        toast.error('Qualification Failed', err.message || 'Failed to qualify inquiry.');
       }
       loadData();
     } finally {
@@ -300,15 +300,15 @@ export const SalesConnectionsPage = () => {
       const updated = await salesConnectionApi.rejectInquiry(selectedInquiry.id, {
         rejectionReason: finalReason,
       });
-      toast.showSuccess(`Inquiry #${updated.requestNumber} marked as Disqualified / Rejected.`);
+      toast.success('Inquiry Disqualified', `Inquiry #${updated.requestNumber} marked as Disqualified / Rejected.`);
       setActiveModal(null);
       setSelectedInquiry(updated);
       loadData();
     } catch (err) {
       if (err.status === 409 || err.message?.includes('conflict')) {
-        toast.showError('Conflict: Inquiry was already updated.');
+        toast.error('Conflict', 'Inquiry was already updated.');
       } else {
-        toast.showError(err.message || 'Failed to disqualify inquiry.');
+        toast.error('Disqualification Failed', err.message || 'Failed to disqualify inquiry.');
       }
       loadData();
     } finally {
@@ -324,11 +324,11 @@ export const SalesConnectionsPage = () => {
     setIsSubmittingAction(true);
     try {
       const res = await salesConnectionApi.createQuoteFromConnection(target.id);
-      toast.showSuccess(`Quotation #${res.quotationNumber} created successfully! Redirecting to pricing engine...`);
+      toast.success('Quotation Created', `Quotation #${res.quotationNumber} created successfully! Redirecting to pricing engine...`);
       setIsDrawerOpen(false);
       navigate(`/workspace/quotations/${res.quotationId}`);
     } catch (err) {
-      toast.showError(err.message || 'Failed to generate quotation from inquiry.');
+      toast.error('Quotation Failed', err.message || 'Failed to generate quotation from inquiry.');
     } finally {
       setIsSubmittingAction(false);
     }
