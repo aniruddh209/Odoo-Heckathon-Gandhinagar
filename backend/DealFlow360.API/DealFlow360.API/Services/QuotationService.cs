@@ -189,14 +189,35 @@ public class QuotationService : IQuotationService
                 inquiry.QuotationId = quotation.Id;
                 inquiry.Status = SalesConnectionStatus.QuoteCreated;
                 inquiry.UpdatedAtUtc = DateTime.UtcNow;
-
-                // Move quotation status from Draft to Sent so customer can immediately view and act upon it in Customer Portal
-                quotation.Status = QuoteStatus.Sent;
-                quotation.UpdatedAtUtc = DateTime.UtcNow;
-                _context.Quotations.Update(quotation);
-
-                await _context.SaveChangesAsync();
+                _context.SalesConnectionRequests.Update(inquiry);
             }
+        }
+
+        // Check if discount exceeds customer tier ceiling -> automatically route to manager for verification
+        var customer = await _context.Customers
+            .Include(c => c.Tier)
+            .FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
+        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
+        string tierName = customer?.Tier?.Name ?? "Bronze";
+        bool exceedsTier = quotation.Lines.Any(l => l.DiscountPercent > tierLimit);
+
+        if (exceedsTier)
+        {
+            quotation.Status = QuoteStatus.PendingApproval;
+            quotation.ApprovalStatus = ApprovalStatus.Pending;
+            quotation.UpdatedAtUtc = DateTime.UtcNow;
+            await EnsureManagerApprovalRequestAsync(quotation, tierLimit, tierName);
+            _context.Quotations.Update(quotation);
+            await _context.SaveChangesAsync();
+        }
+        else if (!string.IsNullOrWhiteSpace(targetInquiryRef))
+        {
+            // Move quotation status from Draft to Sent so customer can immediately view and act upon it in Customer Portal
+            quotation.Status = QuoteStatus.Sent;
+            quotation.ApprovalStatus = ApprovalStatus.None;
+            quotation.UpdatedAtUtc = DateTime.UtcNow;
+            _context.Quotations.Update(quotation);
+            await _context.SaveChangesAsync();
         }
 
         return await GetQuotationByIdAsync(quotation.Id);
@@ -225,6 +246,11 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Cannot modify deliverables on an approved or confirmed quotation. Commercial terms are locked.");
+        }
+
         var product = await _context.Products.FindAsync(request.ProductId);
         if (product == null) throw new KeyNotFoundException($"Product {request.ProductId} not found.");
 
@@ -249,8 +275,17 @@ public class QuotationService : IQuotationService
         _marginEngine.CalculateLine(line, product);
         quotation.Lines.Add(line);
 
-        // Invalidate previous approval on line changes
-        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+        var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
+        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
+        string tierName = customer?.Tier?.Name ?? "Bronze";
+
+        if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
+        {
+            quotation.Status = QuoteStatus.PendingApproval;
+            quotation.ApprovalStatus = ApprovalStatus.Pending;
+            await EnsureManagerApprovalRequestAsync(quotation, tierLimit, tierName);
+        }
+        else
         {
             quotation.Status = QuoteStatus.Draft;
             quotation.ApprovalStatus = ApprovalStatus.None;
@@ -268,6 +303,11 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Cannot modify deliverables on an approved or confirmed quotation. Commercial terms are locked.");
+        }
+
         var line = quotation.Lines.FirstOrDefault(l => l.Id == lineId);
         if (line == null) throw new KeyNotFoundException($"Line item {lineId} not found.");
 
@@ -280,8 +320,17 @@ public class QuotationService : IQuotationService
 
         _marginEngine.CalculateLine(line, product);
 
-        // Invalidate previous approval on line changes
-        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+        var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
+        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
+        string tierName = customer?.Tier?.Name ?? "Bronze";
+
+        if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
+        {
+            quotation.Status = QuoteStatus.PendingApproval;
+            quotation.ApprovalStatus = ApprovalStatus.Pending;
+            await EnsureManagerApprovalRequestAsync(quotation, tierLimit, tierName);
+        }
+        else
         {
             quotation.Status = QuoteStatus.Draft;
             quotation.ApprovalStatus = ApprovalStatus.None;
@@ -300,14 +349,28 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Cannot remove line items from an approved or confirmed quotation. Commercial terms are locked.");
+        }
+
         var line = quotation.Lines.FirstOrDefault(l => l.Id == lineId);
         if (line != null)
         {
             _context.QuotationLines.Remove(line);
             quotation.Lines.Remove(line);
 
-            // Invalidate previous approval on line removal
-            if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+            var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
+            decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
+            string tierName = customer?.Tier?.Name ?? "Bronze";
+
+            if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
+            {
+                quotation.Status = QuoteStatus.PendingApproval;
+                quotation.ApprovalStatus = ApprovalStatus.Pending;
+                await EnsureManagerApprovalRequestAsync(quotation, tierLimit, tierName);
+            }
+            else
             {
                 quotation.Status = QuoteStatus.Draft;
                 quotation.ApprovalStatus = ApprovalStatus.None;
@@ -366,9 +429,9 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
-        if (quotation.Status == QuoteStatus.ConvertedToOrder)
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
         {
-            throw new InvalidOperationException("Cannot negotiate terms on a quotation that has already converted to an order.");
+            throw new InvalidOperationException("Cannot negotiate prices on an approved or confirmed quotation. Commercial terms are locked.");
         }
 
         var line = quotation.Lines.FirstOrDefault(l => l.Id == lineId);
@@ -422,21 +485,23 @@ public class QuotationService : IQuotationService
             CreatedAtUtc = DateTime.UtcNow
         });
 
-        // Set status to UnderNegotiation
-        quotation.Status = QuoteStatus.UnderNegotiation;
-        quotation.UpdatedAtUtc = DateTime.UtcNow;
-
         // Check if discount triggers approval
-        decimal tierCeiling = quotation.Customer?.Tier?.MaxDiscountPercent ?? 15.0m;
+        decimal tierCeiling = quotation.Customer?.Tier?.MaxDiscountPercent ?? 5.0m;
+        string tierName = quotation.Customer?.Tier?.Name ?? "Bronze";
         if (line.DiscountPercent > tierCeiling)
         {
+            quotation.Status = QuoteStatus.PendingApproval;
             quotation.ApprovalStatus = ApprovalStatus.Pending;
+            await EnsureManagerApprovalRequestAsync(quotation, tierCeiling, tierName, line.DiscountPercent);
         }
         else
         {
+            quotation.Status = QuoteStatus.UnderNegotiation;
             quotation.ApprovalStatus = ApprovalStatus.None;
         }
 
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+        _context.Quotations.Update(quotation);
         await RecalculateAndSaveQuotationAsync(quotation);
         return await GetQuotationByIdAsync(quotationId);
     }
@@ -450,9 +515,9 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
 
-        if (quotation.Status == QuoteStatus.ConvertedToOrder)
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
         {
-            throw new InvalidOperationException("Cannot negotiate terms on a quotation that has already converted to an order.");
+            throw new InvalidOperationException("Cannot negotiate deal terms on an approved or confirmed quotation. Commercial terms are locked.");
         }
 
         decimal discount = Math.Max(0, Math.Min(100, request.OverallDiscountPercent));
@@ -479,19 +544,22 @@ public class QuotationService : IQuotationService
             CreatedAtUtc = DateTime.UtcNow
         });
 
-        quotation.Status = QuoteStatus.UnderNegotiation;
-        quotation.UpdatedAtUtc = DateTime.UtcNow;
-
-        decimal tierCeiling = quotation.Customer?.Tier?.MaxDiscountPercent ?? 15.0m;
+        decimal tierCeiling = quotation.Customer?.Tier?.MaxDiscountPercent ?? 5.0m;
+        string tierName = quotation.Customer?.Tier?.Name ?? "Bronze";
         if (discount > tierCeiling)
         {
+            quotation.Status = QuoteStatus.PendingApproval;
             quotation.ApprovalStatus = ApprovalStatus.Pending;
+            await EnsureManagerApprovalRequestAsync(quotation, tierCeiling, tierName, discount);
         }
         else
         {
+            quotation.Status = QuoteStatus.UnderNegotiation;
             quotation.ApprovalStatus = ApprovalStatus.None;
         }
 
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+        _context.Quotations.Update(quotation);
         await RecalculateAndSaveQuotationAsync(quotation);
         return await GetQuotationByIdAsync(quotationId);
     }
@@ -527,6 +595,11 @@ public class QuotationService : IQuotationService
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {id} not found.");
 
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved || quotation.Status == QuoteStatus.Confirmed || quotation.Status == QuoteStatus.ConvertedToOrder)
+        {
+            throw new InvalidOperationException("Cannot submit an already approved or confirmed quotation for approval.");
+        }
+
         await RecalculateAndSaveQuotationAsync(quotation);
 
         var discountRules = await _context.DiscountRules.Where(r => r.IsActive).ToListAsync();
@@ -534,27 +607,34 @@ public class QuotationService : IQuotationService
         var evalResult = _governanceEngine.EvaluateDiscounts(quotation.Customer, quotation.Lines, discountRules);
         var riskResult = _riskEngine.CalculateRiskScore(evalResult.PeakLineViolation, evalResult.WeightedMarginLoss, quotation.MarginPercent, approvalRules);
 
-        if (riskResult.IsAutoApproved)
-        {
-            quotation.Status = QuoteStatus.Approved;
-            quotation.ApprovalStatus = ApprovalStatus.Approved;
-        }
-        else
-        {
-            quotation.Status = QuoteStatus.PendingApproval;
-            quotation.ApprovalStatus = ApprovalStatus.Pending;
+        // Auto-approval is strictly disabled per business policy ("auto approve bnd rkh")
+        quotation.Status = QuoteStatus.PendingApproval;
+        quotation.ApprovalStatus = ApprovalStatus.Pending;
 
+        var requiredLevel = riskResult.RequiredLevel == ApprovalLevel.Finance ? ApprovalLevel.Finance : ApprovalLevel.Manager;
+        var existingPending = await _context.ApprovalRequests
+            .FirstOrDefaultAsync(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending);
+
+        if (existingPending == null)
+        {
             var approvalRequest = new ApprovalRequest
             {
                 QuotationId = quotation.Id,
-                Level = ApprovalLevel.Manager,
+                Level = requiredLevel,
                 Status = ApprovalStatus.Pending,
                 Sequence = 1,
                 RequestedAtUtc = DateTime.UtcNow,
-                Reason = $"Triggered by risk score of {riskResult.RiskScore:F2} (Target level: {riskResult.RequiredLevel})"
+                Reason = $"Submitted for governance authorization (Risk Score: {riskResult.RiskScore:F2}, Target Level: {requiredLevel})"
             };
 
             _context.ApprovalRequests.Add(approvalRequest);
+        }
+        else
+        {
+            existingPending.Level = requiredLevel;
+            existingPending.Reason = $"Submitted for governance authorization (Risk Score: {riskResult.RiskScore:F2}, Target Level: {requiredLevel})";
+            existingPending.RequestedAtUtc = DateTime.UtcNow;
+            _context.ApprovalRequests.Update(existingPending);
         }
 
         quotation.UpdatedAtUtc = DateTime.UtcNow;
@@ -718,6 +798,36 @@ public class QuotationService : IQuotationService
         }
 
         return baseResolved;
+    }
+
+    private async Task EnsureManagerApprovalRequestAsync(Quotation quotation, decimal tierCeiling, string tierName, decimal? specificDiscount = null)
+    {
+        var existing = await _context.ApprovalRequests
+            .FirstOrDefaultAsync(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending);
+
+        decimal disc = specificDiscount ?? (quotation.Lines.Any() ? quotation.Lines.Max(l => l.DiscountPercent) : 0);
+        string reason = $"Discount of {disc:F2}% exceeds customer {tierName} Tier ceiling ({tierCeiling:F2}%). Automatically routed to Sales Manager for verification and approval.";
+
+        if (existing != null)
+        {
+            existing.Reason = reason;
+            existing.Level = ApprovalLevel.Manager;
+            existing.RequestedAtUtc = DateTime.UtcNow;
+            _context.ApprovalRequests.Update(existing);
+        }
+        else
+        {
+            var approvalRequest = new ApprovalRequest
+            {
+                QuotationId = quotation.Id,
+                Level = ApprovalLevel.Manager,
+                Status = ApprovalStatus.Pending,
+                Sequence = 1,
+                RequestedAtUtc = DateTime.UtcNow,
+                Reason = reason
+            };
+            _context.ApprovalRequests.Add(approvalRequest);
+        }
     }
 
     private static QuotationDetailResponse MapToDetailResponse(Quotation q, Order? order = null)

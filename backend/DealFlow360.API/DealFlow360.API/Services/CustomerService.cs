@@ -525,6 +525,8 @@ public class CustomerService : ICustomerService
             throw new InvalidOperationException("Cannot submit a counter-offer on an order that has already been converted.");
         if (quotation.Status == QuoteStatus.Confirmed)
             throw new InvalidOperationException("Cannot submit a counter-offer on a confirmed quotation.");
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+            throw new InvalidOperationException("Cannot submit a counter-offer on an approved quotation. Commercial terms are locked.");
         if (quotation.Status == QuoteStatus.Rejected || quotation.Status == QuoteStatus.Cancelled)
             throw new InvalidOperationException("Cannot negotiate on a rejected or cancelled quotation.");
 
@@ -627,6 +629,8 @@ public class CustomerService : ICustomerService
             throw new InvalidOperationException("Cannot request changes on an order that has already been converted.");
         if (quotation.Status == QuoteStatus.Confirmed)
             throw new InvalidOperationException("Cannot request changes on a confirmed quotation.");
+        if (quotation.Status == QuoteStatus.Approved || quotation.ApprovalStatus == ApprovalStatus.Approved)
+            throw new InvalidOperationException("Cannot request changes on an approved quotation. Commercial terms are locked.");
         if (quotation.Status == QuoteStatus.Rejected || quotation.Status == QuoteStatus.Cancelled)
             throw new InvalidOperationException("Cannot request changes on a rejected or cancelled quotation.");
 

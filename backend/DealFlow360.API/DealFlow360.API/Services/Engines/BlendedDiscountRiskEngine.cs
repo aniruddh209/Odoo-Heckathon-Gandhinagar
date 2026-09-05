@@ -30,15 +30,11 @@ public class BlendedDiscountRiskEngine : IBlendedDiscountRiskEngine
         if (activeRules != null && activeRules.Any())
         {
             var matchedRule = activeRules.FirstOrDefault(r => roundedScore >= r.MinRisk && roundedScore <= r.MaxRisk);
-            level = matchedRule?.Level ?? (roundedScore < 30.00m ? ApprovalLevel.None : roundedScore < 70.00m ? ApprovalLevel.Manager : ApprovalLevel.Finance);
+            level = matchedRule?.Level ?? (roundedScore < 70.00m ? ApprovalLevel.Manager : ApprovalLevel.Finance);
         }
         else
         {
-            if (roundedScore < 30.00m)
-            {
-                level = ApprovalLevel.None; // Auto-approved
-            }
-            else if (roundedScore < 70.00m)
+            if (roundedScore < 70.00m)
             {
                 level = ApprovalLevel.Manager;
             }
@@ -52,7 +48,7 @@ public class BlendedDiscountRiskEngine : IBlendedDiscountRiskEngine
         {
             RiskScore = roundedScore,
             RequiredLevel = level,
-            IsAutoApproved = level == ApprovalLevel.None
+            IsAutoApproved = false // Auto-approval strictly disabled per business policy
         };
     }
 }

@@ -58,10 +58,12 @@ public class CustomerNegotiationEngine : ICustomerNegotiationEngine
 
         quotation.RiskScore = riskResult.RiskScore;
 
-        bool requiresReApproval = riskResult.RequiredLevel != ApprovalLevel.None || evalResult.RequiresApproval;
+        decimal tierCeiling = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
+        bool exceedsTier = proposedDiscountPercent > tierCeiling;
+        bool requiresReApproval = exceedsTier || evalResult.RequiresApproval;
 
-        QuoteStatus nextStatus = requiresReApproval ? QuoteStatus.PendingApproval : QuoteStatus.Approved;
-        ApprovalStatus nextApprovalStatus = requiresReApproval ? ApprovalStatus.Pending : ApprovalStatus.Approved;
+        QuoteStatus nextStatus = requiresReApproval ? QuoteStatus.PendingApproval : QuoteStatus.UnderNegotiation;
+        ApprovalStatus nextApprovalStatus = requiresReApproval ? ApprovalStatus.Pending : ApprovalStatus.None;
 
         quotation.Status = nextStatus;
         quotation.ApprovalStatus = nextApprovalStatus;
@@ -70,11 +72,11 @@ public class CustomerNegotiationEngine : ICustomerNegotiationEngine
         {
             RequiresReApproval = requiresReApproval,
             NewRiskScore = riskResult.RiskScore,
-            NewApprovalLevel = riskResult.RequiredLevel,
+            NewApprovalLevel = ApprovalLevel.Manager,
             NewStatus = nextStatus,
             SummaryMessage = requiresReApproval
-                ? $"Counter-offer of {proposedDiscountPercent:F2}% requires manager re-approval (Risk Score: {riskResult.RiskScore})."
-                : $"Counter-offer of {proposedDiscountPercent:F2}% is within auto-approval threshold."
+                ? $"Counter-offer of {proposedDiscountPercent:F2}% exceeds customer {customer?.Tier?.Name ?? "Bronze"} Tier limit ({tierCeiling:F2}%). Automatically routed to Sales Manager for verification."
+                : $"Counter-offer of {proposedDiscountPercent:F2}% applied within {customer?.Tier?.Name ?? "Bronze"} Tier limit ({tierCeiling:F2}%)."
         };
     }
 }

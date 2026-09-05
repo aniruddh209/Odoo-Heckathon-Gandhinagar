@@ -93,13 +93,15 @@ export const CustomerProposalView = ({
   const oneTimeLines = lines.filter((l) => !isLineRecurring(l));
   const recurringLines = lines.filter((l) => isLineRecurring(l));
 
-  // Determine if proposal can be confirmed
+  // Determine if proposal can be confirmed or negotiated
+  const isApproved = quote.status === 'Approved' || quote.approvalStatus === 'Approved';
   const isFinalized =
     quote.status === 'Confirmed' ||
     quote.status === 'ConvertedToOrder';
   const isRejected = quote.status === 'Rejected' || quote.status === 'Cancelled';
-  const isPendingApproval = quote.status === 'PendingApproval';
+  const isPendingApproval = quote.status === 'PendingApproval' || quote.approvalStatus === 'Pending';
   const canConfirm = !isFinalized && !isRejected && !isPendingApproval;
+  const canNegotiate = !isApproved && !isFinalized && !isRejected && !isPendingApproval;
 
   // Formatting helpers
   const currency = quote.currencyCode || quote.currency || 'INR';
@@ -154,6 +156,11 @@ export const CustomerProposalView = ({
     e.preventDefault();
     if (!activeLineForCounter) return;
 
+    if (!canNegotiate) {
+      toast.error('Terms Locked', 'Cannot submit counter proposals on an approved or finalized quotation.');
+      return;
+    }
+
     setIsSubmittingCounter(true);
     try {
       const payload = {
@@ -179,6 +186,11 @@ export const CustomerProposalView = ({
   const handleSubmitChangeRequest = async (e) => {
     e.preventDefault();
     if (!changeDescription.trim()) return;
+
+    if (!canNegotiate) {
+      toast.error('Terms Locked', 'Cannot submit change requests on an approved or finalized quotation.');
+      return;
+    }
 
     setIsSubmittingChange(true);
     try {
@@ -274,7 +286,7 @@ export const CustomerProposalView = ({
                 Connect to Sales
               </Button>
             )}
-            {!isFinalized && !isRejected && (
+            {canNegotiate && (
               <Button
                 variant="outline"
                 size="sm"
@@ -283,6 +295,11 @@ export const CustomerProposalView = ({
               >
                 Request Changes
               </Button>
+            )}
+            {isApproved && !isFinalized && (
+              <Badge variant="emerald" dot>
+                Approved &amp; Ready to Confirm
+              </Badge>
             )}
             {canConfirm && (
               <Button
@@ -303,6 +320,27 @@ export const CustomerProposalView = ({
         </div>
 
         {/* Informational Status Banner */}
+        {isApproved && !isFinalized && (
+          <div className="px-6 py-3.5 bg-emerald-50 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-950 text-xs">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                <strong>Commercial Terms Officially Approved:</strong> This quotation has received executive governance authorization. Deliverable pricing, discounts, and terms are locked and ready for your final digital acceptance.
+              </span>
+            </div>
+            {canConfirm && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={CheckCircle2}
+                onClick={() => setConfirmModalOpen(true)}
+                className="shrink-0 bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+              >
+                Confirm Now
+              </Button>
+            )}
+          </div>
+        )}
         {quote.status === 'PendingApproval' && (
           <div className="px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-3 text-amber-800 text-xs">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -452,7 +490,7 @@ export const CustomerProposalView = ({
                                   Inquiry
                                 </Button>
 
-                                {canConfirm && (
+                                {canNegotiate && (
                                   <Button
                                     variant="outline"
                                     size="xs"
@@ -462,6 +500,11 @@ export const CustomerProposalView = ({
                                   >
                                     Counter
                                   </Button>
+                                )}
+                                {isApproved && !isFinalized && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 rounded border border-emerald-200">
+                                    Approved
+                                  </span>
                                 )}
 
                                 {hasComments && (
@@ -600,7 +643,7 @@ export const CustomerProposalView = ({
                                   Inquiry
                                 </Button>
 
-                                {canConfirm && (
+                                {canNegotiate && (
                                   <Button
                                     variant="outline"
                                     size="xs"
@@ -610,6 +653,11 @@ export const CustomerProposalView = ({
                                   >
                                     Counter
                                   </Button>
+                                )}
+                                {isApproved && !isFinalized && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 bg-purple-50 rounded border border-purple-200">
+                                    Approved
+                                  </span>
                                 )}
 
                                 {hasComments && (

@@ -290,6 +290,11 @@ export const QuotationDetailPage = () => {
     e.preventDefault();
     if (!negotiatingLine) return;
 
+    if (quote?.status === 'Approved' || quote?.approvalStatus === 'Approved') {
+      toast.error('Terms Locked', 'Cannot negotiate prices on an approved quotation. Commercial terms are locked.');
+      return;
+    }
+
     setIsSubmittingNegotiation(true);
     try {
       await quotationApi.negotiateLinePrice(id, negotiatingLine.id, {
@@ -321,6 +326,12 @@ export const QuotationDetailPage = () => {
 
   const handleSubmitNegotiateDeal = async (e) => {
     e.preventDefault();
+
+    if (quote?.status === 'Approved' || quote?.approvalStatus === 'Approved') {
+      toast.error('Terms Locked', 'Cannot negotiate terms on an approved quotation. Commercial terms are locked.');
+      return;
+    }
+
     setIsSubmittingDealNegotiation(true);
     try {
       await quotationApi.negotiateDeal(id, {
@@ -422,6 +433,8 @@ export const QuotationDetailPage = () => {
 
   const isApproved = quote.status === 'Approved' || quote.approvalStatus === 'Approved';
   const isConverted = quote.status === 'ConvertedToOrder';
+  const isFinalized = isConverted || quote.status === 'Confirmed';
+  const canNegotiate = !isApproved && !isFinalized;
 
   return (
     <div className="space-y-6">
@@ -629,14 +642,16 @@ export const QuotationDetailPage = () => {
             >
               Open Negotiation Hub
             </Button>
-            <Button
-              variant="primary"
-              size="xs"
-              icon={Sparkles}
-              onClick={handleOpenNegotiateDeal}
-            >
-              Negotiate Deal
-            </Button>
+            {canNegotiate && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Sparkles}
+                onClick={handleOpenNegotiateDeal}
+              >
+                Negotiate Deal
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -651,30 +666,23 @@ export const QuotationDetailPage = () => {
         </div>
 
         <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Discounts</span>
-          <span className="text-base font-bold text-rose-600 mt-0.5 block font-mono">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Discount</span>
+          <span className="text-base font-bold text-emerald-600 mt-0.5 block font-mono">
             -{formatCurrency(quote.discountTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
         <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Taxes (18%)</span>
-          <span className="text-base font-bold text-slate-700 mt-0.5 block font-mono">
-            {formatCurrency(quote.taxTotal || 0, quote.currency || 'INR')}
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Tax / GST</span>
+          <span className="text-base font-bold text-slate-900 mt-0.5 block font-mono">
+            +{formatCurrency(quote.taxTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-xl border border-blue-200/80 bg-blue-50/40 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block">Grand Total</span>
-          <span className="text-base font-extrabold text-blue-900 mt-0.5 block font-mono">
+        <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">Grand Total</span>
+          <span className="text-base font-bold text-blue-900 mt-0.5 block font-mono">
             {formatCurrency(quote.grandTotal || 0, quote.currency || 'INR')}
-          </span>
-        </div>
-
-        <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Internal Cost</span>
-          <span className="text-base font-bold text-slate-700 mt-0.5 block font-mono">
-            {formatCurrency(quote.costTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
@@ -726,24 +734,28 @@ export const QuotationDetailPage = () => {
           ))}
         </nav>
 
-        {!isConverted && activeTab === 'lines' && (
+        {activeTab === 'lines' && !isConverted && (
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="xs"
-              icon={Sparkles}
-              onClick={handleOpenNegotiateDeal}
-            >
-              Negotiate Deal
-            </Button>
-            <Button
-              variant="primary"
-              size="xs"
-              icon={Plus}
-              onClick={() => setIsAddLineOpen(true)}
-            >
-              Add Product Line
-            </Button>
+            {canNegotiate && (
+              <Button
+                variant="outline"
+                size="xs"
+                icon={Sparkles}
+                onClick={handleOpenNegotiateDeal}
+              >
+                Negotiate Deal
+              </Button>
+            )}
+            {!isApproved && (
+              <Button
+                variant="primary"
+                size="xs"
+                icon={Plus}
+                onClick={() => setIsAddLineOpen(true)}
+              >
+                Add Product Line
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -803,31 +815,45 @@ export const QuotationDetailPage = () => {
                     {!isConverted && (
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenNegotiateLine(line)}
-                            className="px-2 py-1 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
-                            title="Propose Counter-Price / Commercial Negotiation"
-                          >
-                            <Sparkles className="w-3 h-3 text-blue-600" />
-                            Negotiate
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditLine(line)}
-                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                            title="Edit quantity or discount"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLine(line.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                            title="Remove item"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canNegotiate ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenNegotiateLine(line)}
+                              className="px-2 py-1 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                              title="Propose Counter-Price / Commercial Negotiation"
+                            >
+                              <Sparkles className="w-3 h-3 text-blue-600" />
+                              Negotiate
+                            </button>
+                          ) : isApproved ? (
+                            <span
+                              className="px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0"
+                              title="Quotation is approved. Commercial terms are locked."
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Locked
+                            </span>
+                          ) : null}
+                          {!isApproved && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditLine(line)}
+                                className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                                title="Edit quantity or discount"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLine(line.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     )}
@@ -855,7 +881,7 @@ export const QuotationDetailPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              {!isConverted && (
+              {canNegotiate && (
                 <Button
                   variant="outline"
                   size="xs"
@@ -864,6 +890,11 @@ export const QuotationDetailPage = () => {
                 >
                   Propose Deal Discount
                 </Button>
+              )}
+              {isApproved && (
+                <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Terms Approved &amp; Locked
+                </span>
               )}
               <StatusBadge status={quote.status} />
             </div>
@@ -897,7 +928,7 @@ export const QuotationDetailPage = () => {
                         </div>
                       </div>
 
-                      {!isConverted && (
+                      {canNegotiate ? (
                         <Button
                           variant="outline"
                           size="xs"
@@ -907,7 +938,12 @@ export const QuotationDetailPage = () => {
                         >
                           Propose Counter Price
                         </Button>
-                      )}
+                      ) : isApproved ? (
+                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Locked
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="p-4 space-y-3">
