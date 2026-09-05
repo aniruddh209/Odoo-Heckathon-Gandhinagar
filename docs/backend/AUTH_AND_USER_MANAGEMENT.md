@@ -92,8 +92,39 @@ When a new user or customer portal account is created without an explicit passwo
 
 ---
 
-## 6. Atomic Transactional Customer Registration
+## 6. Atomic Transactional Customer Registration (Internal CRM Flow)
 Creating a customer (`POST /api/customers`) executes inside an EF Core Execution Strategy (`CreateExecutionStrategy`) with an explicit database transaction:
 1. Inserts the `Customer` record into `[Customers]`.
 2. If an email is supplied, atomically provisions a linked `User` record with `Role = Role.Customer`, `CustomerId = customer.Id`, `MustChangePassword = true`, and a 14-character temporary password.
 3. Transaction commits atomically or rolls back entirely upon any collision.
+
+---
+
+## 7. Public Customer Self-Registration (`POST /api/auth/register`)
+Customers can self-register their organization and credentials through the public signup portal.
+
+### Endpoint Contract
+- **Method**: `POST /api/auth/register`
+- **Authorization**: Public (Anonymous)
+- **Request Body**:
+  ```json
+  {
+    "fullName": "Apex Commercial Lead",
+    "companyName": "Apex Aerospace Solutions",
+    "email": "lead@apexcorp.com",
+    "phone": "+1-555-0188",
+    "password": "SecurePassword123!",
+    "confirmPassword": "SecurePassword123!"
+  }
+  ```
+- **Validation Rules**:
+  - `FullName`, `CompanyName`, `Email`, `Password`, `ConfirmPassword` are mandatory.
+  - `Password` must match `ConfirmPassword`.
+  - Password complexity: >= 8 characters, at least 1 uppercase letter (`[A-Z]`), at least 1 lowercase letter (`[a-z]`), and at least 1 digit (`[0-9]`).
+  - Email format validation; checks MSSQL for duplicate email and throws `BadRequestException("An account with this email already exists.")`.
+- **Database Transaction (`CreateExecutionStrategy`)**:
+  1. Resolves default commercial tier (`CustomerTier` with lowest `MaxDiscountPercent`, e.g., `Bronze` at 5%).
+  2. Inserts `Customer` record into `[Customers]` with `TierId = bronzeTier.Id`, `IsActive = true`, and company details.
+  3. Inserts linked `User` record into `[Users]` with `Role = Role.Customer` (enforced server-side, client cannot elevate roles), `CustomerId = customer.Id`, `MustChangePassword = false` (since user set their own password), `IsActive = true`, and BCrypt hashed password.
+  4. Returns `AuthResponse` containing active JWT `accessToken` with embedded `CustomerId` claim and user profile.
+

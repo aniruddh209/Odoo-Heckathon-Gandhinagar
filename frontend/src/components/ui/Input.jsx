@@ -2,6 +2,7 @@ import React from 'react';
 
 export const Input = React.forwardRef(({
   label,
+  labelClassName = '',
   id,
   error,
   helperText,
@@ -19,7 +20,7 @@ export const Input = React.forwardRef(({
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-xs font-semibold text-slate-700 mb-1.5"
+          className={`block text-xs font-semibold ${labelClassName || 'text-slate-700'} mb-1.5`}
         >
           {label}
           {required && <span className="text-rose-500 ml-0.5">*</span>}

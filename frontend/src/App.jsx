@@ -7,6 +7,7 @@ import { ProtectedRoute } from './components/layout/ProtectedRoute';
 
 import {
   LoginPage,
+  SignupPage,
   DashboardPage,
   QuotationListPage,
   QuotationBuilderPage,
@@ -34,6 +35,7 @@ export function App() {
         <Routes>
           {/* Public Authentication */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
 
           {/* Customer Portal Magic Link (Cryptographically Isolated, No internal CRM frame) */}
           <Route path="/portal/quote/:token" element={<CustomerPortalDetailPage />} />

@@ -56,28 +56,110 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> SignupAsync(SignupRequest request)
     {
-        var existing = await _context.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
-        if (existing)
+        // 1. Validation
+        if (string.IsNullOrWhiteSpace(request.FullName))
         {
-            throw new InvalidOperationException("User with this email already exists.");
+            throw new ArgumentException("Full name is required.");
         }
 
-        var user = new User
+        if (string.IsNullOrWhiteSpace(request.Email))
         {
-            FullName = request.FullName,
-            Email = request.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            Role = Role.SalesRep,
-            IsActive = true,
-            MustChangePassword = false,
-            CreatedAtUtc = DateTime.UtcNow,
-            UpdatedAtUtc = DateTime.UtcNow
-        };
+            throw new ArgumentException("Email is required.");
+        }
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        var emailNormalized = request.Email.Trim().ToLower();
+        if (!System.Text.RegularExpressions.Regex.IsMatch(emailNormalized, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            throw new ArgumentException("Please provide a valid email address.");
+        }
 
-        return await GenerateAuthResponseAsync(user);
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+        {
+            throw new ArgumentException("Password must be at least 8 characters long.");
+        }
+
+        var hasUpper = request.Password.Any(char.IsUpper);
+        var hasLower = request.Password.Any(char.IsLower);
+        var hasDigit = request.Password.Any(char.IsDigit);
+        if (!hasUpper || !hasLower || !hasDigit)
+        {
+            throw new ArgumentException("Password must contain at least one uppercase letter, one lowercase letter, and one number.");
+        }
+
+        if (!string.Equals(request.Password, request.ConfirmPassword))
+        {
+            throw new ArgumentException("Passwords do not match.");
+        }
+
+        // 2. Email Uniqueness Check
+        var existing = await _context.Users.AnyAsync(u => u.Email.ToLower() == emailNormalized);
+        if (existing)
+        {
+            throw new InvalidOperationException("An account with this email already exists.");
+        }
+
+        // 3. Execution Strategy + Transaction
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            // Find default customer tier (Bronze or lowest discount tier)
+            var defaultTier = await _context.CustomerTiers
+                .OrderBy(t => t.MaxDiscountPercent)
+                .FirstOrDefaultAsync();
+
+            if (defaultTier == null)
+            {
+                defaultTier = new CustomerTier
+                {
+                    Name = "Standard",
+                    MaxDiscountPercent = 5.0m,
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+                _context.CustomerTiers.Add(defaultTier);
+                await _context.SaveChangesAsync();
+            }
+
+            var companyName = !string.IsNullOrWhiteSpace(request.CompanyName)
+                ? request.CompanyName.Trim()
+                : request.FullName.Trim();
+
+            // Create Customer record
+            var customer = new Customer
+            {
+                Name = companyName,
+                Email = emailNormalized,
+                Phone = request.Phone?.Trim(),
+                TierId = defaultTier.Id,
+                CurrencyCode = "USD",
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            _context.Customers.Add(customer);
+            await _context.SaveChangesAsync();
+
+            // Create User record - STRICTLY ALWAYS Role.Customer
+            var user = new User
+            {
+                FullName = request.FullName.Trim(),
+                Email = emailNormalized,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = Role.Customer, // STRICT: Customer self-signup can ONLY create Role.Customer
+                CustomerId = customer.Id,
+                IsActive = true,
+                MustChangePassword = false, // Customer entered their own password
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            user.Customer = customer;
+            return await GenerateAuthResponseAsync(user);
+        });
     }
 
     public async Task<AuthResponse> RefreshTokenAsync(string token)
@@ -100,7 +182,10 @@ public class AuthService : IAuthService
 
     public async Task<MeResponse> GetMeAsync(int userId)
     {
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _context.Users
+            .Include(u => u.Customer)
+            .Include(u => u.SalesTeam)
+            .FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null) throw new KeyNotFoundException("User not found.");
 
         return new MeResponse
@@ -110,7 +195,9 @@ public class AuthService : IAuthService
             Email = user.Email,
             Role = user.Role.ToString(),
             SalesTeamId = user.SalesTeamId,
+            TeamName = user.SalesTeam?.Name,
             CustomerId = user.CustomerId,
+            CustomerName = user.Customer?.Name,
             IsActive = user.IsActive,
             MustChangePassword = user.MustChangePassword,
             LastLoginAtUtc = user.LastLoginAtUtc
@@ -150,6 +237,16 @@ public class AuthService : IAuthService
 
     private async Task<AuthResponse> GenerateAuthResponseAsync(User user)
     {
+        if (user.Customer == null && user.CustomerId.HasValue)
+        {
+            user.Customer = await _context.Customers.FindAsync(user.CustomerId.Value);
+        }
+
+        if (user.SalesTeam == null && user.SalesTeamId.HasValue)
+        {
+            user.SalesTeam = await _context.SalesTeams.FindAsync(user.SalesTeamId.Value);
+        }
+
         var accessToken = _jwtService.GenerateToken(user);
 
         var refreshToken = new RefreshToken
@@ -175,7 +272,9 @@ public class AuthService : IAuthService
                 Email = user.Email,
                 Role = user.Role.ToString(),
                 SalesTeamId = user.SalesTeamId,
+                TeamName = user.SalesTeam?.Name,
                 CustomerId = user.CustomerId,
+                CustomerName = user.Customer?.Name,
                 IsActive = user.IsActive,
                 MustChangePassword = user.MustChangePassword,
                 LastLoginAtUtc = user.LastLoginAtUtc

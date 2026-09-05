@@ -3,7 +3,9 @@ namespace DealFlow360.API.DTOs.Auth;
 public class SignupRequest
 {
     public string FullName { get; set; } = string.Empty;
+    public string? CompanyName { get; set; }
     public string Email { get; set; } = string.Empty;
+    public string? Phone { get; set; }
     public string Password { get; set; } = string.Empty;
     public string ConfirmPassword { get; set; } = string.Empty;
 }
@@ -31,6 +33,7 @@ public class MeResponse
     public string? TeamName { get; set; }
     public int? SalesTeamId { get; set; }
     public int? CustomerId { get; set; }
+    public string? CustomerName { get; set; }
     public bool IsActive { get; set; }
     public bool MustChangePassword { get; set; }
     public DateTime? LastLoginAtUtc { get; set; }

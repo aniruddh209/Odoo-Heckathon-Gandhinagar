@@ -1,127 +1,407 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { Button } from '../components/common/Button';
-import { Input } from '../components/common/Input';
-import { Select } from '../components/common/Select';
-import { Alert } from '../components/common/Alert';
-import { Layers, ArrowRight } from 'lucide-react';
-import { Role } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { Button, Input, Modal, ErrorAlert } from '../components/ui';
+import {
+  Zap,
+  Building2,
+  Mail,
+  Phone,
+  User,
+  KeyRound,
+  Lock,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  XCircle,
+  ShieldCheck,
+  Check,
+  FileCheck,
+  MessageSquare,
+  Receipt,
+} from 'lucide-react';
 
 export const SignupPage = () => {
+  const { signup } = useAuth();
   const navigate = useNavigate();
-  const { signup, isLoading } = useAuth();
+  const toast = useToast();
 
   const [fullName, setFullName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState(Role.SalesRep);
-  const [department, setDepartment] = useState('Commercial Sales');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [successData, setSuccessData] = useState(null);
+
+  // Real-time password validation criteria
+  const passwordCriteria = [
+    { label: 'At least 8 characters', met: password.length >= 8 },
+    { label: 'One uppercase letter', met: /[A-Z]/.test(password) },
+    { label: 'One lowercase letter', met: /[a-z]/.test(password) },
+    { label: 'One number', met: /[0-9]/.test(password) },
+    { label: 'Passwords match', met: password.length > 0 && password === confirmPassword },
+  ];
+
+  const allCriteriaMet = passwordCriteria.every((c) => c.met);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    if (!fullName.trim()) {
+      setError('Please provide your full name.');
+      return;
+    }
+
+    if (!companyName.trim()) {
+      setError('Please provide your company or account name.');
+      return;
+    }
+
+    if (!email.trim()) {
+      setError('Please provide a valid work email.');
+      return;
+    }
+
+    if (!allCriteriaMet) {
+      setError('Please ensure your password satisfies all security requirements.');
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      await signup({
-        FullName: fullName,
-        Email: email,
-        Password: password,
-        Role: role,
-        Department: department,
+      const payload = {
+        fullName: fullName.trim(),
+        companyName: companyName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim() || null,
+        password,
+        confirmPassword,
+      };
+
+      const res = await signup(payload);
+
+      setSuccessData({
+        fullName: res.user.fullName,
+        companyName: companyName.trim(),
+        email: res.user.email,
+        role: res.user.role,
       });
-      navigate('/');
+
+      toast.success('Account Created', 'Welcome to DealFlow360 Customer Portal.');
     } catch (err) {
-      setError(err?.message || 'Registration failed. Please try again.');
+      setError(err.message || 'Registration failed. Please check your information.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleProceedToPortal = () => {
+    navigate('/portal/my-account', { replace: true });
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center items-center space-x-2.5">
-          <div className="h-11 w-11 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-            <Layers className="h-6 w-6" />
+    <div className="min-h-screen flex bg-slate-950 text-slate-100">
+      {/* Left Column: Value Proposition & Brand Story (Hidden on small screens) */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-linear-to-br from-slate-900 via-slate-950 to-blue-950 border-r border-slate-800/80 relative overflow-hidden">
+        {/* Subtle radial ambient background glow */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Brand Header */}
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-6">
+            <Zap className="w-4 h-4 fill-blue-400" />
+            DealFlow360 Client Portal
           </div>
-          <span className="text-2xl font-black tracking-tight text-slate-900">
-            DealFlow<span className="text-blue-600">360</span>
-          </span>
+          <h1 className="text-3xl xl:text-4xl font-extrabold text-white tracking-tight leading-tight">
+            Seamless B2B Commercial Collaboration & Negotiation
+          </h1>
+          <p className="mt-3 text-sm text-slate-300 max-w-lg leading-relaxed">
+            Directly review transparent proposals, negotiate terms with mathematical clarity, track milestone delivery, and confirm orders in a single enterprise workspace.
+          </p>
         </div>
-        <h2 className="mt-6 text-center text-2xl font-bold text-slate-900">Register Staff Account</h2>
-        <p className="mt-1 text-center text-xs text-slate-500">
-          Join your organization's deal velocity and fulfillment workflow
-        </p>
+
+        {/* Feature Highlights Grid */}
+        <div className="space-y-4 my-8 relative z-10">
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
+            <div className="p-2 rounded-lg bg-blue-600/20 text-blue-400 shrink-0 mt-0.5">
+              <FileCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Transparent Commercial Proposals</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Review interactive quotations detailing equipment, services, and multi-tier volume discounts tailored to your account.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
+            <div className="p-2 rounded-lg bg-emerald-600/20 text-emerald-400 shrink-0 mt-0.5">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Interactive Line-Item Clarification</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Discuss specific line items directly with your sales executive and submit counter-discount requests with instant feedback.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xs">
+            <div className="p-2 rounded-lg bg-indigo-600/20 text-indigo-400 shrink-0 mt-0.5">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Order Tracking & Unified Invoices</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Monitor multi-warehouse inventory allocation, view delivery milestones, and reconcile commercial invoices seamlessly.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Trust Badges Footer */}
+        <div className="relative z-10 pt-6 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>MSSQL Encrypted • Zero-Leak Tenant Isolation</span>
+          </div>
+          <span className="font-mono text-[11px] text-slate-500">v2.5 Production</span>
+        </div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200/80 rounded-2xl sm:px-10">
-          {error && (
-            <div className="mb-4">
-              <Alert variant="danger" message={error} onClose={() => setError(null)} />
+      {/* Right Column: Customer Registration Form */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12 overflow-y-auto">
+        <div className="max-w-md w-full mx-auto space-y-6">
+          {/* Header */}
+          <div>
+            <div className="lg:hidden flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-600/30">
+                <Zap className="w-4 h-4 fill-white text-white" />
+              </div>
+              <span className="font-bold text-lg text-white tracking-tight">DealFlow<span className="text-blue-400">360</span></span>
             </div>
-          )}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <Input
-              label="Full Name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Sarah Jenkins"
-              required
-            />
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+              Create Customer Account
+            </h2>
+            <p className="mt-1 text-xs text-slate-400">
+              Register your organization to collaborate on proposals and manage commercial agreements.
+            </p>
+          </div>
 
-            <Input
-              label="Corporate Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="s.jenkins@company.com"
-              required
-            />
+          {error && <ErrorAlert message={error} />}
 
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Section 1: Contact & Company */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Contact Full Name"
+                  labelClassName="text-slate-300 font-medium"
+                  required
+                  icon={User}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="e.g. Alex Morgan"
+                  autoComplete="name"
+                />
 
-            <Select
-              label="Assigned Business Role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              options={[
-                { value: Role.SalesRep, label: 'Sales Representative (Quoting & Accounts)' },
-                { value: Role.SalesManager, label: 'Sales Manager (Tier 1 Approvals)' },
-                { value: Role.FinanceOperations, label: 'Finance & Operations (Tier 2 & Invoicing)' },
-                { value: Role.Admin, label: 'System Administrator (Master Config)' },
-              ]}
-              required
-            />
+                <Input
+                  label="Company / Account Name"
+                  labelClassName="text-slate-300 font-medium"
+                  required
+                  icon={Building2}
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Acme Global Inc."
+                  autoComplete="organization"
+                />
+              </div>
 
-            <Input
-              label="Department / Unit"
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              placeholder="Enterprise Solutions"
-            />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Work Email"
+                  labelClassName="text-slate-300 font-medium"
+                  type="email"
+                  required
+                  icon={Mail}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="alex@company.com"
+                  autoComplete="email"
+                />
 
-            <Button type="submit" className="w-full justify-center" size="lg" isLoading={isLoading}>
-              Complete Registration
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+                <Input
+                  label="Phone Number"
+                  labelClassName="text-slate-300 font-medium"
+                  type="tel"
+                  icon={Phone}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1-555-0199"
+                  autoComplete="tel"
+                />
+              </div>
+            </div>
+
+            {/* Section 2: Security Credentials */}
+            <div className="pt-2 border-t border-slate-800 space-y-3">
+              <div className="relative">
+                <Input
+                  label="Password"
+                  labelClassName="text-slate-300 font-medium"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  icon={KeyRound}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Minimum 8 characters"
+                  autoComplete="new-password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-200 focus:outline-hidden"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <div className="relative">
+                <Input
+                  label="Confirm Password"
+                  labelClassName="text-slate-300 font-medium"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  icon={Lock}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter password"
+                  autoComplete="new-password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-200 focus:outline-hidden"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Password Quality Checklist */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
+                <span className="font-semibold text-slate-300 block text-[11px] uppercase tracking-wider mb-1">
+                  Password Requirements:
+                </span>
+                {passwordCriteria.map((c, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    {c.met ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded-full border border-slate-600 shrink-0" />
+                    )}
+                    <span className={c.met ? 'text-slate-200' : 'text-slate-400'}>
+                      {c.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Submission Button */}
+            <div className="pt-2">
+              <Button
+                type="submit"
+                fullWidth
+                size="md"
+                isLoading={isLoading}
+                icon={ArrowRight}
+                disabled={!allCriteriaMet}
+              >
+                Create Customer Account
+              </Button>
+            </div>
           </form>
 
-          <div className="mt-6 text-center text-xs text-slate-500">
+          {/* Footer Link to Login */}
+          <div className="pt-4 text-center text-xs text-slate-400 border-t border-slate-800">
             Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-500">
-              Sign in
+            <Link
+              to="/login"
+              className="font-semibold text-blue-400 hover:text-blue-300 underline underline-offset-4 ml-1"
+            >
+              Sign In to Platform
             </Link>
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {successData && (
+        <Modal
+          isOpen={true}
+          onClose={handleProceedToPortal}
+          title="Account Provisioned Successfully"
+          description="Your customer portal account has been created and verified in Microsoft SQL Server."
+        >
+          <div className="space-y-4">
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3 text-xs text-emerald-900">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-sm text-emerald-950">Welcome, {successData.fullName}!</p>
+                <p className="text-emerald-800 mt-1">
+                  Your organization <span className="font-semibold">{successData.companyName}</span> is now registered on DealFlow360. You have immediate access to your customer commercial portal.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2 text-xs font-mono">
+              <div className="flex justify-between items-center py-1 border-b border-slate-800">
+                <span className="text-slate-400">Account Name:</span>
+                <span className="text-white font-semibold">{successData.companyName}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-800">
+                <span className="text-slate-400">Login Email:</span>
+                <span className="text-white">{successData.email}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-slate-400">Access Scope:</span>
+                <span className="text-emerald-400 font-semibold">{successData.role} Portal</span>
+              </div>
+            </div>
+
+            <div className="pt-3 flex justify-end">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleProceedToPortal}
+                icon={ArrowRight}
+              >
+                Proceed to Customer Portal
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
+
+export default SignupPage;
