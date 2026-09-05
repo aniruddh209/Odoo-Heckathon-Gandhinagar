@@ -63,7 +63,8 @@ public static class DbInitializer
         var salesTeam = await context.SalesTeams.FirstAsync(t => t.Name == "Enterprise Sales USA");
 
         // 5. Users (All 5 Roles with BCrypt hashed passwords)
-        if (!await context.Users.AnyAsync())
+        var existingUsers = await context.Users.ToListAsync();
+        if (!existingUsers.Any())
         {
             var users = new List<User>
             {
@@ -129,6 +130,18 @@ public static class DbInitializer
             if (rep != null)
             {
                 demoCustomer.AssignedSalesRepId = rep.Id;
+            }
+            await context.SaveChangesAsync();
+        }
+        else
+        {
+            foreach (var u in existingUsers)
+            {
+                if (u.Email == "admin@dealflow360.io") u.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123");
+                if (u.Email == "rep@dealflow360.io") { u.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Rep@123"); u.SalesTeamId = salesTeam.Id; demoCustomer.AssignedSalesRepId = u.Id; }
+                if (u.Email == "manager@dealflow360.io") { u.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Manager@123"); u.SalesTeamId = salesTeam.Id; salesTeam.ManagerId = u.Id; }
+                if (u.Email == "finance@dealflow360.io") u.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Finance@123");
+                if (u.Email == "customer@dealflow360.io") { u.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Customer@123"); u.CustomerId = demoCustomer.Id; }
             }
             await context.SaveChangesAsync();
         }

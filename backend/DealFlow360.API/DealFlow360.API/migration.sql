@@ -1,4 +1,4 @@
-﻿IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
 BEGIN
     CREATE TABLE [__EFMigrationsHistory] (
         [MigrationId] nvarchar(150) NOT NULL,
@@ -665,4 +665,72 @@ VALUES (N'20260905093042_InitialCreate', N'10.0.11');
 
 COMMIT;
 GO
+
+-- =========================================================
+-- SEED INITIAL DATA (DEALFLOW360 STARTER SEED)
+-- =========================================================
+
+IF NOT EXISTS (SELECT * FROM [CustomerTiers])
+BEGIN
+    INSERT INTO [CustomerTiers] ([Name], [MaxDiscountPercent], [CreatedAtUtc]) VALUES (N'Gold', 15.00, GETUTCDATE());
+    INSERT INTO [CustomerTiers] ([Name], [MaxDiscountPercent], [CreatedAtUtc]) VALUES (N'Silver', 10.00, GETUTCDATE());
+    INSERT INTO [CustomerTiers] ([Name], [MaxDiscountPercent], [CreatedAtUtc]) VALUES (N'Bronze', 5.00, GETUTCDATE());
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM [Customers])
+BEGIN
+    INSERT INTO [Customers] ([Name], [Email], [Phone], [TierId], [CurrencyCode], [IsActive], [CreatedAtUtc])
+    VALUES (N'Acme Global Solutions', N'contact@acmeglobal.com', N'+1-555-0199', 1, N'USD', 1, GETUTCDATE());
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM [SalesTeams])
+BEGIN
+    INSERT INTO [SalesTeams] ([Name], [IsActive], [CreatedAtUtc]) VALUES (N'Enterprise Sales USA', 1, GETUTCDATE());
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM [Users])
+BEGIN
+    INSERT INTO [Users] ([FullName], [Email], [PasswordHash], [Role], [SalesTeamId], [CustomerId], [IsActive], [CreatedAtUtc])
+    VALUES 
+    (N'System Administrator', N'admin@dealflow360.io', N'$2a$11$q9hK/w3WfWpD/lXGvK5K.eZf5L3a8z7K0v1m2n3o4p5q6r7s8t9u', N'Admin', NULL, NULL, 1, GETUTCDATE()),
+    (N'Sarah Jenkins (Sales Rep)', N'rep@dealflow360.io', N'$2a$11$q9hK/w3WfWpD/lXGvK5K.eZf5L3a8z7K0v1m2n3o4p5q6r7s8t9u', N'SalesRep', 1, NULL, 1, GETUTCDATE()),
+    (N'Michael Vance (Sales Manager)', N'manager@dealflow360.io', N'$2a$11$q9hK/w3WfWpD/lXGvK5K.eZf5L3a8z7K0v1m2n3o4p5q6r7s8t9u', N'SalesManager', 1, NULL, 1, GETUTCDATE()),
+    (N'David Kim (Finance Operations)', N'finance@dealflow360.io', N'$2a$11$q9hK/w3WfWpD/lXGvK5K.eZf5L3a8z7K0v1m2n3o4p5q6r7s8t9u', N'FinanceOperations', NULL, NULL, 1, GETUTCDATE()),
+    (N'Alice Smith (Customer User)', N'customer@dealflow360.io', N'$2a$11$q9hK/w3WfWpD/lXGvK5K.eZf5L3a8z7K0v1m2n3o4p5q6r7s8t9u', N'Customer', NULL, 1, 1, GETUTCDATE());
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM [ProductCategories])
+BEGIN
+    INSERT INTO [ProductCategories] ([Name], [Description], [IsActive], [CreatedAtUtc]) VALUES (N'Hardware', N'Enterprise Servers & Racks', 1, GETUTCDATE());
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM [Products])
+BEGIN
+    INSERT INTO [Products] ([SKU], [Name], [CategoryId], [ProductType], [BasePrice], [CostPrice], [TaxRate], [Unit], [IsActive], [CreatedAtUtc])
+    VALUES 
+    (N'SRV-X100', N'Dell PowerEdge R750 Rack Server', 1, N'OneTime', 3500.00, 2000.00, 18.00, N'Unit', 1, GETUTCDATE()),
+    (N'SUB-CLOUD-SEC', N'Cloud Security Enterprise Subscription', 1, N'Subscription', 150.00, 40.00, 18.00, N'Seat/Month', 1, GETUTCDATE());
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM [Warehouses])
+BEGIN
+    INSERT INTO [Warehouses] ([Name], [ShippingCostWeight], [IsActive], [CreatedAtUtc]) VALUES (N'Central Depot (Chicago)', 1.25, 1, GETUTCDATE());
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM [InventoryStocks])
+BEGIN
+    INSERT INTO [InventoryStocks] ([WarehouseId], [ProductId], [OnHand], [Reserved], [CreatedAtUtc], [UpdatedAtUtc])
+    VALUES 
+    (1, 1, 100, 0, GETUTCDATE(), GETUTCDATE()),
+    (1, 2, 100, 0, GETUTCDATE(), GETUTCDATE());
+END;
+GO
+
 
