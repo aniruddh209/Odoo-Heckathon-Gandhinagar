@@ -49,7 +49,7 @@ DealFlow360 implements **Clean Architecture** and **Domain-Driven Design (DDD)**
 ┌────────────────────────────────────────────────────────────────────────┐
 │               DealFlow360 Presentation Layer (ASP.NET Core)            │
 │   • Internal Sales Controllers (Quotations, Orders, Fulfillment)       │
-│   • Zero-Leak Customer Portal Controller (/api/v1/portal/*)            │
+│   • Zero-Leak Customer Portal Controller (/api/portal/*)            │
 │   • Hosted Background Services (DealHealth, BillingRun, Consolidation) │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ Commands & Queries
@@ -250,8 +250,8 @@ $$\text{Quotation Gross Margin \%} = \frac{\sum \text{Line Gross Profit}}{\sum \
 - Columns: `Products.BasePrice`, `Products.CostPrice`, `ProductVariants.ExtraCost`, `QuotationLines.UnitPrice`, `QuotationLines.DiscountPercentage`.
 
 ### 11. API Dependency
-- Direct trigger: `POST /api/v1/quotations/{id}/recalculate`, `POST /api/v1/quotations/{id}/lines`.
-- Indirect trigger: `POST /api/v1/portal/quote/{token}/negotiate`.
+- Direct trigger: `POST /api/quotations/{id}/recalculate`, `POST /api/quotations/{id}/lines`.
+- Indirect trigger: `POST /api/portal/quote/{token}/negotiate`.
 
 ### 12. Realistic Example
 - Product: Enterprise Laptop (SKU: `HW-LAP-001`).
@@ -338,7 +338,7 @@ $$\text{Weighted Loss } \Delta_{weighted} = \frac{\sum_{i=1}^n \left(\Delta_{dis
 - Entities: `CustomerTiers`, `Customers`, `CategoryDiscountLimits`, `ProductCategories`, `QuotationLines`.
 
 ### 11. API Dependency
-- Invoked during: `POST /api/v1/quotations/{id}/recalculate`, `POST /api/v1/quotations/{id}/submit-approval`.
+- Invoked during: `POST /api/quotations/{id}/recalculate`, `POST /api/quotations/{id}/submit-approval`.
 
 ### 12. Realistic Example (From Problem Statement Page 12)
 - Customer: Acme Corp (Tier: Gold $\to$ 15% ceiling).
@@ -420,8 +420,8 @@ $$\text{Final Bounded Risk Score} = \min(100.00, \max(0.00, \text{Raw Risk Score
 - Entities: `Quotations`, `ApprovalRules`, `SystemConfigs`.
 
 ### 11. API Dependency
-- Evaluated on: `POST /api/v1/quotations/{id}/submit-approval`, `POST /api/v1/portal/quote/{token}/negotiate`.
-- Displayed on: `GET /api/v1/quotations/{id}`.
+- Evaluated on: `POST /api/quotations/{id}/submit-approval`, `POST /api/portal/quote/{token}/negotiate`.
+- Displayed on: `GET /api/quotations/{id}`.
 
 ### 12. Realistic Example
 - From previous Acme Corp scenario:
@@ -448,7 +448,7 @@ $$\text{Final Bounded Risk Score} = \min(100.00, \max(0.00, \text{Raw Risk Score
 The `ApprovalRoutingEngine` automates governance routing based on the evaluated Risk Score. It constructs multi-tier approval chains, enforces strict segregation of duties (preventing reps from approving their own quotes), mandates audit logging, and invalidates approved quotes when downstream terms are altered.
 
 ### 2. Business Trigger
-- Sales rep submits quote for approval (`POST /api/v1/quotations/{id}/submit-approval`).
+- Sales rep submits quote for approval (`POST /api/quotations/{id}/submit-approval`).
 - Customer submits counter-offer in portal.
 - Quotation lines edited while quotation is in `Approved` state.
 
@@ -515,10 +515,10 @@ Risk Score >= 70.00 ────────────────► [LEVEL 1
 - Entities: `ApprovalRules`, `ApprovalRuleSteps`, `ApprovalRequests`, `ApprovalActions`, `Quotations`, `Users`.
 
 ### 11. API Dependency
-- `POST /api/v1/quotations/{id}/submit-approval`
-- `POST /api/v1/approvals/{id}/approve`
-- `POST /api/v1/approvals/{id}/reject`
-- `POST /api/v1/approvals/{id}/return`
+- `POST /api/quotations/{id}/submit-approval`
+- `POST /api/approvals/{id}/approve`
+- `POST /api/approvals/{id}/reject`
+- `POST /api/approvals/{id}/return`
 
 ### 12. Realistic Example
 - Quote #1042 has Risk Score = 74.50 (High Risk due to 25% discount on Hardware + low margin).
@@ -543,10 +543,10 @@ Risk Score >= 70.00 ────────────────► [LEVEL 1
 The `WarehouseAllocationEngine` treats multi-warehouse fulfillment as a constrained optimization problem. It fulfills required order quantities across geographically distributed depots while minimizing shipment counts (delivery hops) and shipping cost penalties.
 
 ### 2. Business Trigger
-- Quote confirmed into order (`POST /api/v1/quotations/{id}/confirm-order`).
-- Fulfillment preview requested (`GET /api/v1/orders/{id}/fulfillment-preview`).
-- Stock allocation accepted (`POST /api/v1/orders/{id}/fulfillment/accept`).
-- Manual depot override submitted (`PUT /api/v1/orders/{id}/fulfillment/override`).
+- Quote confirmed into order (`POST /api/quotations/{id}/confirm-order`).
+- Fulfillment preview requested (`GET /api/orders/{id}/fulfillment-preview`).
+- Stock allocation accepted (`POST /api/orders/{id}/fulfillment/accept`).
+- Manual depot override submitted (`PUT /api/orders/{id}/fulfillment/override`).
 
 ### 3. Inputs
 - `IEnumerable<OrderLine>`: `ProductId`, `QuantityOrdered`.
@@ -620,9 +620,9 @@ Present Fulfillment Preview / Await Acceptance or Manual Override
 - Entities: `Warehouses`, `InventoryStocks`, `Orders`, `OrderLines`, `WarehouseAllocations`, `Backorders`.
 
 ### 11. API Dependency
-- `GET /api/v1/orders/{id}/fulfillment-preview`
-- `POST /api/v1/orders/{id}/fulfillment/accept`
-- `PUT /api/v1/orders/{id}/fulfillment/override`
+- `GET /api/orders/{id}/fulfillment-preview`
+- `POST /api/orders/{id}/fulfillment/accept`
+- `PUT /api/orders/{id}/fulfillment/override`
 
 ### 12. Realistic Example
 - Order #501: Requests 100 Enterprise Laptops (`HW-LAP-001`).
@@ -711,9 +711,9 @@ The `FulfillmentEngine` executes physical inventory operations, stock reservatio
 - Entities: `Orders`, `OrderLines`, `WarehouseAllocations`, `DeliveryOrders`, `DeliveryOrderLines`, `InventoryStocks`.
 
 ### 11. API Dependency
-- `POST /api/v1/orders/{id}/reserve-stock`
-- `POST /api/v1/fulfillment/ship`
-- `POST /api/v1/fulfillment/deliver`
+- `POST /api/orders/{id}/reserve-stock`
+- `POST /api/fulfillment/ship`
+- `POST /api/fulfillment/deliver`
 
 ### 12. Realistic Example
 - Allocation accepted: 70 units from Austin.
@@ -735,8 +735,8 @@ The `FulfillmentEngine` executes physical inventory operations, stock reservatio
 The `BackorderConsolidationEngine` bridges supply-chain replenishment with outstanding customer commitments. When new inventory arrives at any warehouse, the engine automatically checks pending backorders, calculates fulfillment feasibility, prompts operations for shipment consolidation, and merges backorder lines into active fulfillment without creating duplicate orders.
 
 ### 2. Business Trigger
-- Inbound goods receipt / inventory replenishment (`POST /api/v1/inventory/replenish`).
-- Operations user triggers manual consolidation (`POST /api/v1/orders/{id}/backorders/consolidate`).
+- Inbound goods receipt / inventory replenishment (`POST /api/inventory/replenish`).
+- Operations user triggers manual consolidation (`POST /api/orders/{id}/backorders/consolidate`).
 
 ### 3. Inputs
 - Replenishment Event: `WarehouseId`, `ProductId`, `ReceivedQuantity`.
@@ -783,8 +783,8 @@ The `BackorderConsolidationEngine` bridges supply-chain replenishment with outst
 - Entities: `Backorders`, `WarehouseAllocations`, `InventoryStocks`, `Orders`, `OrderLines`.
 
 ### 10. API Dependency
-- `GET /api/v1/orders/{id}/backorders`
-- `POST /api/v1/orders/{id}/backorders/consolidate`
+- `GET /api/orders/{id}/backorders`
+- `POST /api/orders/{id}/backorders/consolidate`
 
 ### 11. Realistic Example
 - Order #101 has an outstanding backorder of 30 Laptops created on Monday.
@@ -806,8 +806,8 @@ The `BackorderConsolidationEngine` bridges supply-chain replenishment with outst
 DealFlow360 commercial orders frequently combine **One-Time Hardware/Services** with **Recurring SaaS/Subscription Lines**. The `HybridBillingEngine` segregates these distinct commercial flows on a single order, issuing immediate commercial invoices for one-time goods while spawning automated recurring billing contracts and milestone schedules for subscriptions.
 
 ### 2. Business Trigger
-- Quotation confirmed into Order (`POST /api/v1/quotations/{id}/confirm-order`).
-- Invoice generation requested (`POST /api/v1/orders/{id}/billing/generate`).
+- Quotation confirmed into Order (`POST /api/quotations/{id}/confirm-order`).
+- Invoice generation requested (`POST /api/orders/{id}/billing/generate`).
 - Mid-cycle subscription seat addition / change.
 
 ### 3. Inputs
@@ -874,9 +874,9 @@ Confirmed Order Lines
 - Entities: `Orders`, `OrderLines`, `Invoices`, `InvoiceLines`, `SubscriptionContracts`, `BillingSchedules`, `Payments`.
 
 ### 11. API Dependency
-- `GET /api/v1/orders/{id}/billing`
-- `POST /api/v1/orders/{id}/billing/generate`
-- `POST /api/v1/invoices/{id}/payments`
+- `GET /api/orders/{id}/billing`
+- `POST /api/orders/{id}/billing/generate`
+- `POST /api/invoices/{id}/payments`
 
 ### 12. Realistic Example
 - Order #600 contains:
@@ -899,8 +899,8 @@ The `SubscriptionEngine` manages the ongoing lifecycle of recurring SaaS contrac
 
 ### 2. Business Trigger
 - Automated daily billing runner (`BillingRunService`).
-- Customer or rep adjusts subscription seat count (`POST /api/v1/subscriptions/{id}/change`).
-- Subscription termination / cancellation (`POST /api/v1/subscriptions/{id}/cancel`).
+- Customer or rep adjusts subscription seat count (`POST /api/subscriptions/{id}/change`).
+- Subscription termination / cancellation (`POST /api/subscriptions/{id}/cancel`).
 
 ### 3. Inputs
 - `SubscriptionContractId`.
@@ -954,8 +954,8 @@ $$\text{Prorated Amount } Adj_{prorated} = \frac{Rate_{monthly} \times \Delta \t
 - Entities: `SubscriptionContracts`, `BillingSchedules`, `Invoices`, `InvoiceLines`, `CreditNotes`.
 
 ### 11. API Dependency
-- `POST /api/v1/subscriptions/{id}/change`
-- `POST /api/v1/subscriptions/{id}/cancel`
+- `POST /api/subscriptions/{id}/change`
+- `POST /api/subscriptions/{id}/cancel`
 
 ### 12. Realistic Example
 - Plan: Cloud Security SaaS ($Rate = \$50.00$/seat/month).
@@ -979,7 +979,7 @@ $$\text{Prorated Amount } Adj_{prorated} = \frac{Rate_{monthly} \times \Delta \t
 The `UpsellCrossSellEngine` provides deterministic, margin-aware product recommendations to sales reps while building a quotation. It pairs complementary products based on affinity rules, boosts actively promoted items, enforces minimum margin floors, and computes the real-time gross margin delta if the suggested item is added.
 
 ### 2. Business Trigger
-- Quotation Builder loads or line items change (`GET /api/v1/quotations/{id}/recommendations`).
+- Quotation Builder loads or line items change (`GET /api/quotations/{id}/recommendations`).
 
 ### 3. Inputs
 - Current items in quotation (`IEnumerable<QuotationLine>`).
@@ -1041,9 +1041,9 @@ For every candidate product $P_{cand}$ in the catalog not currently present in t
 - Entities: `UpsellCrossSellRules`, `Products`, `ProductCategories`, `Quotations`, `QuotationLines`.
 
 ### 11. API Dependency
-- `GET /api/v1/quotations/{id}/recommendations`
-- `POST /api/v1/quotations/{id}/recommendations/{productId}/accept`
-- `POST /api/v1/quotations/{id}/recommendations/{productId}/dismiss`
+- `GET /api/quotations/{id}/recommendations`
+- `POST /api/quotations/{id}/recommendations/{productId}/accept`
+- `POST /api/quotations/{id}/recommendations/{productId}/dismiss`
 
 ### 12. Realistic Example
 - Cart has 5 Enterprise Laptops ($CurrentRevenue = \$5,280, CurrentCost = \$4,000 \to CurrentGM\% = 24.24\%$).
@@ -1073,9 +1073,9 @@ For every candidate product $P_{cand}$ in the catalog not currently present in t
 The `CustomerNegotiationEngine` orchestrates real-time, portal-based customer negotiations. It ingests line-level inquiries and counter-discount proposals, enforces data boundaries (zero internal cost leaks), and enforces the critical governance invariant: **Any customer negotiation change that alters commercial terms automatically invalidates prior approvals and forces backend re-governance.**
 
 ### 2. Business Trigger
-- Customer submits line question (`POST /api/v1/portal/quotations/{id}/line-requests`).
-- Customer submits counter-discount (`POST /api/v1/portal/quotations/{id}/counter-discount`).
-- Customer confirms terms (`POST /api/v1/portal/quotations/{id}/confirm`).
+- Customer submits line question (`POST /api/portal/quotations/{id}/line-requests`).
+- Customer submits counter-discount (`POST /api/portal/quotations/{id}/counter-discount`).
+- Customer confirms terms (`POST /api/portal/quotations/{id}/confirm`).
 
 ### 3. Inputs
 - Portal JWT / Magic-Link Token (scoped strictly to `CustomerId` and `QuotationId`).
@@ -1147,9 +1147,9 @@ Did counter-discount breach discount ceilings OR Risk Score >= 30?
 - Entities: `Quotations`, `QuotationLines`, `QuotationChanges`, `QuotationLineComments`, `ApprovalRequests`, `Customers`.
 
 ### 11. API Dependency
-- `POST /api/v1/portal/quotations/{id}/line-requests`
-- `POST /api/v1/portal/quotations/{id}/counter-discount`
-- `POST /api/v1/portal/quotations/{id}/confirm`
+- `POST /api/portal/quotations/{id}/line-requests`
+- `POST /api/portal/quotations/{id}/counter-discount`
+- `POST /api/portal/quotations/{id}/confirm`
 
 ### 12. Realistic Example
 - Quote #200 was approved at 12% discount (Risk: 24.0, Auto-Approved).
@@ -1174,8 +1174,8 @@ The `DealHealthEngine` operates as continuous automated pipeline surveillance. I
 
 ### 2. Business Trigger
 - Automated background chrono job (`DealHealthBackgroundService`) running every hour or nightly.
-- Real-time quote load (`GET /api/v1/quotations/{id}/health`).
-- Dashboard aggregation (`GET /api/v1/dashboard/deal-health`).
+- Real-time quote load (`GET /api/quotations/{id}/health`).
+- Dashboard aggregation (`GET /api/dashboard/deal-health`).
 
 ### 3. Inputs
 - `Quotation`: `Status`, `UpdatedAt`, `CreatedAt`, `ExpectedCloseDate`, `SalesRepId`.
@@ -1231,9 +1231,9 @@ $$\text{Health Score} = \max\left(0, \min\left(100, 100 - \sum \text{Penalties}\
 - Entities: `Quotations`, `Orders`, `DealHealthSnapshots`, `AuditLogs`, `Users`.
 
 ### 11. API Dependency
-- `GET /api/v1/dashboard/deal-health`
-- `GET /api/v1/deal-health/alerts`
-- `GET /api/v1/quotations/{id}/health`
+- `GET /api/dashboard/deal-health`
+- `GET /api/deal-health/alerts`
+- `GET /api/quotations/{id}/health`
 
 ### 12. Realistic Example
 - Quote #770 (Beta Industries):
@@ -1298,8 +1298,8 @@ Health Score < 40 (Critical) OR Approval SLA Exceeded (>48h)
 - Entities: `Notifications`, `Quotations`, `Users`, `SalesTeams`.
 
 ### 9. API Dependency
-- `POST /api/v1/deal-health/alerts/{id}/nudge`
-- `POST /api/v1/deal-health/alerts/{id}/escalate`
+- `POST /api/deal-health/alerts/{id}/nudge`
+- `POST /api/deal-health/alerts/{id}/escalate`
 
 ### 10. Current Implementation Assessment
 - **Status**: `PASS`
@@ -1312,27 +1312,27 @@ All 71 documented API endpoints map directly to their underlying engine authorit
 
 | HTTP Method | Route Endpoint | Responsible Engine | Primary Role Access | Transaction Boundary |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/quotations/{id}/lines` | `MarginCalculationEngine`, `DiscountGovernanceEngine` | SalesRep, SalesManager | Atomic UnitOfWork |
-| `POST` | `/api/v1/quotations/{id}/recalculate` | `MarginCalculationEngine`, `DiscountGovernanceEngine`, `BlendedDiscountRiskEngine` | SalesRep, SalesManager | Read-Only / In-Memory |
-| `POST` | `/api/v1/quotations/{id}/submit-approval`| `ApprovalRoutingEngine`, `BlendedDiscountRiskEngine` | SalesRep | Serializable Transaction |
-| `GET` | `/api/v1/approvals/pending` | `ApprovalRoutingEngine` | SalesManager, FinanceOperations | Read-Only Dapper |
-| `POST` | `/api/v1/approvals/{id}/approve` | `ApprovalRoutingEngine` | Current Step Assignee | RepeatableRead Transaction |
-| `POST` | `/api/v1/approvals/{id}/reject` | `ApprovalRoutingEngine` | Current Step Assignee | RepeatableRead Transaction |
-| `POST` | `/api/v1/approvals/{id}/return` | `ApprovalRoutingEngine` | Current Step Assignee | RepeatableRead Transaction |
-| `GET` | `/api/v1/quotations/{id}/recommendations`| `UpsellCrossSellEngine` | SalesRep, SalesManager | Read-Only In-Memory Score |
-| `POST` | `/api/v1/quotations/{id}/recommendations/{pId}/accept`| `UpsellCrossSellEngine`, `MarginCalculationEngine` | SalesRep | Atomic UnitOfWork |
-| `POST` | `/api/v1/quotations/{id}/confirm-order` | `ApprovalRoutingEngine`, `WarehouseAllocationEngine`, `HybridBillingEngine` | SalesRep, SalesManager | Distributed ACID Transaction |
-| `GET` | `/api/v1/orders/{id}/fulfillment-preview`| `WarehouseAllocationEngine` | FinanceOperations, Manager | Read-Only Allocation Preview |
-| `POST` | `/api/v1/orders/{id}/fulfillment/accept` | `WarehouseAllocationEngine`, `FulfillmentEngine` | FinanceOperations | Serializable Stock Lock |
-| `PUT` | `/api/v1/orders/{id}/fulfillment/override`| `WarehouseAllocationEngine`, `FulfillmentEngine` | FinanceOperations | Serializable Stock Lock |
-| `POST` | `/api/v1/orders/{id}/backorders/consolidate`| `BackorderConsolidationEngine`, `FulfillmentEngine` | FinanceOperations | RepeatableRead Transaction |
-| `POST` | `/api/v1/orders/{id}/billing/generate` | `HybridBillingEngine` | FinanceOperations | Atomic Ledger Commit |
-| `POST` | `/api/v1/subscriptions/{id}/change` | `SubscriptionEngine` (Proration) | FinanceOperations | Atomic Ledger Commit |
-| `POST` | `/api/v1/subscriptions/{id}/cancel` | `SubscriptionEngine` | FinanceOperations | Atomic Ledger Commit |
-| `POST` | `/api/v1/portal/quotations/{id}/counter-discount`| `CustomerNegotiationEngine`, `DiscountGovernanceEngine`, `BlendedDiscountRiskEngine` | Portal Customer | Serializable Transaction |
-| `POST` | `/api/v1/portal/quotations/{id}/confirm` | `CustomerNegotiationEngine` | Portal Customer | Serializable Transaction |
-| `GET` | `/api/v1/dashboard/deal-health` | `DealHealthEngine` | All Internal Users | Read-Only Dapper Query |
-| `POST` | `/api/v1/deal-health/alerts/{id}/nudge` | `AlertNudgeEscalationEngine` | SalesManager, SalesRep | Audit + Notification Write |
+| `POST` | `/api/quotations/{id}/lines` | `MarginCalculationEngine`, `DiscountGovernanceEngine` | SalesRep, SalesManager | Atomic UnitOfWork |
+| `POST` | `/api/quotations/{id}/recalculate` | `MarginCalculationEngine`, `DiscountGovernanceEngine`, `BlendedDiscountRiskEngine` | SalesRep, SalesManager | Read-Only / In-Memory |
+| `POST` | `/api/quotations/{id}/submit-approval`| `ApprovalRoutingEngine`, `BlendedDiscountRiskEngine` | SalesRep | Serializable Transaction |
+| `GET` | `/api/approvals/pending` | `ApprovalRoutingEngine` | SalesManager, FinanceOperations | Read-Only Dapper |
+| `POST` | `/api/approvals/{id}/approve` | `ApprovalRoutingEngine` | Current Step Assignee | RepeatableRead Transaction |
+| `POST` | `/api/approvals/{id}/reject` | `ApprovalRoutingEngine` | Current Step Assignee | RepeatableRead Transaction |
+| `POST` | `/api/approvals/{id}/return` | `ApprovalRoutingEngine` | Current Step Assignee | RepeatableRead Transaction |
+| `GET` | `/api/quotations/{id}/recommendations`| `UpsellCrossSellEngine` | SalesRep, SalesManager | Read-Only In-Memory Score |
+| `POST` | `/api/quotations/{id}/recommendations/{pId}/accept`| `UpsellCrossSellEngine`, `MarginCalculationEngine` | SalesRep | Atomic UnitOfWork |
+| `POST` | `/api/quotations/{id}/confirm-order` | `ApprovalRoutingEngine`, `WarehouseAllocationEngine`, `HybridBillingEngine` | SalesRep, SalesManager | Distributed ACID Transaction |
+| `GET` | `/api/orders/{id}/fulfillment-preview`| `WarehouseAllocationEngine` | FinanceOperations, Manager | Read-Only Allocation Preview |
+| `POST` | `/api/orders/{id}/fulfillment/accept` | `WarehouseAllocationEngine`, `FulfillmentEngine` | FinanceOperations | Serializable Stock Lock |
+| `PUT` | `/api/orders/{id}/fulfillment/override`| `WarehouseAllocationEngine`, `FulfillmentEngine` | FinanceOperations | Serializable Stock Lock |
+| `POST` | `/api/orders/{id}/backorders/consolidate`| `BackorderConsolidationEngine`, `FulfillmentEngine` | FinanceOperations | RepeatableRead Transaction |
+| `POST` | `/api/orders/{id}/billing/generate` | `HybridBillingEngine` | FinanceOperations | Atomic Ledger Commit |
+| `POST` | `/api/subscriptions/{id}/change` | `SubscriptionEngine` (Proration) | FinanceOperations | Atomic Ledger Commit |
+| `POST` | `/api/subscriptions/{id}/cancel` | `SubscriptionEngine` | FinanceOperations | Atomic Ledger Commit |
+| `POST` | `/api/portal/quotations/{id}/counter-discount`| `CustomerNegotiationEngine`, `DiscountGovernanceEngine`, `BlendedDiscountRiskEngine` | Portal Customer | Serializable Transaction |
+| `POST` | `/api/portal/quotations/{id}/confirm` | `CustomerNegotiationEngine` | Portal Customer | Serializable Transaction |
+| `GET` | `/api/dashboard/deal-health` | `DealHealthEngine` | All Internal Users | Read-Only Dapper Query |
+| `POST` | `/api/deal-health/alerts/{id}/nudge` | `AlertNudgeEscalationEngine` | SalesManager, SalesRep | Audit + Notification Write |
 
 ---
 
@@ -1455,7 +1455,7 @@ Financial calculations adhere to strict non-negotiable rules:
 ## 24. Security & Role Segregation (Zero-Leak Boundary)
 
 1. **Strict Customer Portal Partitioning**:
-   Customer Portal endpoints (`/api/v1/portal/*`) consume dedicated `CustomerQuoteDto` instances. Under no circumstances are internal domain entities serialized directly to portal clients.
+   Customer Portal endpoints (`/api/portal/*`) consume dedicated `CustomerQuoteDto` instances. Under no circumstances are internal domain entities serialized directly to portal clients.
    - **Filtered Fields**: `CostPrice`, `StandardCost`, `GrossProfit`, `GrossMarginPercentage`, `RiskScore`, `ApprovalRuleSteps`, `InternalRemarks`, `WarehouseDepots`.
 2. **Segregation of Duties**:
    - `SalesRep`: Cannot approve any quote.

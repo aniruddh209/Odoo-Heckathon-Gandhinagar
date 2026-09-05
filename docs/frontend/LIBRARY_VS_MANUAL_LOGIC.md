@@ -146,7 +146,7 @@ We implemented a centralized, native `fetch` client in [`src/api/apiClient.js`](
 
 ```javascript
 // src/api/apiClient.js
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 class ApiClient {
   constructor(baseURL = BASE_URL) {

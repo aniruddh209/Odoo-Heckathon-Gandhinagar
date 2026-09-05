@@ -356,14 +356,14 @@ frontend/
 
 | PDF Requirement ID | User Role | Screen ID | Primary UI Component | API Endpoint Triggered |
 | :--- | :--- | :--- | :--- | :--- |
-| **REQ-OVR-01** | Sales Rep | SCR-05 | `CartSummaryBar.tsx` | `POST /api/v1/quotations/{id}/lines` |
-| **REQ-OVR-02** | Sales Rep | SCR-06 | `UpsellDrawer.tsx` | `GET /api/v1/quotations/{id}/upsell-recommendations` |
-| **REQ-OVR-03** | Finance / Ops | SCR-08 | `SplitAllocationCard.tsx` | `GET /api/v1/quotations/{id}/fulfillment-split` |
-| **REQ-OVR-04** | Finance User | SCR-09 | `SubscriptionTable.tsx` | `GET /api/v1/quotations/{id}/billing-schedule` |
-| **REQ-OVR-05** | Sales Manager | SCR-11 | `StalledDealsFeed.tsx` | `GET /api/v1/deal-health/summary` |
-| **REQ-OVR-06** | Customer | SCR-10 | `CustomerQuoteView.tsx` | `GET /api/v1/portal/quote/{token}` |
-| **REQ-DISC-03** | Sales Manager | SCR-07 | `ApprovalStepper.tsx` | `POST /api/v1/quotations/{id}/approvals/action` |
-| **REQ-PORT-02** | Customer | SCR-10 | `CounterDiscountBar.tsx` | `POST /api/v1/portal/quote/{token}/negotiate` |
+| **REQ-OVR-01** | Sales Rep | SCR-05 | `CartSummaryBar.tsx` | `POST /api/quotations/{id}/lines` |
+| **REQ-OVR-02** | Sales Rep | SCR-06 | `UpsellDrawer.tsx` | `GET /api/quotations/{id}/upsell-recommendations` |
+| **REQ-OVR-03** | Finance / Ops | SCR-08 | `SplitAllocationCard.tsx` | `GET /api/quotations/{id}/fulfillment-split` |
+| **REQ-OVR-04** | Finance User | SCR-09 | `SubscriptionTable.tsx` | `GET /api/quotations/{id}/billing-schedule` |
+| **REQ-OVR-05** | Sales Manager | SCR-11 | `StalledDealsFeed.tsx` | `GET /api/deal-health/summary` |
+| **REQ-OVR-06** | Customer | SCR-10 | `CustomerQuoteView.tsx` | `GET /api/portal/quote/{token}` |
+| **REQ-DISC-03** | Sales Manager | SCR-07 | `ApprovalStepper.tsx` | `POST /api/quotations/{id}/approvals/action` |
+| **REQ-PORT-02** | Customer | SCR-10 | `CounterDiscountBar.tsx` | `POST /api/portal/quote/{token}/negotiate` |
 | **REQ-TEST-01** | All Roles | SCR-01..10 | Complete Component Flow | 8-Step Quick Test Flow End-to-End |
 
 ---

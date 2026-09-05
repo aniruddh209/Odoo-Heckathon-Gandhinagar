@@ -11,7 +11,7 @@
 | **System Name** | DealFlow360: Intelligent, Self-Governing Sales Operations Platform |
 | **Target Runtime** | ASP.NET Core (.NET 9/8) Web API / Microsoft SQL Server |
 | **Client Consumer** | Pure React + Vanilla JavaScript (`.jsx` / `.js`) — Zero TypeScript |
-| **Base URLs** | Primary Versioned: `https://{host}/api/v1`<br>Shorthand Alias: `https://{host}/api` |
+| **Base URL** | https://{host}/api (Standard unversioned convention) |
 | **Status** | LOCKED PRODUCTION API CONTRACT / SINGLE SOURCE OF TRUTH |
 | **Companion Specs** | `DealFlow360.pdf`, `DealFlow360_ASPNet_SQLServer_React_Complete_Implementation_Spec.pdf`, `docs/backend/ENGINE_LOGIC_MASTER_SPEC.md` |
 | **Last Updated** | 2026-09-05 |
@@ -24,7 +24,7 @@
 DealFlow360 enforces strict **Server Authority**. The React frontend is exclusively a presentation and interaction layer:
 - **Zero Client Trust**: Totals, taxes, gross margin %, discount overages, blended risk scores (0–100), multi-warehouse splits, proration math, and deal health penalties are computed exclusively on the server.
 - **No Mock APIs or Fake Storage**: The client makes real HTTP requests via standard `window.fetch`. No fake `localStorage` repositories or client mock adapters are permitted.
-- **Dual-Route Compatibility**: All endpoints are accessible via both the versioned prefix `/api/v1/*` and the implementation specification shorthand `/api/*`.
+- **Standard Unversioned Routing**: All endpoints strictly follow the standard unversioned /api/* routing convention matching the ASP.NET Core backend controllers.
 
 ### 1.2 Unified JSON Response Envelope
 Every API endpoint returns a predictable, standardized envelope:
@@ -75,7 +75,7 @@ DealFlow360 distinguishes between two physically separated identity contexts:
 ### 2.2 Token Lifecycle & Flow
 ```text
 [Internal User Login]
-  │ POST /api/v1/auth/login { email, password }
+  │ POST /api/auth/login { email, password }
   ▼
 ASP.NET Core AuthService
   │ Validates PBKDF2 Password Hash
@@ -83,7 +83,7 @@ ASP.NET Core AuthService
   ▼
 React Client (AuthContext)
   │ Stores token in localStorage ('dealflow_jwt_token')
-  │ Invokes GET /api/v1/auth/me to verify claims
+  │ Invokes GET /api/auth/me to verify claims
   ▼
 Subsequent API Requests
   │ apiClient automatically injects 'Authorization: Bearer ...'
@@ -125,7 +125,7 @@ Subsequent API Requests
 
 #### 1.1 Staff Authentication Login
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/auth/login` (Alias: `/api/auth/login`)
+- **Route**: `/api/auth/login` (Alias: `/api/auth/login`)
 - **Auth**: Public (Anonymous)
 - **Role**: All Internal Staff
 - **Ownership Rule**: None (credentials verify identity).
@@ -164,7 +164,7 @@ Subsequent API Requests
 
 #### 1.2 Staff Registration
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/auth/signup` (Alias: `/api/auth/signup`)
+- **Route**: `/api/auth/signup` (Alias: `/api/auth/signup`)
 - **Auth**: Public (Hackathon mode enabled)
 - **Role**: SalesRep
 - **Purpose**: Self-service onboarding for new sales representatives.
@@ -184,7 +184,7 @@ Subsequent API Requests
 
 #### 1.3 Get Current Profile
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/auth/me` (Alias: `/api/auth/me`)
+- **Route**: `/api/auth/me` (Alias: `/api/auth/me`)
 - **Auth**: Authenticated Internal
 - **Purpose**: Validates active session token and hydrates current user context upon browser refresh.
 - **Response Body (`HTTP 200 OK`)**: `{ "id": 101, "name": "Sarah Rep", "role": "SalesRep", ... }`
@@ -197,7 +197,7 @@ Subsequent API Requests
 
 #### 2.1 List Customers
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/customers` (Alias: `/api/customers`)
+- **Route**: `/api/customers` (Alias: `/api/customers`)
 - **Auth**: Authenticated Internal
 - **Query Parameters**: `search` (string), `tierId` (int), `page` (int), `pageSize` (int).
 - **Response Body (`HTTP 200 OK`)**:
@@ -231,7 +231,7 @@ Subsequent API Requests
 
 #### 2.2 Customer Credit Status Check
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/customers/{id}/credit-status` (Alias: `/api/customers/{id}/credit-status`)
+- **Route**: `/api/customers/{id}/credit-status` (Alias: `/api/customers/{id}/credit-status`)
 - **Path Parameters**: `id` (int, CustomerId)
 - **Purpose**: Retrieves credit limit, available credit balance, and hold status to prevent quoting bad-debt accounts.
 - **Response Body (`HTTP 200 OK`)**:
@@ -252,7 +252,7 @@ Subsequent API Requests
 
 #### 3.1 Get System Configurations
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/admin/config` (Alias: `/api/admin/config`)
+- **Route**: `/api/admin/config` (Alias: `/api/admin/config`)
 - **Role**: Admin, SalesManager
 - **Purpose**: Retrieves global governance variables (Target Gross Margin, default SLA hours, currency settings).
 - **Response Body (`HTTP 200 OK`)**:
@@ -275,7 +275,7 @@ Subsequent API Requests
 
 #### 4.1 Search & Filter Products
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/products` (Alias: `/api/products`)
+- **Route**: `/api/products` (Alias: `/api/products`)
 - **Auth**: Authenticated Internal
 - **Query Parameters**: `search` (string), `categoryId` (int), `productType` (`OneTime`, `Subscription`), `page`, `pageSize`.
 - **Response Body (`HTTP 200 OK`)**:
@@ -304,7 +304,7 @@ Subsequent API Requests
 
 #### 4.2 Get Product Variants
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/products/{id}/variants` (Alias: `/api/products/{id}/variants`)
+- **Route**: `/api/products/{id}/variants` (Alias: `/api/products/{id}/variants`)
 - **Purpose**: Retrieves SKU variants (e.g. 16GB RAM vs 32GB RAM, 1-pack vs 5-pack) with price/cost deltas.
 - **Response Body (`HTTP 200 OK`)**:
   ```json
@@ -330,7 +330,7 @@ Subsequent API Requests
 
 #### 5.1 List Price Lists
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/pricing/pricelists` (Alias: `/api/price-lists`)
+- **Route**: `/api/pricing/pricelists` (Alias: `/api/price-lists`)
 - **Purpose**: Fetches pricing catalogs mapped to currencies and customer tiers.
 - **Database Entities**: `PriceLists`, `PriceListItems`
 - **Frontend Screen**: `QuotationBuilderPage.jsx`, `AdminPricingPage.jsx`
@@ -342,7 +342,7 @@ Subsequent API Requests
 
 #### 6.1 Get Category Discount Limits
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/admin/discount-matrix` (Alias: `/api/discount-rules`)
+- **Route**: `/api/admin/discount-matrix` (Alias: `/api/discount-rules`)
 - **Role**: SalesManager, FinanceOperations, Admin
 - **Purpose**: Returns category-specific discount ceilings and rep discretion maximums.
 - **Response Body (`HTTP 200 OK`)**:
@@ -360,7 +360,7 @@ Subsequent API Requests
 
 #### 6.2 Update Category Discount Limit
 - **HTTP Method**: `PUT`
-- **Route**: `/api/v1/admin/discount-matrix/{id}` (Alias: `/api/discount-rules/{id}`)
+- **Route**: `/api/admin/discount-matrix/{id}` (Alias: `/api/discount-rules/{id}`)
 - **Role**: Admin, SalesManager
 - **Request Body**: `{ "maxRepDiscount": 12.50 }`
 - **Status**: ✅ VERIFIED
@@ -371,7 +371,7 @@ Subsequent API Requests
 
 #### 7.1 Pending Approvals Queue
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/approvals/pending` (Alias: `/api/approvals/pending`)
+- **Route**: `/api/approvals/pending` (Alias: `/api/approvals/pending`)
 - **Role**: SalesManager, FinanceOperations, Admin
 - **Ownership Rule**: Returns items where current user's role matches the pending step role.
 - **Response Body (`HTTP 200 OK`)**:
@@ -400,7 +400,7 @@ Subsequent API Requests
 
 #### 7.2 Approval Request Detail
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/approvals/{id}` (Alias: `/api/approvals/{id}`)
+- **Route**: `/api/approvals/{id}` (Alias: `/api/approvals/{id}`)
 - **Path Parameters**: `id` (int, ApprovalRequestId)
 - **Response Body (`HTTP 200 OK`)**: Includes quotation details, full violation breakdown, margin deficit, and audit history.
 - **Frontend Screen**: `ApprovalDetailPage.jsx`
@@ -408,7 +408,7 @@ Subsequent API Requests
 
 #### 7.3 Approve Step
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/approvals/{id}/approve` (Alias: `/api/approvals/{id}/approve`)
+- **Route**: `/api/approvals/{id}/approve` (Alias: `/api/approvals/{id}/approve`)
 - **Role**: Current Step Assignee
 - **Request Body**:
   ```json
@@ -423,7 +423,7 @@ Subsequent API Requests
 
 #### 7.4 Reject Quotation
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/approvals/{id}/reject` (Alias: `/api/approvals/{id}/reject`)
+- **Route**: `/api/approvals/{id}/reject` (Alias: `/api/approvals/{id}/reject`)
 - **Role**: Current Step Assignee
 - **Request Body**:
   ```json
@@ -437,7 +437,7 @@ Subsequent API Requests
 
 #### 7.5 Return for Revision
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/approvals/{id}/return` (Alias: `/api/approvals/{id}/return`)
+- **Route**: `/api/approvals/{id}/return` (Alias: `/api/approvals/{id}/return`)
 - **Role**: Current Step Assignee
 - **Request Body**: `{ "remarks": "Cap service discount to 12% and re-submit." }`
 - **State Transition**: `Quotation.Status = RevisionRequired`.
@@ -449,7 +449,7 @@ Subsequent API Requests
 
 #### 8.1 List Quotations / Pipeline
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/quotations` (Alias: `/api/quotations`)
+- **Route**: `/api/quotations` (Alias: `/api/quotations`)
 - **Auth**: Authenticated Internal
 - **Query Parameters**: `status`, `customerId`, `salesRepId`, `search`, `page`, `pageSize`.
 - **Response Body (`HTTP 200 OK`)**:
@@ -475,7 +475,7 @@ Subsequent API Requests
 
 #### 8.2 Create Quotation Header
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations` (Alias: `/api/quotations`)
+- **Route**: `/api/quotations` (Alias: `/api/quotations`)
 - **Role**: SalesRep, SalesManager, Admin
 - **Request Body**:
   ```json
@@ -494,14 +494,14 @@ Subsequent API Requests
 
 #### 8.3 Get Quotation Detail
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/quotations/{id}` (Alias: `/api/quotations/{id}`)
+- **Route**: `/api/quotations/{id}` (Alias: `/api/quotations/{id}`)
 - **Response Body (`HTTP 200 OK`)**: Comprehensive deal object including lines, line margin amounts, line discount limits, risk scores, and approval steps.
 - **Frontend Screen**: `QuotationBuilderPage.jsx`
 - **Status**: ✅ VERIFIED
 
 #### 8.4 Add Quotation Line
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations/{id}/lines` (Alias: `/api/quotations/{id}/lines`)
+- **Route**: `/api/quotations/{id}/lines` (Alias: `/api/quotations/{id}/lines`)
 - **Request Body**:
   ```json
   {
@@ -519,7 +519,7 @@ Subsequent API Requests
 
 #### 8.5 Update Quotation Line
 - **HTTP Method**: `PUT`
-- **Route**: `/api/v1/quotations/{id}/lines/{lineId}` (Alias: `/api/quotations/{id}/lines/{lineId}`)
+- **Route**: `/api/quotations/{id}/lines/{lineId}` (Alias: `/api/quotations/{id}/lines/{lineId}`)
 - **Request Body**:
   ```json
   {
@@ -532,13 +532,13 @@ Subsequent API Requests
 
 #### 8.6 Delete Quotation Line
 - **HTTP Method**: `DELETE`
-- **Route**: `/api/v1/quotations/{id}/lines/{lineId}` (Alias: `/api/quotations/{id}/lines/{lineId}`)
+- **Route**: `/api/quotations/{id}/lines/{lineId}` (Alias: `/api/quotations/{id}/lines/{lineId}`)
 - **Response Body (`HTTP 200 OK`)**: Updated `QuotationDto`.
 - **Status**: ✅ VERIFIED
 
 #### 8.7 Authoritative Server Recalculation
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations/{id}/recalculate` (Alias: `/api/quotations/{id}/recalculate`)
+- **Route**: `/api/quotations/{id}/recalculate` (Alias: `/api/quotations/{id}/recalculate`)
 - **Purpose**: Authoritatively recalculates all financial totals, taxes, gross profits, category ceilings, and 0–100 risk score without modifying lines.
 - **Response Body (`HTTP 200 OK`)**:
   ```json
@@ -565,7 +565,7 @@ Subsequent API Requests
 
 #### 8.8 Submit for Approval
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations/{id}/submit` (Alias: `/api/quotations/{id}/submit`)
+- **Route**: `/api/quotations/{id}/submit` (Alias: `/api/quotations/{id}/submit`)
 - **Purpose**: Initiates governance workflow. If Risk Score $< 30$, transitions quote directly to `Approved`. If $\ge 30$, creates `ApprovalRequest` steps and sets `PendingApproval`.
 - **Business Engine**: `ApprovalRoutingEngine`
 - **Frontend Screen**: `QuoteActionToolbar.jsx`
@@ -573,7 +573,7 @@ Subsequent API Requests
 
 #### 8.9 Send to Customer Portal
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations/{id}/send-to-customer` (Alias: `/api/quotations/{id}/send-portal`)
+- **Route**: `/api/quotations/{id}/send-to-customer` (Alias: `/api/quotations/{id}/send-portal`)
 - **Role**: SalesRep, SalesManager
 - **Requirement**: Quotation status MUST be `Approved`.
 - **State Transition**: `Quotation.Status = Sent`. Generates portal access magic-link token.
@@ -581,7 +581,7 @@ Subsequent API Requests
 
 #### 8.10 Clone Quotation
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations/{id}/clone` (Alias: `/api/quotations/{id}/clone`)
+- **Route**: `/api/quotations/{id}/clone` (Alias: `/api/quotations/{id}/clone`)
 - **Purpose**: Deep clones an existing quote into a new `Draft` quote with fresh versioning.
 - **Status**: ✅ VERIFIED
 
@@ -591,7 +591,7 @@ Subsequent API Requests
 
 #### 9.1 Get Live Recommendations
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/quotations/{id}/recommendations` (Alias: `/api/quotations/{id}/recommendations`)
+- **Route**: `/api/quotations/{id}/recommendations` (Alias: `/api/quotations/{id}/recommendations`)
 - **Purpose**: Computes real-time deterministic recommendations (top 5) with live gross margin delta.
 - **Response Body (`HTTP 200 OK`)**:
   ```json
@@ -617,7 +617,7 @@ Subsequent API Requests
 
 #### 9.2 Accept Recommendation
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations/{id}/recommendations/{productId}/accept` (Alias: `/api/quotations/{id}/recommendations/{productId}/accept`)
+- **Route**: `/api/quotations/{id}/recommendations/{productId}/accept` (Alias: `/api/quotations/{id}/recommendations/{productId}/accept`)
 - **Purpose**: Appends suggested item to quotation cart and triggers automatic recalculation.
 - **Status**: ✅ VERIFIED
 
@@ -627,7 +627,7 @@ Subsequent API Requests
 
 #### 10.1 Multi-Warehouse Split Recommendation Preview
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/fulfillment/split-recommendation/{orderId}` (Alias: `/api/orders/{id}/fulfillment-preview`)
+- **Route**: `/api/fulfillment/split-recommendation/{orderId}` (Alias: `/api/orders/{id}/fulfillment-preview`)
 - **Role**: FinanceOperations, InventoryManager, Admin
 - **Purpose**: Runs greedy optimization algorithm across active warehouses to minimize delivery hops and shipping costs.
 - **Response Body (`HTTP 200 OK`)**:
@@ -665,7 +665,7 @@ Subsequent API Requests
 
 #### 10.2 Accept Fulfillment Split
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/fulfillment/apply-split` (Alias: `/api/orders/{id}/fulfillment/accept`)
+- **Route**: `/api/fulfillment/apply-split` (Alias: `/api/orders/{id}/fulfillment/accept`)
 - **Role**: FinanceOperations, Admin
 - **Purpose**: Commits allocations, locks stock (`ReservedQuantity += Q`), and creates `DeliveryOrder` records.
 - **Business Engine**: `FulfillmentEngine`
@@ -673,7 +673,7 @@ Subsequent API Requests
 
 #### 10.3 Manual Allocation Override
 - **HTTP Method**: `POST` / `PUT`
-- **Route**: `/api/v1/fulfillment/override-allocation` (Alias: `/api/orders/{id}/fulfillment/override`)
+- **Route**: `/api/fulfillment/override-allocation` (Alias: `/api/orders/{id}/fulfillment/override`)
 - **Request Body**:
   ```json
   {
@@ -690,7 +690,7 @@ Subsequent API Requests
 
 #### 10.4 Dispatch Shipment
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/fulfillment/delivery-orders/{id}/ship`
+- **Route**: `/api/fulfillment/delivery-orders/{id}/ship`
 - **Request Body**: `{ "carrierName": "FedEx", "trackingNumber": "1Z9999999999999999" }`
 - **Engine Trigger**: `FulfillmentEngine` (deducts physical stock from `OnHandQuantity` and releases `ReservedQuantity`).
 - **Status**: ✅ VERIFIED
@@ -701,14 +701,14 @@ Subsequent API Requests
 
 #### 11.1 List Warehouses
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/admin/warehouses` (Alias: `/api/warehouses`)
+- **Route**: `/api/admin/warehouses` (Alias: `/api/warehouses`)
 - **Response Body (`HTTP 200 OK`)**: List of depots with shipping cost weights and priority rankings.
 - **Frontend Screen**: `AdminWarehousesPage.jsx`
 - **Status**: ✅ VERIFIED
 
 #### 11.2 Warehouse Stock Levels
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/admin/warehouses/{id}/stock` (Alias: `/api/warehouses/{id}/stock`)
+- **Route**: `/api/admin/warehouses/{id}/stock` (Alias: `/api/warehouses/{id}/stock`)
 - **Response Body (`HTTP 200 OK`)**: Lists `OnHand`, `ReservedQuantity`, and `AvailableStock`.
 - **Status**: ✅ VERIFIED
 
@@ -718,7 +718,7 @@ Subsequent API Requests
 
 #### 12.1 Convert Quotation to Commercial Order
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/quotations/{id}/confirm-order` (Alias: `/api/quotations/{id}/confirm-order`)
+- **Route**: `/api/quotations/{id}/confirm-order` (Alias: `/api/quotations/{id}/confirm-order`)
 - **Role**: SalesRep, SalesManager, FinanceOperations
 - **Constraint**: Quotation status MUST be `Approved` or `Confirmed`.
 - **State Transition**: `Quotation.Status = ConvertedToOrder`. Spawns `Order` and `OrderLines` snapshots.
@@ -728,7 +728,7 @@ Subsequent API Requests
 
 #### 12.2 Get Order Detail
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/orders/{id}` (Alias: `/api/orders/{id}`)
+- **Route**: `/api/orders/{id}` (Alias: `/api/orders/{id}`)
 - **Status**: ✅ VERIFIED
 
 ---
@@ -737,7 +737,7 @@ Subsequent API Requests
 
 #### 13.1 Get Order Billing Overview
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/billing/invoices/quotation/{orderId}` (Alias: `/api/orders/{id}/billing`)
+- **Route**: `/api/billing/invoices/quotation/{orderId}` (Alias: `/api/orders/{id}/billing`)
 - **Purpose**: Displays segregated one-time invoices and recurring subscription contracts for the order.
 - **Business Engine**: `HybridBillingEngine`
 - **Frontend Screen**: `BillingPage.jsx`
@@ -745,7 +745,7 @@ Subsequent API Requests
 
 #### 13.2 Generate Invoices for Order
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/billing/invoices/generate/{orderId}` (Alias: `/api/orders/{id}/billing/generate`)
+- **Route**: `/api/billing/invoices/generate/{orderId}` (Alias: `/api/orders/{id}/billing/generate`)
 - **Role**: FinanceOperations
 - **Purpose**: Generates commercial invoice for one-time physical lines and establishes billing contracts for subscription lines.
 - **Response Body (`HTTP 201 Created`)**:
@@ -770,7 +770,7 @@ Subsequent API Requests
 
 #### 14.1 Record Invoice Payment
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/billing/invoices/{id}/payment` (Alias: `/api/invoices/{id}/payments`)
+- **Route**: `/api/billing/invoices/{id}/payment` (Alias: `/api/invoices/{id}/payments`)
 - **Role**: FinanceOperations
 - **Request Body**:
   ```json
@@ -792,14 +792,14 @@ Subsequent API Requests
 
 #### 15.1 Get Subscription Billing Schedule
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/billing/subscriptions/{id}/schedule` (Alias: `/api/billing-schedules`)
+- **Route**: `/api/billing/subscriptions/{id}/schedule` (Alias: `/api/billing-schedules`)
 - **Response Body (`HTTP 200 OK`)**: List of 12 monthly scheduled milestones with billing amounts and status (`Scheduled`, `Billed`, `Paid`).
 - **Frontend Screen**: `SubscriptionSchedule.jsx`
 - **Status**: ✅ VERIFIED
 
 #### 15.2 Mid-Cycle Seat Change / Tier Upgrade (Proration)
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/billing/subscriptions/{id}/change-tier` (Alias: `/api/subscriptions/{id}/change`)
+- **Route**: `/api/billing/subscriptions/{id}/change-tier` (Alias: `/api/subscriptions/{id}/change`)
 - **Role**: FinanceOperations
 - **Request Body**:
   ```json
@@ -831,7 +831,7 @@ Subsequent API Requests
 
 #### 16.1 Customer Portal Login
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/portal/auth/login` (Alias: `/api/portal/auth/login`)
+- **Route**: `/api/portal/auth/login` (Alias: `/api/portal/auth/login`)
 - **Auth**: Public / Customer Credentials
 - **Request Body**: `{ "email": "buyer@acme.com", "accessCode": "ACME-PASS" }`
 - **Response Body (`HTTP 200 OK`)**: Returns scoped `dealflow_portal_token`.
@@ -840,7 +840,7 @@ Subsequent API Requests
 
 #### 16.2 Customer View Quotation Detail
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/portal/quotations/{id}` (Alias: `/api/portal/quotations/{id}`)
+- **Route**: `/api/portal/quotations/{id}` (Alias: `/api/portal/quotations/{id}`)
 - **Auth**: Authenticated Customer Token
 - **Ownership Rule**: Token `CustomerId` must match `Quotation.CustomerId`.
 - **Data Protection Guarantee**: Response explicitly strips `StandardCost`, `GrossProfit`, `GrossMarginPercent`, `BlendedRiskScore`, and internal rep notes.
@@ -871,14 +871,14 @@ Subsequent API Requests
 
 #### 16.3 Submit Line Negotiation Inquiries
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/portal/lines/{lineId}/comments` (Alias: `/api/portal/quotations/{id}/line-requests`)
+- **Route**: `/api/portal/lines/{lineId}/comments` (Alias: `/api/portal/quotations/{id}/line-requests`)
 - **Request Body**: `{ "comment": "Can we get 3-year warranty included on this hardware line?" }`
 - **Frontend Screen**: `LineNegotiationDrawer.jsx`
 - **Status**: ✅ VERIFIED
 
 #### 16.4 Submit Counter-Discount Proposal
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/portal/quotations/{id}/counter-discount` (Alias: `/api/portal/quotations/{id}/counter-discount`)
+- **Route**: `/api/portal/quotations/{id}/counter-discount` (Alias: `/api/portal/quotations/{id}/counter-discount`)
 - **Request Body**:
   ```json
   {
@@ -894,7 +894,7 @@ Subsequent API Requests
 
 #### 16.5 One-Click Proposal Acceptance
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/portal/quotations/{id}/accept` (Alias: `/api/portal/quotations/{id}/confirm`)
+- **Route**: `/api/portal/quotations/{id}/accept` (Alias: `/api/portal/quotations/{id}/confirm`)
 - **Request Body**:
   ```json
   {
@@ -913,7 +913,7 @@ Subsequent API Requests
 
 #### 17.1 Deal Health Dashboard Overview
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/health/dashboard` (Alias: `/api/dashboard/deal-health`)
+- **Route**: `/api/health/dashboard` (Alias: `/api/dashboard/deal-health`)
 - **Role**: All Internal Staff
 - **Response Body (`HTTP 200 OK`)**:
   ```json
@@ -931,7 +931,7 @@ Subsequent API Requests
 
 #### 17.2 List Stalled Deals
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/health/stalled-deals` (Alias: `/api/deal-health/stalled-deals`)
+- **Route**: `/api/health/stalled-deals` (Alias: `/api/deal-health/stalled-deals`)
 - **Query Parameters**: `daysThreshold` (int, default 5)
 - **Response Body (`HTTP 200 OK`)**: Deals inactive for $> 5$ business days with days stalled counter.
 - **Frontend Screen**: `StalledDealsFeed.jsx`
@@ -939,7 +939,7 @@ Subsequent API Requests
 
 #### 17.3 Nudge Sales Rep
 - **HTTP Method**: `POST`
-- **Route**: `/api/v1/health/nudge-rep` (Alias: `/api/deal-health/alerts/{id}/nudge`)
+- **Route**: `/api/health/nudge-rep` (Alias: `/api/deal-health/alerts/{id}/nudge`)
 - **Role**: SalesManager, Admin
 - **Request Body**: `{ "quotationId": 1042, "notes": "Customer hasn't opened portal in 6 days. Call buyer." }`
 - **Business Engine**: `AlertNudgeEscalationEngine`
@@ -952,7 +952,7 @@ Subsequent API Requests
 
 #### 18.1 Pipeline Velocity Report
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/reports/pipeline-velocity` (Alias: `/api/reports/pipeline-velocity`)
+- **Route**: `/api/reports/pipeline-velocity` (Alias: `/api/reports/pipeline-velocity`)
 - **Role**: SalesManager, Admin
 - **Query Parameters**: `startDate`, `endDate`, `salesTeamId`
 - **Response Body (`HTTP 200 OK`)**: Average days in stage (`Draft` $\to$ `Approved` $\to$ `Confirmed`) and win rates.
@@ -961,7 +961,7 @@ Subsequent API Requests
 
 #### 18.2 Margin Leakage Report
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/reports/margin-leakage` (Alias: `/api/reports/margin-leakage`)
+- **Route**: `/api/reports/margin-leakage` (Alias: `/api/reports/margin-leakage`)
 - **Role**: FinanceOperations, Admin
 - **Purpose**: Identifies total discount concessions versus target 30% margin by product category and sales team.
 - **Frontend Screen**: `ReportsPage.jsx`
@@ -973,7 +973,7 @@ Subsequent API Requests
 
 #### 19.1 Quotation Audit History
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/quotations/{id}/audit` (Alias: `/api/quotations/{id}/audit`)
+- **Route**: `/api/quotations/{id}/audit` (Alias: `/api/quotations/{id}/audit`)
 - **Purpose**: Full chronological ledger of discount changes, recalculations, approvals, rejections, and portal counter-offers with user ID and timestamp.
 - **Database Entities**: `AuditLogs`
 - **Frontend Screen**: `QuotationBuilderPage.jsx`
@@ -985,7 +985,7 @@ Subsequent API Requests
 
 #### 20.1 User In-App Notifications
 - **HTTP Method**: `GET`
-- **Route**: `/api/v1/notifications`
+- **Route**: `/api/notifications`
 - **Purpose**: List of unread approval requests, nudges, and negotiation counter-proposals.
 - **Frontend Screen**: `TopNav.jsx` (Notification bell)
 - **Status**: ✅ VERIFIED
@@ -1001,7 +1001,7 @@ User adjusts Discount from 10% to 18% on Setup Service in LineItemsTable.jsx
   │
   ▼
 quotationApi.updateLine(quoteId, lineId, { quantity: 2, discountPercentage: 18.00 })
-  │ HTTP PUT /api/v1/quotations/{id}/lines/{lineId}
+  │ HTTP PUT /api/quotations/{id}/lines/{lineId}
   ▼
 ASP.NET Core QuotationsController.UpdateLine()
   │ Validates Model & Authorization Claims
@@ -1064,7 +1064,7 @@ Every common enterprise library was audited and replaced with native vanilla Jav
 ## 7. Contract Validation Test & Sign-Off Checklist
 
 - [x] All 20 API modules inventoried with zero missing routes.
-- [x] Dual-route prefixes (`/api/v1/*` and `/api/*`) reconciled and documented.
+- [x] Dual-route prefixes (`/api/*` and `/api/*`) reconciled and documented.
 - [x] Request bodies strictly validated (no client-side invented fields).
 - [x] Standard envelope (`{ success, data, message, errors, traceId }`) confirmed.
 - [x] Zero-leak customer portal boundary guaranteed (costs, margins, and risk scores omitted).

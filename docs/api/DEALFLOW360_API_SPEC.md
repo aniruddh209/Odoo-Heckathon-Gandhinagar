@@ -8,7 +8,7 @@
 | :--- | :--- |
 | **Document Title** | Master API Architecture & Complete Contract Specification |
 | **System Name** | DealFlow360: Intelligent, Self-Governing Sales Operations Platform |
-| **API Version** | `v1` (`/api/v1`) |
+| **API Style** | RESTful JSON (/api) |
 | **Status** | Implementation-Ready Architecture Specification |
 | **Primary Source of Truth** | `DealFlow360.pdf` (13-Page Problem Statement) |
 | **Companion Document** | `docs/DEALFLOW360_MASTER_PRD.md` |
@@ -48,11 +48,11 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
                ▼                             ▼
 ┌──────────────────────────────┐ ┌───────────────────────────┐
 │ Internal Protected Endpoints │ │  Customer Portal Endpoints│
-│ • /api/v1/quotations         │ │  • /api/v1/portal/quote   │
-│ • /api/v1/approvals          │ │                           │
-│ • /api/v1/fulfillment        │ │  * Zero Cost/Margin Leak  │
-│ • /api/v1/deal-health        │ │  * Tenant Isolated        │
-│ • /api/v1/admin/config       │ │  * Cryptographic Tokens   │
+│ • /api/quotations         │ │  • /api/portal/quote   │
+│ • /api/approvals          │ │                           │
+│ • /api/fulfillment        │ │  * Zero Cost/Margin Leak  │
+│ • /api/deal-health        │ │  * Tenant Isolated        │
+│ • /api/admin/config       │ │  * Cryptographic Tokens   │
 └──────────────┬───────────────┘ └─────────────┬─────────────┘
                │                               │
                └──────────────┬────────────────┘
@@ -85,8 +85,8 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 ## 3. Communication Protocols & Standards
 
 ### 3.1 Base URLs & Versioning
-- **Base URL**: `https://{host}/api/v1`
-- **Versioning Strategy**: Path-based versioning (`/api/v1`). Breaking changes require incrementing the major version. Minor feature additions are backward-compatible.
+- **Base URL**: https://{host}/api
+- **Routing Strategy**: Direct route mapping (/api/*) matching standard ASP.NET Core controller routing without path version prefixes.
 
 ### 3.2 Standard Request & Response Headers
 - **Request Headers**:
@@ -179,18 +179,18 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 | API Resource Group | Sales Rep | Sales Manager | Finance / Ops | Customer Portal | Admin |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| `POST /api/v1/auth/login` | Public | Public | Public | Public | Public |
-| `GET /api/v1/quotations` | Own Deals | Team Deals | All Deals | **Forbidden** | All Deals |
-| `POST /api/v1/quotations` (Create) | Yes | Yes | Yes | **Forbidden** | Yes |
-| `PUT /api/v1/quotations/{id}/lines` | Yes | Yes | Yes | **Forbidden** | Yes |
-| `POST /api/v1/quotations/{id}/approvals/action` | **Forbidden** | Level 1 | Level 2 | **Forbidden** | Level 1 & 2 |
-| `GET /api/v1/quotations/{id}/upsell` | Yes | Yes | Yes | **Forbidden** | Yes |
-| `GET /api/v1/quotations/{id}/fulfillment` | View | View | Full / Override | **Forbidden** | Full |
-| `POST /api/v1/subscriptions/{id}/cancel` | **Forbidden** | View | Full / Credit Note | **Forbidden** | Full |
-| `GET /api/v1/portal/quote/{token}` | View (Proxy) | View (Proxy) | View (Proxy) | **Own Quote Only** | View |
-| `POST /api/v1/portal/quote/{token}/negotiate`| **Forbidden** | **Forbidden** | **Forbidden** | **Own Quote Only** | **Forbidden** |
-| `GET /api/v1/deal-health/summary` | Own Alerts | Team Alerts | All Alerts | **Forbidden** | All Alerts |
-| `GET /api/v1/reports/export` | Limited | Full | Full | **Forbidden** | Full |
+| `POST /api/auth/login` | Public | Public | Public | Public | Public |
+| `GET /api/quotations` | Own Deals | Team Deals | All Deals | **Forbidden** | All Deals |
+| `POST /api/quotations` (Create) | Yes | Yes | Yes | **Forbidden** | Yes |
+| `PUT /api/quotations/{id}/lines` | Yes | Yes | Yes | **Forbidden** | Yes |
+| `POST /api/quotations/{id}/approvals/action` | **Forbidden** | Level 1 | Level 2 | **Forbidden** | Level 1 & 2 |
+| `GET /api/quotations/{id}/upsell` | Yes | Yes | Yes | **Forbidden** | Yes |
+| `GET /api/quotations/{id}/fulfillment` | View | View | Full / Override | **Forbidden** | Full |
+| `POST /api/subscriptions/{id}/cancel` | **Forbidden** | View | Full / Credit Note | **Forbidden** | Full |
+| `GET /api/portal/quote/{token}` | View (Proxy) | View (Proxy) | View (Proxy) | **Own Quote Only** | View |
+| `POST /api/portal/quote/{token}/negotiate`| **Forbidden** | **Forbidden** | **Forbidden** | **Own Quote Only** | **Forbidden** |
+| `GET /api/deal-health/summary` | Own Alerts | Team Alerts | All Alerts | **Forbidden** | All Alerts |
+| `GET /api/reports/export` | Limited | Full | Full | **Forbidden** | Full |
 
 ---
 
@@ -198,7 +198,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.1 Authentication & Session Management
 
-#### Endpoint 1: `POST /api/v1/auth/login`
+#### Endpoint 1: `POST /api/auth/login`
 - **Purpose**: Authenticates internal users and issues signed JWT bearer token.
 - **Source Requirement**: `[PDF Page 3, 4]`, `REQ-AUTH-01`.
 - **Allowed Roles**: Public (Internal users).
@@ -228,7 +228,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 2: `POST /api/v1/auth/portal-auth`
+#### Endpoint 2: `POST /api/auth/portal-auth`
 - **Purpose**: Authenticates customer via magic-link token and issues customer portal session.
 - **Source Requirement**: `[PDF Page 4]`, `REQ-AUTH-02`.
 - **Allowed Roles**: Public / Customer.
@@ -256,7 +256,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.2 Products, Price Lists & Customer Tiers
 
-#### Endpoint 3: `GET /api/v1/products`
+#### Endpoint 3: `GET /api/products`
 - **Purpose**: Retrieves list of products with category, price list resolution, and stock status.
 - **Source Requirement**: `[PDF Page 4]`, `REQ-PROD-01`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `FINANCE`, `ADMIN`.
@@ -287,7 +287,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 4: `GET /api/v1/customer-tiers`
+#### Endpoint 4: `GET /api/customer-tiers`
 - **Purpose**: Returns configured customer tiers and their maximum discount ceilings.
 - **Source Requirement**: `[PDF Page 4, 12]`, `REQ-DISC-01`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `FINANCE`, `ADMIN`.
@@ -307,7 +307,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.3 Quotation Construction & Cart Operations
 
-#### Endpoint 5: `POST /api/v1/quotations`
+#### Endpoint 5: `POST /api/quotations`
 - **Purpose**: Creates a new draft quotation for a customer.
 - **Source Requirement**: `[PDF Page 6, 9]`, `REQ-OVR-01`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `ADMIN`.
@@ -342,7 +342,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 6: `POST /api/v1/quotations/{id}/lines`
+#### Endpoint 6: `POST /api/quotations/{id}/lines`
 - **Purpose**: Adds a product line to quotation and triggers real-time price, margin, and discount evaluation.
 - **Source Requirement**: `[PDF Page 6, 12]`, `REQ-OVR-01`, `REQ-DISC-04`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `ADMIN`.
@@ -394,7 +394,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 7: `PUT /api/v1/quotations/{id}/lines/{lineId}`
+#### Endpoint 7: `PUT /api/quotations/{id}/lines/{lineId}`
 - **Purpose**: Modifies quantity or discount on an existing line item with live recalculation.
 - **Source Requirement**: `[PDF Page 6, 12]`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `ADMIN`.
@@ -408,7 +408,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 - **Success Response (`200 OK`)**:
   - Returns updated line detail, recomputed order gross margin, and updated blended risk score.
 
-#### Endpoint 8: `DELETE /api/v1/quotations/{id}/lines/{lineId}`
+#### Endpoint 8: `DELETE /api/quotations/{id}/lines/{lineId}`
 - **Purpose**: Deletes line from quotation cart; recalculates all totals.
 - **Source Requirement**: `[PDF Page 6]`.
 - **Success Response (`200 OK`)**: Returns updated quotation summary.
@@ -417,7 +417,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.4 Discount Governance & Approval Workflow
 
-#### Endpoint 9: `POST /api/v1/quotations/{id}/evaluate-discount`
+#### Endpoint 9: `POST /api/quotations/{id}/evaluate-discount`
 - **Purpose**: Explicitly runs the Blended Discount Risk Algorithm and returns full violation breakdown.
 - **Source Requirement**: `[PDF Page 4, 11, 12]`, `REQ-DISC-04`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `FINANCE`, `ADMIN`.
@@ -457,7 +457,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 10: `POST /api/v1/quotations/{id}/submit-approval`
+#### Endpoint 10: `POST /api/quotations/{id}/submit-approval`
 - **Purpose**: Submits the quotation for management approval. Transitions state to `pending_approval`.
 - **Source Requirement**: `[PDF Page 6, 9, 11]`, `REQ-DISC-05`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `ADMIN`.
@@ -481,7 +481,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 11: `POST /api/v1/quotations/{id}/approvals/action`
+#### Endpoint 11: `POST /api/quotations/{id}/approvals/action`
 - **Purpose**: Approver executes `approve`, `reject`, or `request_revision` with mandatory audit remarks.
 - **Source Requirement**: `[PDF Page 6, 11]`, `REQ-DISC-06`.
 - **Allowed Roles**: `SALES_MANAGER`, `FINANCE`, `ADMIN`.
@@ -513,7 +513,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.5 Live Upsell & Cross-Sell Engine
 
-#### Endpoint 12: `GET /api/v1/quotations/{id}/upsell-recommendations`
+#### Endpoint 12: `GET /api/quotations/{id}/upsell-recommendations`
 - **Purpose**: Returns ranked product recommendations with live margin delta calculations.
 - **Source Requirement**: `[PDF Page 6, 7, 11]`, `REQ-UP-02`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `ADMIN`.
@@ -539,7 +539,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 13: `POST /api/v1/quotations/{id}/upsell-recommendations/accept`
+#### Endpoint 13: `POST /api/quotations/{id}/upsell-recommendations/accept`
 - **Purpose**: Accepts recommendation; appends item to quote lines and recomputes order gross margin immediately.
 - **Source Requirement**: `[PDF Page 7, 11]`, `REQ-UP-03`.
 - **Allowed Roles**: `SALES_REP`, `SALES_MANAGER`, `ADMIN`.
@@ -565,7 +565,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 14: `POST /api/v1/quotations/{id}/upsell-recommendations/dismiss`
+#### Endpoint 14: `POST /api/quotations/{id}/upsell-recommendations/dismiss`
 - **Purpose**: Dismisses suggestion from active session view.
 - **Source Requirement**: `[PDF Page 7]`.
 - **Success Response (`200 OK`)**: `{"success": true}`.
@@ -574,7 +574,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.6 Multi-Warehouse Inventory & Fulfillment
 
-#### Endpoint 15: `GET /api/v1/quotations/{id}/fulfillment-split`
+#### Endpoint 15: `GET /api/quotations/{id}/fulfillment-split`
 - **Purpose**: Calculates and returns the optimal multi-warehouse split to minimize shipments.
 - **Source Requirement**: `[PDF Page 7, 11]`, `REQ-WH-03`.
 - **Allowed Roles**: `FINANCE`, `SALES_MANAGER`, `ADMIN`.
@@ -610,7 +610,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 16: `POST /api/v1/quotations/{id}/fulfillment-split/override`
+#### Endpoint 16: `POST /api/quotations/{id}/fulfillment-split/override`
 - **Purpose**: Allows operations to manually override the recommended split distribution.
 - **Source Requirement**: `[PDF Page 7]`, `REQ-WH-04`.
 - **Allowed Roles**: `FINANCE`, `ADMIN`.
@@ -624,7 +624,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   ```
 - **Success Response (`200 OK`)**: Returns updated split with recalculated freight cost and shipment count.
 
-#### Endpoint 17: `POST /api/v1/quotations/{id}/fulfillment-split/consolidate-backorder`
+#### Endpoint 17: `POST /api/quotations/{id}/fulfillment-split/consolidate-backorder`
 - **Purpose**: Consolidates replenished backorder into shipping queue upon receipt of stock.
 - **Source Requirement**: `[PDF Page 7]`, `REQ-WH-05`.
 - **Success Response (`200 OK`)**: Returns consolidated shipment dispatch order.
@@ -633,7 +633,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.7 Hybrid Billing & Recurring Subscriptions
 
-#### Endpoint 18: `GET /api/v1/quotations/{id}/billing-schedule`
+#### Endpoint 18: `GET /api/quotations/{id}/billing-schedule`
 - **Purpose**: Displays one-time items vs. recurring subscription lines with upcoming billing schedule.
 - **Source Requirement**: `[PDF Page 7, 8, 11]`, `REQ-OVR-04`, `REQ-SUB-01`.
 - **Allowed Roles**: `FINANCE`, `SALES_REP`, `ADMIN`.
@@ -666,7 +666,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 19: `POST /api/v1/subscriptions/{id}/prorate`
+#### Endpoint 19: `POST /api/subscriptions/{id}/prorate`
 - **Purpose**: Calculates calendar-day proration for mid-cycle quantity/plan adjustments.
 - **Source Requirement**: `[PDF Page 5, 8]`, `REQ-SUB-02`.
 - **Request Body**:
@@ -678,7 +678,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   ```
 - **Success Response (`200 OK`)**: Returns prorated delta amount and next invoice adjustments.
 
-#### Endpoint 20: `POST /api/v1/subscriptions/{id}/cancel`
+#### Endpoint 20: `POST /api/subscriptions/{id}/cancel`
 - **Purpose**: Cancels subscription and generates automated credit note / refund calculation.
 - **Source Requirement**: `[PDF Page 5, 8]`, `REQ-SUB-03`.
 - **Success Response (`200 OK`)**:
@@ -700,7 +700,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.8 Customer Portal Negotiation Engine (Secure & Isolated)
 
-#### Endpoint 21: `GET /api/v1/portal/quote/{token}`
+#### Endpoint 21: `GET /api/portal/quote/{token}`
 - **Purpose**: Retrieves restricted customer view of quotation. Costs, margins, and internal notes are omitted.
 - **Source Requirement**: `[PDF Page 8, 10]`, `REQ-OVR-06`, `REQ-PORT-01`.
 - **Allowed Roles**: Customer Portal User (`token`-authenticated).
@@ -731,7 +731,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 22: `POST /api/v1/portal/quote/{token}/comments`
+#### Endpoint 22: `POST /api/portal/quote/{token}/comments`
 - **Purpose**: Customer posts line-level inquiry or change request. Updates status to `Under Negotiation`.
 - **Source Requirement**: `[PDF Page 8]`, `REQ-PORT-02`.
 - **Request Body**:
@@ -743,7 +743,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   ```
 - **Success Response (`200 OK`)**: Returns updated comment with timestamp.
 
-#### Endpoint 23: `POST /api/v1/portal/quote/{token}/negotiate`
+#### Endpoint 23: `POST /api/portal/quote/{token}/negotiate`
 - **Purpose**: Customer proposes counter-discount. Evaluates against ceilings; triggers auto re-approval if exceeded.
 - **Source Requirement**: `[PDF Page 8, 11]`, `REQ-PORT-02`, `REQ-PORT-03`.
 - **Request Body**:
@@ -769,7 +769,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 24: `POST /api/v1/portal/quote/{token}/confirm`
+#### Endpoint 24: `POST /api/portal/quote/{token}/confirm`
 - **Purpose**: One-click customer final acceptance. Converts quote to confirmed order.
 - **Source Requirement**: `[PDF Page 3, 8, 11]`, `REQ-PORT-04`.
 - **Success Response (`200 OK`)**:
@@ -789,7 +789,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.9 Deal Health & Anomaly Monitoring
 
-#### Endpoint 25: `GET /api/v1/deal-health/summary`
+#### Endpoint 25: `GET /api/deal-health/summary`
 - **Purpose**: Returns stalled deals, discount anomalies, and delivery slippage alerts.
 - **Source Requirement**: `[PDF Page 8, 9]`, `REQ-HLTH-01`, `REQ-HLTH-02`, `REQ-HLTH-03`.
 - **Allowed Roles**: `SALES_MANAGER`, `FINANCE`, `ADMIN`.
@@ -825,7 +825,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 26: `POST /api/v1/deal-health/alerts/{alertId}/nudge`
+#### Endpoint 26: `POST /api/deal-health/alerts/{alertId}/nudge`
 - **Purpose**: Dispatches automated follow-up notification to sales rep regarding stalled deal.
 - **Source Requirement**: `[PDF Page 8, 9]`.
 - **Success Response (`200 OK`)**: `{"success": true, "message": "Nudge sent to rep."}`.
@@ -834,7 +834,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### 5.10 Reporting & Binary Export
 
-#### Endpoint 27: `GET /api/v1/reports/sales-performance`
+#### Endpoint 27: `GET /api/reports/sales-performance`
 - **Purpose**: Aggregated performance metrics filtered by period, rep, status, and category.
 - **Source Requirement**: `[PDF Page 5, 9]`, `REQ-REP-01`.
 - **Query Parameters**:
@@ -860,7 +860,7 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
   }
   ```
 
-#### Endpoint 28: `GET /api/v1/reports/export`
+#### Endpoint 28: `GET /api/reports/export`
 - **Purpose**: Generates and downloads formatted PDF or Excel spreadsheet.
 - **Source Requirement**: `[PDF Page 5]`, `REQ-REP-02`.
 - **Query Parameters**:
@@ -873,30 +873,30 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
 
 ### Workflow Flow 1: Quotation Creation & Blended Risk Approval Routing
 ```text
-1. POST /api/v1/quotations
+1. POST /api/quotations
    -> Payload: { partnerId: "cust-001" }
    <- 201 Created: { id: "so-1001", tier: "Gold", tierCeiling: 15.0% }
 
-2. POST /api/v1/quotations/so-1001/lines
+2. POST /api/quotations/so-1001/lines
    -> Payload: { productId: "prod-101", quantity: 8, discount: 12.0% } (Hardware: 15% limit -> OK)
    <- 200 OK: { blendedRiskScore: 0.0, highestApprovalLevel: "none" }
 
-3. POST /api/v1/quotations/so-1001/lines
+3. POST /api/quotations/so-1001/lines
    -> Payload: { productId: "prod-201", quantity: 1, discount: 18.0% } (Services: 10% limit -> VIOLATION)
    <- 200 OK: { blendedRiskScore: 12.8, highestApprovalLevel: "sales_manager", state: "draft" }
 
-4. POST /api/v1/quotations/so-1001/submit-approval
+4. POST /api/quotations/so-1001/submit-approval
    -> Payload: { repJustification: "Strategic enterprise customer" }
    <- 200 OK: { state: "pending_approval", approvalState: "pending_manager" }
 ```
 
 ### Workflow Flow 2: Manager Approval & Multi-Warehouse Split
 ```text
-1. POST /api/v1/quotations/so-1001/approvals/action
+1. POST /api/quotations/so-1001/approvals/action
    -> Payload: { action: "approve", reason: "Hardware volume compensates for setup concession" }
    <- 200 OK: { state: "approved", approvalState: "approved" }
 
-2. GET /api/v1/quotations/so-1001/fulfillment-split
+2. GET /api/quotations/so-1001/fulfillment-split
    <- 200 OK: {
         allocations: [
           { warehouse: "Main Warehouse", qty: 5 },
@@ -905,16 +905,16 @@ DealFlow360 exposes a decoupled, resource-oriented RESTful API over HTTPS. The A
         shipmentCount: 2
       }
 
-3. POST /api/v1/quotations/so-1001/fulfillment-split/accept
+3. POST /api/quotations/so-1001/fulfillment-split/accept
    <- 200 OK: { status: "fulfillment_scheduled" }
 ```
 
 ### Workflow Flow 3: Customer Portal Negotiation & Auto Re-Approval
 ```text
-1. GET /api/v1/portal/quote/tok-99887766
+1. GET /api/portal/quote/tok-99887766
    <- 200 OK: (Clean customer view, margins hidden)
 
-2. POST /api/v1/portal/quote/tok-99887766/negotiate
+2. POST /api/portal/quote/tok-99887766/negotiate
    -> Payload: { proposedCounterDiscount: 20.0, remarks: "We require 20% to close this month." }
    <- 200 OK: {
         quoteStatus: "Under Negotiation",
