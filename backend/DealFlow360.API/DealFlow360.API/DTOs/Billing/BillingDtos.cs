@@ -39,6 +39,8 @@ public class BillingScheduleResponse
 {
     public int Id { get; set; }
     public int OrderLineId { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public string CustomerName { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string PlanName { get; set; } = string.Empty;
     public string SubscriptionPlanName { get; set; } = string.Empty;
@@ -50,4 +52,16 @@ public class BillingScheduleResponse
     public decimal UnitPrice { get; set; }
     public decimal ProratedAdjustmentAmount { get; set; }
     public string Status { get; set; } = string.Empty;
+}
+
+public class FinanceDashboardSummaryResponse
+{
+    public int PendingFinanceApprovalsCount { get; set; }
+    public decimal PendingFinanceApprovalsValue { get; set; }
+    public int UnallocatedOrdersCount { get; set; }
+    public int OpenBackordersCount { get; set; }
+    public int ActiveSchedulesCount { get; set; }
+    public decimal TotalOutstandingInvoicesAmount { get; set; }
+    public decimal TotalCollectedPaymentsAmount { get; set; }
+    public decimal TotalIssuedCreditsAmount { get; set; }
 }

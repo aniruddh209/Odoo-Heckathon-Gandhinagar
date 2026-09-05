@@ -71,3 +71,17 @@ public class BackorderResponse
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
 }
+
+public class OrderFulfillmentSummaryResponse
+{
+    public int Id { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public int CustomerId { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public decimal Total { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+    public int LineCount { get; set; }
+    public bool HasAllocations { get; set; }
+    public bool HasBackorders { get; set; }
+}

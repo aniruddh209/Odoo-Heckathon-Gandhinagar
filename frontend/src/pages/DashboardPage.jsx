@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { quotationApi, reportApi, dealHealthApi, approvalApi } from '../api';
+import { quotationApi, reportApi, dealHealthApi, approvalApi, billingApi } from '../api';
 import {
   Button,
   StatusBadge,
@@ -21,6 +21,9 @@ import {
   ArrowRight,
   GitPullRequest,
   CheckCircle2,
+  Truck,
+  FileText,
+  Receipt,
 } from 'lucide-react';
 
 export const DashboardPage = () => {
@@ -45,6 +48,7 @@ export const DashboardPage = () => {
   const [healthSummary, setHealthSummary] = useState(null);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [recentQuotes, setRecentQuotes] = useState([]);
+  const [financeSummary, setFinanceSummary] = useState(null);
 
   const calculateLocalMetrics = (quotes) => {
     const totalQuoted = quotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
@@ -152,6 +156,16 @@ export const DashboardPage = () => {
           setPendingApprovals(pList.slice(0, 4));
         } catch (e) {
           console.warn('Pending approvals unavailable:', e);
+        }
+
+        // Finance & Operations Telemetry
+        if (isFinance || isAdmin) {
+          try {
+            const finSummary = await billingApi.getFinanceDashboardSummary();
+            setFinanceSummary(finSummary);
+          } catch (e) {
+            console.warn('Finance summary unavailable:', e);
+          }
         }
       } else {
         // Sales Rep view strictly derived from user's quotes
@@ -285,6 +299,91 @@ export const DashboardPage = () => {
           </Button>
         </div>
       </div>
+
+      {/* ── Finance & Operations Command Center (when user is FinanceOperations) ── */}
+      {isFinance && financeSummary && (
+        <div className="p-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-indigo-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
+                <Receipt className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Finance & Operations Command Center</h2>
+                <p className="text-[11px] text-slate-500">Live operational queues, inventory allocation deficits, and receivable balances</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                icon={ShieldAlert}
+                onClick={() => navigate('/workspace/approvals')}
+              >
+                Approval Queue ({financeSummary.pendingFinanceApprovalsCount})
+              </Button>
+              <Button
+                variant="outline"
+                size="xs"
+                icon={Truck}
+                onClick={() => navigate('/workspace/fulfillment')}
+              >
+                Fulfillment ({financeSummary.unallocatedOrdersCount})
+              </Button>
+              <Button
+                variant="primary"
+                size="xs"
+                icon={FileText}
+                onClick={() => navigate('/workspace/billing')}
+              >
+                Ledger & Invoices
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-amber-600 block">Pending Finance Approvals</span>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-1">
+                {financeSummary.pendingFinanceApprovalsCount}
+              </div>
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                ${(financeSummary.pendingFinanceApprovalsValue || 0).toFixed(2)} exposure
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-blue-600 block">Unallocated Orders</span>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-1">
+                {financeSummary.unallocatedOrdersCount}
+              </div>
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                Ready for warehouse split
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-rose-600 block">Open Backorders</span>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-1">
+                {financeSummary.openBackordersCount}
+              </div>
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                Deficit awaiting stock
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-purple-600 block">Net Outstanding A/R</span>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-1">
+                ${(financeSummary.totalOutstandingInvoicesAmount || 0).toFixed(2)}
+              </div>
+              <span className="text-[11px] text-slate-500 block mt-0.5">
+                {financeSummary.activeSchedulesCount} active subscription(s)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 2. Real-Time Financial & Governance KPI Grid ──────── */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">

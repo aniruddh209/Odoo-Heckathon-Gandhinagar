@@ -17,16 +17,29 @@ import {
   DollarSign,
   Calendar,
   RefreshCw,
+  FileText,
+  Receipt,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  PlusCircle,
 } from 'lucide-react';
 
 export const BillingPage = () => {
   const { isFinance, isAdmin } = useAuth();
   const toast = useToast();
 
+  const [activeTab, setActiveTab] = useState('invoices'); // 'invoices' | 'schedules' | 'creditNotes'
   const [invoices, setInvoices] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [creditNotes, setCreditNotes] = useState([]);
   const [plans, setPlans] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Invoice Detail Modal
+  const [selectedDetailInvoice, setSelectedDetailInvoice] = useState(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   // Payment Modal
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -44,6 +57,7 @@ export const BillingPage = () => {
 
   // Subscription Seat Change Modal
   const [isSeatModalOpen, setIsSeatModalOpen] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [newSeatQty, setNewSeatQty] = useState(10);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [isProcessingSeat, setIsProcessingSeat] = useState(false);
@@ -56,20 +70,38 @@ export const BillingPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [invRes, planRes] = await Promise.all([
+      const [invRes, schedRes, cnRes, planRes] = await Promise.all([
         billingApi.getInvoices(),
-        adminApi.getSubscriptionPlans(),
+        billingApi.getSchedules().catch(() => []),
+        billingApi.getCreditNotes().catch(() => []),
+        adminApi.getSubscriptionPlans().catch(() => []),
       ]);
 
       const invList = Array.isArray(invRes) ? invRes : invRes?.value || [];
+      const sList = Array.isArray(schedRes) ? schedRes : schedRes?.value || [];
+      const cList = Array.isArray(cnRes) ? cnRes : cnRes?.value || [];
       const pList = Array.isArray(planRes) ? planRes : planRes?.value || [];
 
       setInvoices(invList);
+      setSchedules(sList);
+      setCreditNotes(cList);
       setPlans(pList);
     } catch (err) {
       setError(err.message || 'Failed to load invoices and billing schedules.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOpenDetail = async (inv) => {
+    setIsLoadingDetail(true);
+    try {
+      const detail = await billingApi.getInvoiceById(inv.id);
+      setSelectedDetailInvoice(detail);
+    } catch (err) {
+      toast.error('Failed to load details', err.message);
+    } finally {
+      setIsLoadingDetail(false);
     }
   };
 
@@ -82,26 +114,64 @@ export const BillingPage = () => {
 
   const handleOpenCredit = (inv) => {
     setSelectedInvoice(inv);
-    setCreditAmount('100.00');
+    const maxCredit = inv.outstanding !== undefined ? inv.outstanding : inv.total || 0;
+    setCreditAmount(Math.min(100, maxCredit).toFixed(2));
     setCreditReason('');
     setIsCreditModalOpen(true);
+  };
+
+  const handleOpenSeatChange = (sched) => {
+    setSelectedSchedule(sched);
+    setNewSeatQty(sched.quantity || 10);
+    setSelectedPlanId('');
+    setIsSeatModalOpen(true);
+  };
+
+  const handleGenerateNextInvoice = async (scheduleId) => {
+    try {
+      const inv = await billingApi.generateNextRecurringInvoice(scheduleId);
+      toast.success('Recurring Invoice Generated', `Invoice ${inv.invoiceNumber} created and cycle advanced.`);
+      await loadBillingData();
+    } catch (err) {
+      toast.error('Generation Failed', err.message);
+    }
+  };
+
+  const handleCancelSchedule = async (scheduleId) => {
+    if (!window.confirm('Are you sure you want to cancel this recurring subscription schedule?')) return;
+    try {
+      await billingApi.cancelSchedule(scheduleId, 'Customer cancellation request processed by Finance');
+      toast.success('Subscription Cancelled', 'Recurring schedule has been marked cancelled.');
+      await loadBillingData();
+    } catch (err) {
+      toast.error('Cancellation Failed', err.message);
+    }
   };
 
   const handleRecordPayment = async (e) => {
     e.preventDefault();
     if (!selectedInvoice) return;
 
+    const amountNum = parseFloat(paymentAmount);
+    if (!amountNum || amountNum <= 0) {
+      toast.error('Invalid Amount', 'Payment amount must be greater than zero.');
+      return;
+    }
+
     setIsProcessingPayment(true);
     try {
       await billingApi.recordPayment(selectedInvoice.id, {
-        amount: parseFloat(paymentAmount) || 0,
+        amount: amountNum,
         paymentMethod,
         reference: paymentRef,
       });
 
-      toast.success('Payment Recorded', `Successfully reconciled $${paymentAmount} against ${selectedInvoice.invoiceNumber}.`);
+      toast.success('Payment Recorded', `Successfully reconciled $${amountNum.toFixed(2)} against ${selectedInvoice.invoiceNumber}.`);
       setIsPaymentModalOpen(false);
       await loadBillingData();
+      if (selectedDetailInvoice && selectedDetailInvoice.id === selectedInvoice.id) {
+        handleOpenDetail(selectedInvoice);
+      }
     } catch (err) {
       toast.error('Payment Error', err.message);
     } finally {
@@ -113,16 +183,30 @@ export const BillingPage = () => {
     e.preventDefault();
     if (!selectedInvoice) return;
 
+    const amountNum = parseFloat(creditAmount);
+    if (!amountNum || amountNum <= 0) {
+      toast.error('Invalid Amount', 'Credit note amount must be greater than zero.');
+      return;
+    }
+
+    if (!creditReason.trim()) {
+      toast.error('Reason Required', 'Please enter a business justification.');
+      return;
+    }
+
     setIsProcessingCredit(true);
     try {
       await billingApi.createCreditNote(selectedInvoice.id, {
-        amount: parseFloat(creditAmount) || 0,
-        reason: creditReason || 'Customer satisfaction credit adjustment',
+        amount: amountNum,
+        reason: creditReason.trim(),
       });
 
-      toast.success('Credit Note Issued', `Reconciliation credit applied.`);
+      toast.success('Credit Note Issued', `Reconciliation credit of $${amountNum.toFixed(2)} applied.`);
       setIsCreditModalOpen(false);
       await loadBillingData();
+      if (selectedDetailInvoice && selectedDetailInvoice.id === selectedInvoice.id) {
+        handleOpenDetail(selectedInvoice);
+      }
     } catch (err) {
       toast.error('Credit Note Error', err.message);
     } finally {
@@ -132,15 +216,20 @@ export const BillingPage = () => {
 
   const handleApplySeatChange = async (e) => {
     e.preventDefault();
+    const targetScheduleId = selectedSchedule?.id || (schedules[0]?.id || 1);
     setIsProcessingSeat(true);
     try {
-      await billingApi.applySeatChange(1, {
+      const res = await billingApi.applySeatChange(targetScheduleId, {
         newQuantity: parseInt(newSeatQty, 10),
         newPlanId: selectedPlanId ? parseInt(selectedPlanId, 10) : null,
       });
 
-      toast.success('Subscription Prorated', `Seat adjustment calculated and next invoice adjusted.`);
+      toast.success(
+        'Subscription Prorated',
+        `Adjusted to ${res.quantity} seats. Prorated difference: $${(res.proratedAdjustmentAmount || 0).toFixed(2)}`
+      );
       setIsSeatModalOpen(false);
+      await loadBillingData();
     } catch (err) {
       toast.error('Proration Failed', err.message);
     } finally {
@@ -152,12 +241,18 @@ export const BillingPage = () => {
     return <LoadingSpinner message="Querying hybrid invoices and recurring contracts..." size="lg" />;
   }
 
-  const columns = [
+  const invoiceColumns = [
     {
       header: 'Invoice #',
       accessor: 'invoiceNumber',
       render: (inv) => (
-        <span className="font-mono font-bold text-xs text-blue-600">{inv.invoiceNumber}</span>
+        <button
+          onClick={() => handleOpenDetail(inv)}
+          className="font-mono font-bold text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>{inv.invoiceNumber}</span>
+        </button>
       ),
     },
     {
@@ -169,7 +264,9 @@ export const BillingPage = () => {
       header: 'Billing Type',
       accessor: 'type',
       render: (inv) => (
-        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+        <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+          inv.type === 'Recurring' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+        }`}>
           {inv.type || 'Commercial'}
         </span>
       ),
@@ -180,6 +277,15 @@ export const BillingPage = () => {
       render: (inv) => (
         <span className="font-bold text-slate-900 font-mono">
           ${(inv.total || 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      header: 'Paid Amount',
+      accessor: 'paidAmount',
+      render: (inv) => (
+        <span className="font-mono text-emerald-600 font-medium">
+          ${(inv.paidAmount || 0).toFixed(2)}
         </span>
       ),
     },
@@ -201,29 +307,168 @@ export const BillingPage = () => {
       header: 'Actions',
       render: (inv) => (
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="xs"
+            icon={Eye}
+            onClick={() => handleOpenDetail(inv)}
+          >
+            Details
+          </Button>
           {(isFinance || isAdmin) ? (
             <>
-              {inv.status !== 'Paid' && (
+              {inv.status !== 'Paid' && inv.status !== 'Voided' && (
                 <Button
                   variant="outline"
                   size="xs"
                   onClick={() => handleOpenPayment(inv)}
                 >
-                  Record Payment
+                  Pay
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => handleOpenCredit(inv)}
-              >
-                Credit Note
-              </Button>
+              {inv.status !== 'Voided' && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => handleOpenCredit(inv)}
+                >
+                  Credit
+                </Button>
+              )}
             </>
           ) : (
-            <span className="text-[11px] text-slate-400 italic">Audit Access</span>
+            <span className="text-[11px] text-slate-400 italic">Read-Only</span>
           )}
         </div>
+      ),
+    },
+  ];
+
+  const scheduleColumns = [
+    {
+      header: 'Schedule #',
+      accessor: 'id',
+      render: (s) => <span className="font-mono font-bold text-slate-700">SCH-{s.id}</span>,
+    },
+    {
+      header: 'Customer & Order',
+      render: (s) => (
+        <div>
+          <div className="font-semibold text-slate-900">{s.customerName || 'Customer'}</div>
+          <div className="text-[11px] text-slate-400 font-mono">{s.orderNumber}</div>
+        </div>
+      ),
+    },
+    {
+      header: 'Subscription Plan',
+      accessor: 'planName',
+      render: (s) => (
+        <div>
+          <span className="font-semibold text-purple-700">{s.planName || s.subscriptionPlanName}</span>
+          <span className="ml-2 text-[10px] uppercase font-bold text-slate-500 bg-purple-50 px-1.5 py-0.5 rounded">
+            {s.billingFrequency}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Seats',
+      accessor: 'quantity',
+      render: (s) => <span className="font-bold text-slate-900">{s.quantity} Seats</span>,
+    },
+    {
+      header: 'Unit Rate',
+      accessor: 'unitPrice',
+      render: (s) => <span className="font-mono text-slate-700">${(s.unitPrice || 0).toFixed(2)}/seat</span>,
+    },
+    {
+      header: 'Next Billing',
+      accessor: 'nextBillingDate',
+      render: (s) => (
+        <span className="text-xs text-slate-600 font-medium">
+          {s.nextBillingDate ? new Date(s.nextBillingDate).toLocaleDateString() : 'N/A'}
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      render: (s) => <StatusBadge status={s.status} />,
+    },
+    {
+      header: 'Actions',
+      render: (s) => (
+        <div className="flex items-center gap-1.5">
+          {(isFinance || isAdmin) ? (
+            <>
+              {s.status === 'Active' && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => handleGenerateNextInvoice(s.id)}
+                  >
+                    Bill Cycle
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => handleOpenSeatChange(s)}
+                  >
+                    Prorate
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="text-rose-600 hover:text-rose-700"
+                    onClick={() => handleCancelSchedule(s.id)}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </>
+          ) : (
+            <span className="text-[11px] text-slate-400 italic">Read-Only</span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const creditNoteColumns = [
+    {
+      header: 'Credit Note #',
+      accessor: 'id',
+      render: (cn) => <span className="font-mono font-bold text-rose-600">CN-{cn.id}</span>,
+    },
+    {
+      header: 'Related Invoice',
+      accessor: 'invoiceNumber',
+      render: (cn) => <span className="font-mono text-blue-600 font-semibold">{cn.invoiceNumber}</span>,
+    },
+    {
+      header: 'Customer',
+      accessor: 'customerName',
+      render: (cn) => <span className="font-medium text-slate-900">{cn.customerName}</span>,
+    },
+    {
+      header: 'Credit Amount',
+      accessor: 'amount',
+      render: (cn) => <span className="font-mono font-bold text-rose-600">-${(cn.amount || 0).toFixed(2)}</span>,
+    },
+    {
+      header: 'Business Reason',
+      accessor: 'reason',
+      render: (cn) => <span className="text-xs text-slate-700">{cn.reason}</span>,
+    },
+    {
+      header: 'Issued At',
+      accessor: 'createdAtUtc',
+      render: (cn) => (
+        <span className="text-xs text-slate-500">
+          {cn.createdAtUtc ? new Date(cn.createdAtUtc).toLocaleDateString() : 'N/A'}
+        </span>
       ),
     },
   ];
@@ -233,9 +478,9 @@ export const BillingPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Hybrid Billing & Subscription Operations</h1>
+          <h1 className="text-xl font-bold text-slate-900">Billing, Invoicing & Subscription Operations</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Unified management for immediate one-time equipment invoices and recurring subscription contracts.
+            Manage one-time commercial equipment invoices, recurring cloud subscriptions, payments, and credit adjustments.
           </p>
         </div>
 
@@ -253,9 +498,12 @@ export const BillingPage = () => {
               variant="primary"
               size="sm"
               icon={Calendar}
-              onClick={() => setIsSeatModalOpen(true)}
+              onClick={() => {
+                setSelectedSchedule(schedules[0] || null);
+                setIsSeatModalOpen(true);
+              }}
             >
-              Test Mid-Cycle Proration
+              Seat Proration Engine
             </Button>
           )}
         </div>
@@ -263,43 +511,234 @@ export const BillingPage = () => {
 
       {error && <ErrorAlert message={error} onRetry={loadBillingData} />}
 
-      {/* Distinction Callout Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/40">
-          <div className="flex items-center gap-2 text-blue-900 font-semibold text-xs mb-1">
-            <DollarSign className="w-4 h-4 text-blue-600" />
-            Commercial Capital Goods (One-Time)
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Commercial Invoices</span>
+            <Receipt className="w-4 h-4 text-blue-600" />
           </div>
-          <p className="text-xs text-blue-700 leading-relaxed">
-            Invoiced immediately upon sale order confirmation with standard net-30 settlement terms and tax collection.
-          </p>
+          <div className="text-2xl font-bold text-slate-900 mt-2">{invoices.length}</div>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Outstanding balance: ${invoices.reduce((acc, i) => acc + (i.outstanding || 0), 0).toFixed(2)}
+          </span>
         </div>
 
-        <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/40">
-          <div className="flex items-center gap-2 text-purple-900 font-semibold text-xs mb-1">
+        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Active Subscriptions</span>
             <Calendar className="w-4 h-4 text-purple-600" />
-            Recurring Cloud Subscriptions (SaaS Schedules)
           </div>
-          <p className="text-xs text-purple-700 leading-relaxed">
-            Automated calendar billing schedules (Monthly/Quarterly/Annual) with exact day-rate proration on seat adjustments.
-          </p>
+          <div className="text-2xl font-bold text-slate-900 mt-2">
+            {schedules.filter((s) => s.status === 'Active').length}
+          </div>
+          <span className="text-[11px] text-purple-600 mt-1 block">
+            Automated recurring schedules
+          </span>
+        </div>
+
+        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Issued Credit Notes</span>
+            <DollarSign className="w-4 h-4 text-rose-600" />
+          </div>
+          <div className="text-2xl font-bold text-slate-900 mt-2">{creditNotes.length}</div>
+          <span className="text-[11px] text-rose-600 mt-1 block">
+            Total adjustments: -${creditNotes.reduce((acc, c) => acc + (c.amount || 0), 0).toFixed(2)}
+          </span>
         </div>
       </div>
 
-      {/* Commercial Invoices Table */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">Customer Commercial Invoices</h2>
-          <span className="text-xs text-slate-500">{invoices.length} total records</span>
-        </div>
-
-        <DataTable
-          columns={columns}
-          data={invoices}
-          emptyMessage="No commercial invoices issued"
-          emptyDescription="Confirm a sale order from the quotations workspace to generate commercial billing records."
-        />
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+        <button
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === 'invoices'
+              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+          onClick={() => setActiveTab('invoices')}
+        >
+          Commercial Invoices ({invoices.length})
+        </button>
+        <button
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === 'schedules'
+              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+          onClick={() => setActiveTab('schedules')}
+        >
+          Recurring Subscriptions ({schedules.length})
+        </button>
+        <button
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === 'creditNotes'
+              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+          onClick={() => setActiveTab('creditNotes')}
+        >
+          Credit Notes Registry ({creditNotes.length})
+        </button>
       </div>
+
+      {/* Tab Contents */}
+      {activeTab === 'invoices' && (
+        <div className="space-y-3">
+          <DataTable
+            columns={invoiceColumns}
+            data={invoices}
+            emptyMessage="No commercial invoices issued"
+            emptyDescription="Confirm a sale order from the quotations workspace to generate commercial billing records."
+          />
+        </div>
+      )}
+
+      {activeTab === 'schedules' && (
+        <div className="space-y-3">
+          <DataTable
+            columns={scheduleColumns}
+            data={schedules}
+            emptyMessage="No recurring subscription schedules"
+            emptyDescription="Orders containing recurring SaaS line items will automatically establish recurring billing contracts here."
+          />
+        </div>
+      )}
+
+      {activeTab === 'creditNotes' && (
+        <div className="space-y-3">
+          <DataTable
+            columns={creditNoteColumns}
+            data={creditNotes}
+            emptyMessage="No credit notes issued"
+            emptyDescription="Reconciliation credit memos authorized by finance will be logged in this audit registry."
+          />
+        </div>
+      )}
+
+      {/* Invoice Detail Modal */}
+      {selectedDetailInvoice && (
+        <Modal
+          isOpen={Boolean(selectedDetailInvoice)}
+          onClose={() => setSelectedDetailInvoice(null)}
+          title={`Invoice ${selectedDetailInvoice.invoiceNumber}`}
+          description={`Details and ledger for ${selectedDetailInvoice.customerName}`}
+        >
+          <div className="space-y-4 text-xs">
+            {/* Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Status</span>
+                <StatusBadge status={selectedDetailInvoice.status} />
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Total</span>
+                <span className="font-bold text-slate-900 font-mono">${(selectedDetailInvoice.total || 0).toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Paid</span>
+                <span className="font-bold text-emerald-600 font-mono">${(selectedDetailInvoice.paidAmount || 0).toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Outstanding</span>
+                <span className="font-bold text-rose-600 font-mono">${(selectedDetailInvoice.outstanding || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Line Items */}
+            <div>
+              <h4 className="font-bold text-slate-900 mb-1.5 uppercase text-[10px] tracking-wider">Billed Line Items</h4>
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-100 text-[10px] font-semibold text-slate-600 uppercase border-b border-slate-200">
+                    <tr>
+                      <th className="p-2">Item</th>
+                      <th className="p-2 text-right">Qty</th>
+                      <th className="p-2 text-right">Unit Price</th>
+                      <th className="p-2 text-right">Tax</th>
+                      <th className="p-2 text-right">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedDetailInvoice.lines?.map((line, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="p-2 font-medium text-slate-900">{line.productName}</td>
+                        <td className="p-2 text-right">{line.quantity}</td>
+                        <td className="p-2 text-right font-mono">${(line.unitPrice || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right font-mono">${(line.taxAmount || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right font-bold font-mono">${(line.netAmount || 0).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Payments */}
+            {selectedDetailInvoice.payments?.length > 0 && (
+              <div>
+                <h4 className="font-bold text-slate-900 mb-1.5 uppercase text-[10px] tracking-wider">Payment Ledger</h4>
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-[10px] font-semibold text-slate-600 uppercase border-b border-slate-200">
+                      <tr>
+                        <th className="p-2">Date</th>
+                        <th className="p-2">Method</th>
+                        <th className="p-2">Ref</th>
+                        <th className="p-2 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedDetailInvoice.payments.map((p, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2">{new Date(p.paidAtUtc).toLocaleDateString()}</td>
+                          <td className="p-2">{p.paymentMethod}</td>
+                          <td className="p-2 font-mono">{p.reference || 'N/A'}</td>
+                          <td className="p-2 text-right font-bold font-mono text-emerald-600">${(p.amount || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Credit Notes */}
+            {selectedDetailInvoice.creditNotes?.length > 0 && (
+              <div>
+                <h4 className="font-bold text-slate-900 mb-1.5 uppercase text-[10px] tracking-wider">Credit Memos</h4>
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-[10px] font-semibold text-slate-600 uppercase border-b border-slate-200">
+                      <tr>
+                        <th className="p-2">CN #</th>
+                        <th className="p-2">Reason</th>
+                        <th className="p-2 text-right">Credit Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedDetailInvoice.creditNotes.map((c, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2 font-mono font-bold text-rose-600">CN-{c.id}</td>
+                          <td className="p-2">{c.reason}</td>
+                          <td className="p-2 text-right font-bold font-mono text-rose-600">-${(c.amount || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
+              <Button variant="outline" size="sm" onClick={() => setSelectedDetailInvoice(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Record Payment Modal */}
       <Modal
@@ -313,6 +752,7 @@ export const BillingPage = () => {
             label="Payment Amount ($)"
             type="number"
             step="0.01"
+            min="0.01"
             required
             value={paymentAmount}
             onChange={(e) => setPaymentAmount(e.target.value)}
@@ -327,6 +767,7 @@ export const BillingPage = () => {
               { value: 'WireTransfer', label: 'Wire Transfer / ACH' },
               { value: 'CreditCard', label: 'Corporate Credit Card' },
               { value: 'Cheque', label: 'Cashier Cheque' },
+              { value: 'BankTransfer', label: 'Direct Bank Transfer' },
             ]}
           />
 
@@ -364,6 +805,7 @@ export const BillingPage = () => {
             label="Credit Amount ($)"
             type="number"
             step="0.01"
+            min="0.01"
             required
             value={creditAmount}
             onChange={(e) => setCreditAmount(e.target.value)}
@@ -397,8 +839,8 @@ export const BillingPage = () => {
       <Modal
         isOpen={isSeatModalOpen}
         onClose={() => setIsSeatModalOpen(false)}
-        title="Simulate Mid-Cycle Subscription Adjustment"
-        description="Calendar proration calculated automatically using exact daily billing rates."
+        title="Mid-Cycle Subscription Proration"
+        description={`Calculating calendar seat adjustments for ${selectedSchedule?.planName || 'active subscription schedule'}`}
       >
         <form onSubmit={handleApplySeatChange} className="space-y-4">
           <Input
@@ -408,17 +850,20 @@ export const BillingPage = () => {
             required
             value={newSeatQty}
             onChange={(e) => setNewSeatQty(e.target.value)}
-            helperText="Increasing or decreasing seats computes prorated credit or debit for remaining cycle days."
+            helperText="Increasing or decreasing seats automatically calculates exact prorated adjustment for remaining billing cycle days."
           />
 
           <Select
-            label="Subscription Plan Tier"
+            label="Target Plan Tier (Optional)"
             value={selectedPlanId}
             onChange={(e) => setSelectedPlanId(e.target.value)}
-            options={plans.map((p) => ({
-              value: p.id,
-              label: `${p.name} (${p.billingFrequency})`,
-            }))}
+            options={[
+              { value: '', label: 'Keep current tier' },
+              ...plans.map((p) => ({
+                value: p.id,
+                label: `${p.name} (${p.billingFrequency})`,
+              })),
+            ]}
           />
 
           <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
@@ -431,7 +876,7 @@ export const BillingPage = () => {
               size="sm"
               isLoading={isProcessingSeat}
             >
-              Execute Proration
+              Apply Proration
             </Button>
           </div>
         </form>

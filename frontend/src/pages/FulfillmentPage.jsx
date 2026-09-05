@@ -47,24 +47,38 @@ export const FulfillmentPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [quotesRes, boRes, whRes] = await Promise.all([
-        quotationApi.getQuotations({ status: 'ConvertedToOrder' }),
+      const [ordersRes, boRes, whRes] = await Promise.all([
+        fulfillmentApi.getOrders().catch(() => null),
         fulfillmentApi.getBackorders(),
         adminApi.getWarehouses(),
       ]);
 
-      const qList = Array.isArray(quotesRes) ? quotesRes : quotesRes?.value || [];
       const bList = Array.isArray(boRes) ? boRes : boRes?.value || [];
       const wList = Array.isArray(whRes) ? whRes : whRes?.value || [];
 
-      // Generate order list from converted quotes
-      const mappedOrders = qList.map((q) => ({
-        id: q.orderId || q.id,
-        quotationId: q.id,
-        orderNumber: q.orderNumber || `ORD-${q.quotationNumber.replace('QT-', '')}`,
-        customerName: q.customerName,
-        total: q.grandTotal,
-      }));
+      let mappedOrders = [];
+      if (Array.isArray(ordersRes) && ordersRes.length > 0) {
+        mappedOrders = ordersRes.map((o) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerName: o.customerName,
+          total: o.total,
+          status: o.status,
+          hasAllocations: o.hasAllocations,
+        }));
+      } else {
+        const quotesRes = await quotationApi.getQuotations({ status: 'ConvertedToOrder' }).catch(() => []);
+        const qList = Array.isArray(quotesRes) ? quotesRes : quotesRes?.value || [];
+        mappedOrders = qList.map((q) => ({
+          id: q.orderId || q.id,
+          quotationId: q.id,
+          orderNumber: q.orderNumber || `ORD-${q.quotationNumber.replace('QT-', '')}`,
+          customerName: q.customerName,
+          total: q.grandTotal,
+          status: 'Confirmed',
+          hasAllocations: false,
+        }));
+      }
 
       setOrders(mappedOrders);
       setBackorders(bList);
@@ -97,13 +111,33 @@ export const FulfillmentPage = () => {
       const res = await fulfillmentApi.executeAllocation(selectedOrderId);
       setPreview(res);
       toast.success('Allocation Executed', 'Warehouse delivery splits committed to inventory.');
-      // Refresh backorders
-      const bo = await fulfillmentApi.getBackorders();
+      // Refresh backorders and orders
+      const [bo, ords] = await Promise.all([
+        fulfillmentApi.getBackorders(),
+        fulfillmentApi.getOrders().catch(() => null),
+      ]);
       setBackorders(Array.isArray(bo) ? bo : bo?.value || []);
+      if (Array.isArray(ords)) {
+        setOrders(ords);
+      }
     } catch (err) {
       toast.error('Allocation Failed', err.message);
     } finally {
       setIsAllocating(false);
+    }
+  };
+
+  const handleCancelBackorder = async (backorderId) => {
+    try {
+      await fulfillmentApi.cancelBackorder(backorderId);
+      toast.success('Backorder Cancelled', `Backorder BO-${backorderId} marked as cancelled.`);
+      const bo = await fulfillmentApi.getBackorders();
+      setBackorders(Array.isArray(bo) ? bo : bo?.value || []);
+      if (selectedOrderId) {
+        await loadAllocationPreview(selectedOrderId);
+      }
+    } catch (err) {
+      toast.error('Cancellation Failed', err.message);
     }
   };
 
@@ -125,6 +159,9 @@ export const FulfillmentPage = () => {
     return <LoadingSpinner message="Querying multi-warehouse inventory depots..." size="lg" />;
   }
 
+  const selectedOrder = orders.find((o) => o.id.toString() === selectedOrderId.toString());
+  const isAlreadyAllocated = selectedOrder?.status === 'Allocated' || selectedOrder?.status === 'Fulfilled' || selectedOrder?.hasAllocations;
+
   const backorderColumns = [
     { header: 'Backorder #', accessor: 'id', render: (b) => <span className="font-mono font-bold text-slate-700">BO-{b.id}</span> },
     { header: 'Product Item', accessor: 'productName', render: (b) => <span className="font-semibold text-slate-900">{b.productName}</span> },
@@ -133,15 +170,24 @@ export const FulfillmentPage = () => {
     ...(canExecuteFulfillment
       ? [
           {
-            header: 'Action',
+            header: 'Actions',
             render: (b) => (
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => handleReplenish(warehouses[0]?.id || 1, b.productId)}
-              >
-                Replenish & Consolidate
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => handleReplenish(warehouses[0]?.id || 1, b.productId)}
+                >
+                  Replenish
+                </Button>
+                <Button
+                  variant="danger"
+                  size="xs"
+                  onClick={() => handleCancelBackorder(b.id)}
+                >
+                  Cancel
+                </Button>
+              </div>
             ),
           },
         ]
@@ -191,15 +237,22 @@ export const FulfillmentPage = () => {
         {preview && (
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
             {canExecuteFulfillment ? (
-              <Button
-                variant="primary"
-                size="sm"
-                icon={CheckCircle2}
-                isLoading={isAllocating}
-                onClick={handleExecuteAllocation}
-              >
-                Commit Warehouse Allocation
-              </Button>
+              isAlreadyAllocated ? (
+                <div className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Allocation Committed to Warehouses</span>
+                </div>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={CheckCircle2}
+                  isLoading={isAllocating}
+                  onClick={handleExecuteAllocation}
+                >
+                  Commit Warehouse Allocation
+                </Button>
+              )
             ) : (
               <div className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-600 font-medium flex items-center gap-2">
                 <Truck className="w-3.5 h-3.5 text-slate-500" />

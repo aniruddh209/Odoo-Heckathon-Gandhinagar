@@ -1,6 +1,10 @@
 import { apiClient } from './apiClient';
 
 export const fulfillmentApi = {
+  getOrders: async () => {
+    return apiClient.get('fulfillment/orders');
+  },
+
   previewAllocation: async (orderId) => {
     return apiClient.get(`fulfillment/preview/${orderId}`);
   },
@@ -11,6 +15,10 @@ export const fulfillmentApi = {
 
   getBackorders: async () => {
     return apiClient.get('fulfillment/backorders');
+  },
+
+  cancelBackorder: async (id) => {
+    return apiClient.post(`fulfillment/backorders/${id}/cancel`);
   },
 
   replenishStock: async (warehouseId, productId) => {

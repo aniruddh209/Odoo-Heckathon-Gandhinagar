@@ -77,6 +77,8 @@ public class CreditNoteResponse
 {
     public int Id { get; set; }
     public int InvoiceId { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public string CustomerName { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string Reason { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }

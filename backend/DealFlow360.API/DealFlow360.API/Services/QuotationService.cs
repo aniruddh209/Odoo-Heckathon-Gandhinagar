@@ -352,11 +352,11 @@ public class QuotationService : IQuotationService
             var approvalRequest = new ApprovalRequest
             {
                 QuotationId = quotation.Id,
-                Level = riskResult.RequiredLevel,
+                Level = ApprovalLevel.Manager,
                 Status = ApprovalStatus.Pending,
                 Sequence = 1,
                 RequestedAtUtc = DateTime.UtcNow,
-                Reason = $"Triggered by risk score of {riskResult.RiskScore:F2}"
+                Reason = $"Triggered by risk score of {riskResult.RiskScore:F2} (Target level: {riskResult.RequiredLevel})"
             };
 
             _context.ApprovalRequests.Add(approvalRequest);

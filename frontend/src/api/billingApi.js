@@ -24,6 +24,26 @@ export const billingApi = {
   applySeatChange: async (scheduleId, { newPlanId, newQuantity }) => {
     return apiClient.post(`billing/subscriptions/${scheduleId}/seat-change`, { newPlanId, newQuantity });
   },
+
+  getSchedules: async () => {
+    return apiClient.get('billing/schedules');
+  },
+
+  generateNextRecurringInvoice: async (scheduleId) => {
+    return apiClient.post(`billing/schedules/${scheduleId}/generate-invoice`);
+  },
+
+  cancelSchedule: async (scheduleId, reason) => {
+    return apiClient.post(`billing/schedules/${scheduleId}/cancel`, { reason });
+  },
+
+  getCreditNotes: async () => {
+    return apiClient.get('invoices/credit-notes');
+  },
+
+  getFinanceDashboardSummary: async () => {
+    return apiClient.get('billing/finance-dashboard');
+  },
 };
 
 export default billingApi;

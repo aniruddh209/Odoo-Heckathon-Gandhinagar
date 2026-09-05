@@ -24,7 +24,14 @@ public class InvoicesController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("credit-notes")]
+    public async Task<IActionResult> GetCreditNotes()
+    {
+        var result = await _billingService.GetCreditNotesAsync();
+        return Ok(result);
+    }
+
+    [HttpGet("{id:int}")]
     public async Task<IActionResult> GetInvoiceById(int id)
     {
         var result = await _billingService.GetInvoiceByIdAsync(id);

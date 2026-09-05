@@ -105,6 +105,11 @@ public class ApprovalService : IApprovalService
 
         if (ar == null) throw new KeyNotFoundException($"Approval request {approvalRequestId} not found.");
 
+        if (ar.Status != ApprovalStatus.Pending)
+        {
+            throw new InvalidOperationException($"Approval request is already {ar.Status} and cannot be actioned again.");
+        }
+
         var actingUser = await _context.Users.FindAsync(actingUserId);
         if (actingUser == null) throw new KeyNotFoundException($"User {actingUserId} not found.");
 
@@ -127,9 +132,9 @@ public class ApprovalService : IApprovalService
             actionEnum = Enum.Parse<ApprovalActionType>(request.Action, true);
         }
 
-        _routingEngine.ValidateAction(ar.Quotation, actingUser, actionEnum, request.Reason);
+        _routingEngine.ValidateAction(ar.Quotation, actingUser, actionEnum, request.Reason, ar.Level);
 
-        var (nextQuoteStatus, nextApprovalStatus) = _routingEngine.DetermineNextStatus(ar.Quotation, actingUser, actionEnum);
+        var (nextQuoteStatus, nextApprovalStatus) = _routingEngine.DetermineNextStatus(ar.Quotation, actingUser, actionEnum, ar.Level);
 
         ar.Status = nextApprovalStatus;
         ar.ActedAtUtc = DateTime.UtcNow;
@@ -149,6 +154,18 @@ public class ApprovalService : IApprovalService
         };
 
         _context.ApprovalActions.Add(actionRecord);
+
+        var auditLog = new AuditLog
+        {
+            UserId = actingUserId,
+            EntityName = "Quotation",
+            EntityId = ar.QuotationId,
+            Action = $"Approval_{actionEnum}_{ar.Level}",
+            Reason = request.Reason ?? $"{actionEnum} by {actingUser.FullName} ({actingUser.Role})",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        _context.AuditLogs.Add(auditLog);
+
         _context.ApprovalRequests.Update(ar);
         _context.Quotations.Update(ar.Quotation);
 
