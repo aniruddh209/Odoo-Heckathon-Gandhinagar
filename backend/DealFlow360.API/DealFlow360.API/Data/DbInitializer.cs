@@ -8,8 +8,15 @@ public static class DbInitializer
 {
     public static async Task SeedAsync(AppDbContext context)
     {
-        // Ensure Database is created
-        await context.Database.EnsureCreatedAsync();
+        // Ensure Database is created & migrations applied
+        if (context.Database.IsRelational())
+        {
+            await context.Database.MigrateAsync();
+        }
+        else
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
 
         // 1. Seed Customer Tier if empty
         if (!await context.CustomerTiers.AnyAsync())

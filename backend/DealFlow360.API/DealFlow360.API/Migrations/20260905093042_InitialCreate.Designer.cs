@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DealFlow360.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260905091516_UpdateRoleAuthorizationsAndRelationships")]
-    partial class UpdateRoleAuthorizationsAndRelationships
+    [Migration("20260905093042_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
