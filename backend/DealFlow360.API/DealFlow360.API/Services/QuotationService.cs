@@ -276,8 +276,8 @@ public class QuotationService : IQuotationService
         quotation.Lines.Add(line);
 
         var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
-        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
-        string tierName = customer?.Tier?.Name ?? "Bronze";
+        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+        string tierName = customer?.Tier?.Name ?? "Silver";
 
         if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
         {
@@ -289,6 +289,13 @@ public class QuotationService : IQuotationService
         {
             quotation.Status = QuoteStatus.Draft;
             quotation.ApprovalStatus = ApprovalStatus.None;
+            var pendingRequests = await _context.ApprovalRequests
+                .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
+                .ToListAsync();
+            if (pendingRequests.Any())
+            {
+                _context.ApprovalRequests.RemoveRange(pendingRequests);
+            }
         }
 
         await RecalculateAndSaveQuotationAsync(quotation);
@@ -321,8 +328,8 @@ public class QuotationService : IQuotationService
         _marginEngine.CalculateLine(line, product);
 
         var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
-        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
-        string tierName = customer?.Tier?.Name ?? "Bronze";
+        decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+        string tierName = customer?.Tier?.Name ?? "Silver";
 
         if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
         {
@@ -334,6 +341,13 @@ public class QuotationService : IQuotationService
         {
             quotation.Status = QuoteStatus.Draft;
             quotation.ApprovalStatus = ApprovalStatus.None;
+            var pendingRequests = await _context.ApprovalRequests
+                .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
+                .ToListAsync();
+            if (pendingRequests.Any())
+            {
+                _context.ApprovalRequests.RemoveRange(pendingRequests);
+            }
         }
 
         await RecalculateAndSaveQuotationAsync(quotation);
@@ -361,8 +375,8 @@ public class QuotationService : IQuotationService
             quotation.Lines.Remove(line);
 
             var customer = await _context.Customers.Include(c => c.Tier).FirstOrDefaultAsync(c => c.Id == quotation.CustomerId);
-            decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 5.00m;
-            string tierName = customer?.Tier?.Name ?? "Bronze";
+            decimal tierLimit = customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+            string tierName = customer?.Tier?.Name ?? "Silver";
 
             if (quotation.Lines.Any(l => l.DiscountPercent > tierLimit))
             {
@@ -374,6 +388,13 @@ public class QuotationService : IQuotationService
             {
                 quotation.Status = QuoteStatus.Draft;
                 quotation.ApprovalStatus = ApprovalStatus.None;
+                var pendingRequests = await _context.ApprovalRequests
+                    .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
+                    .ToListAsync();
+                if (pendingRequests.Any())
+                {
+                    _context.ApprovalRequests.RemoveRange(pendingRequests);
+                }
             }
 
             await RecalculateAndSaveQuotationAsync(quotation);
@@ -607,34 +628,63 @@ public class QuotationService : IQuotationService
         var evalResult = _governanceEngine.EvaluateDiscounts(quotation.Customer, quotation.Lines, discountRules);
         var riskResult = _riskEngine.CalculateRiskScore(evalResult.PeakLineViolation, evalResult.WeightedMarginLoss, quotation.MarginPercent, approvalRules);
 
-        // Auto-approval is strictly disabled per business policy ("auto approve bnd rkh")
-        quotation.Status = QuoteStatus.PendingApproval;
-        quotation.ApprovalStatus = ApprovalStatus.Pending;
+        decimal tierLimit = quotation.Customer?.Tier?.MaxDiscountPercent ?? 10.00m;
+        string tierName = quotation.Customer?.Tier?.Name ?? "Silver";
+        bool exceedsTier = quotation.Lines.Any(l => l.DiscountPercent > tierLimit);
+        bool requiresApproval = exceedsTier || evalResult.RequiresApproval || riskResult.RiskScore >= 70.00m;
 
-        var requiredLevel = riskResult.RequiredLevel == ApprovalLevel.Finance ? ApprovalLevel.Finance : ApprovalLevel.Manager;
-        var existingPending = await _context.ApprovalRequests
-            .FirstOrDefaultAsync(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending);
-
-        if (existingPending == null)
+        if (requiresApproval)
         {
-            var approvalRequest = new ApprovalRequest
-            {
-                QuotationId = quotation.Id,
-                Level = requiredLevel,
-                Status = ApprovalStatus.Pending,
-                Sequence = 1,
-                RequestedAtUtc = DateTime.UtcNow,
-                Reason = $"Submitted for governance authorization (Risk Score: {riskResult.RiskScore:F2}, Target Level: {requiredLevel})"
-            };
+            quotation.Status = QuoteStatus.PendingApproval;
+            quotation.ApprovalStatus = ApprovalStatus.Pending;
 
-            _context.ApprovalRequests.Add(approvalRequest);
+            var requiredLevel = (riskResult.RiskScore >= 70.00m || riskResult.RequiredLevel == ApprovalLevel.Finance)
+                ? ApprovalLevel.Finance
+                : ApprovalLevel.Manager;
+
+            var existingPending = await _context.ApprovalRequests
+                .FirstOrDefaultAsync(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending);
+
+            decimal maxLineDiscount = quotation.Lines.Any() ? quotation.Lines.Max(l => l.DiscountPercent) : 0m;
+            string reason = exceedsTier
+                ? $"Discount of {maxLineDiscount:F2}% exceeds customer {tierName} Tier ceiling ({tierLimit:F2}%). Automatically routed to Sales Manager for verification and approval."
+                : $"Submitted for governance authorization (Risk Score: {riskResult.RiskScore:F2}, Target Level: {requiredLevel})";
+
+            if (existingPending == null)
+            {
+                var approvalRequest = new ApprovalRequest
+                {
+                    QuotationId = quotation.Id,
+                    Level = requiredLevel,
+                    Status = ApprovalStatus.Pending,
+                    Sequence = 1,
+                    RequestedAtUtc = DateTime.UtcNow,
+                    Reason = reason
+                };
+
+                _context.ApprovalRequests.Add(approvalRequest);
+            }
+            else
+            {
+                existingPending.Level = requiredLevel;
+                existingPending.Reason = reason;
+                existingPending.RequestedAtUtc = DateTime.UtcNow;
+                _context.ApprovalRequests.Update(existingPending);
+            }
         }
         else
         {
-            existingPending.Level = requiredLevel;
-            existingPending.Reason = $"Submitted for governance authorization (Risk Score: {riskResult.RiskScore:F2}, Target Level: {requiredLevel})";
-            existingPending.RequestedAtUtc = DateTime.UtcNow;
-            _context.ApprovalRequests.Update(existingPending);
+            // Discount is within tier limit (<= 10% for Silver Tier) -> No approval required ("koi issue nahi") -> Auto-approved!
+            quotation.Status = QuoteStatus.Approved;
+            quotation.ApprovalStatus = ApprovalStatus.Approved;
+
+            var pendingRequests = await _context.ApprovalRequests
+                .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
+                .ToListAsync();
+            if (pendingRequests.Any())
+            {
+                _context.ApprovalRequests.RemoveRange(pendingRequests);
+            }
         }
 
         quotation.UpdatedAtUtc = DateTime.UtcNow;
@@ -838,8 +888,8 @@ public class QuotationService : IQuotationService
             QuotationNumber = q.QuotationNumber,
             CustomerId = q.CustomerId,
             CustomerName = q.Customer?.Name ?? string.Empty,
-            CustomerTierName = q.Customer?.Tier?.Name ?? string.Empty,
-            CustomerTierMaxDiscount = q.Customer?.Tier?.MaxDiscountPercent ?? 15.0m,
+            CustomerTierName = q.Customer?.Tier?.Name ?? "Silver",
+            CustomerTierMaxDiscount = q.Customer?.Tier?.MaxDiscountPercent ?? 10.0m,
             SalesRepId = q.SalesRepId,
             SalesRepName = q.SalesRep?.FullName ?? string.Empty,
             PriceListId = q.PriceListId,

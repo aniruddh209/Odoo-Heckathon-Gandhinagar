@@ -190,9 +190,15 @@ export const QuotationDetailPage = () => {
       const updated = await quotationApi.submitForApproval(id);
       setQuote(updated);
       if (updated.approvalStatus === 'Approved') {
-        toast.success('Auto-Approved', 'Quote passed all customer tier discount limits.');
+        toast.success(
+          'Auto-Approved',
+          `Discount is within ${updated.customerTierName || 'Silver'} Tier ceiling (≤ ${updated.customerTierMaxDiscount ?? 10}%). Auto-approved without manager escalation.`
+        );
       } else {
-        toast.info('Approval Triggered', `Routed for governance review. Risk Score: ${updated.riskScore}`);
+        toast.info(
+          'Approval Triggered',
+          `Discount exceeds ${updated.customerTierName || 'Silver'} Tier limit (${updated.customerTierMaxDiscount ?? 10}%). Automatically routed to Sales Manager Rohan Sharma.`
+        );
       }
     } catch (err) {
       toast.error('Submission Failed', err.message);
@@ -455,8 +461,11 @@ export const QuotationDetailPage = () => {
                 {quote.quotationNumber}
               </h1>
               <StatusBadge status={quote.status} />
-              <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                Tier: {quote.customerTierName || 'Standard'}
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1.5">
+                <span>{quote.customerTierName || 'Standard'} Tier</span>
+                <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                  ≤ {quote.customerTierMaxDiscount ?? 10}% Pre-Approved Limit
+                </span>
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -797,9 +806,22 @@ export const QuotationDetailPage = () => {
                       {formatCurrency(line.unitPrice || 0, quote.currency || 'INR')}
                     </td>
                     <td className="py-3.5 px-3 text-right">
-                      <span className={`font-semibold ${line.discountPercent > 10 ? 'text-rose-600' : 'text-slate-700'}`}>
-                        {line.discountPercent}%
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className={`font-semibold ${line.discountPercent > (quote.customerTierMaxDiscount ?? 10) ? 'text-rose-600' : 'text-slate-700'}`}>
+                          {line.discountPercent}%
+                        </span>
+                        {line.discountPercent > 0 && (
+                          line.discountPercent <= (quote.customerTierMaxDiscount ?? 10) ? (
+                            <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 mt-0.5 whitespace-nowrap">
+                              ✓ ≤ {quote.customerTierMaxDiscount ?? 10}% Tier Safe
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold text-rose-700 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/60 mt-0.5 whitespace-nowrap">
+                              ⚠ &gt; {quote.customerTierMaxDiscount ?? 10}% Manager Req
+                            </span>
+                          )
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-3 text-right font-bold text-slate-900 font-mono">
                       {formatCurrency(line.netAmount || 0, quote.currency || 'INR')}
