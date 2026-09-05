@@ -23,7 +23,6 @@ import {
   Zap,
   Sparkles,
 } from 'lucide-react';
-import { StatusBadge } from '../ui';
 
 export const AppLayout = () => {
   const { user, role, isSalesRep, isSalesManager, isFinance, isAdmin, logout, login } = useAuth();
@@ -122,6 +121,14 @@ export const AppLayout = () => {
             <span className="block text-[10px] uppercase font-semibold tracking-wider text-slate-400">Sales Operations</span>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors"
+          aria-label="Close menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation Groups */}

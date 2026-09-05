@@ -3,16 +3,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Button, Input, ErrorAlert } from '../components/ui';
-import { Zap, Shield, KeyRound, Mail, UserCheck, ArrowRight } from 'lucide-react';
+import { Zap, KeyRound, Mail, UserCheck, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { login, isCustomer } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
 
   const [email, setEmail] = useState('rep@dealflow360.io');
   const [password, setPassword] = useState('Rep@123');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -121,16 +122,28 @@ export const LoginPage = () => {
               autoComplete="email"
             />
 
-            <Input
-              label="Password"
-              type="password"
-              required
-              icon={KeyRound}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
+            <div className="relative">
+              <Input
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                icon={KeyRound}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-[29px] text-slate-400 hover:text-slate-600 focus:outline-hidden"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
 
             <div className="pt-2">
               <Button

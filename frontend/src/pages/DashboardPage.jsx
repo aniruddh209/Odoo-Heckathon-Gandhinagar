@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { quotationApi, reportApi, dealHealthApi, approvalApi } from '../api';
@@ -19,6 +19,10 @@ import {
   Percent,
   ShieldAlert,
   Zap,
+  RefreshCw,
+  ArrowRight,
+  GitPullRequest,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const DashboardPage = () => {
@@ -26,6 +30,7 @@ export const DashboardPage = () => {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   const [metrics, setMetrics] = useState({
@@ -38,27 +43,77 @@ export const DashboardPage = () => {
     totalQuotes: 0,
   });
 
+  const [pipelineOverview, setPipelineOverview] = useState(null);
   const [healthSummary, setHealthSummary] = useState(null);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [recentQuotes, setRecentQuotes] = useState([]);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [user]);
+  const calculateLocalMetrics = (quotes) => {
+    const totalQuoted = quotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
+    const bookedRevenue = quotes
+      .filter((q) => q.status === 'ConvertedToOrder')
+      .reduce((sum, q) => sum + (q.grandTotal || 0), 0);
+    const avgMargin = quotes.length > 0
+      ? quotes.reduce((sum, q) => sum + (q.marginPercent || 0), 0) / quotes.length
+      : 0;
+    const avgRisk = quotes.length > 0
+      ? quotes.reduce((sum, q) => sum + (q.riskScore || 0), 0) / quotes.length
+      : 0;
+    const pendingCount = quotes.filter((q) => q.status === 'PendingApproval').length;
+    const activeOrders = quotes.filter((q) => q.status === 'ConvertedToOrder').length;
 
-  const loadDashboardData = async () => {
-    setIsLoading(true);
+    // Local pipeline breakdown
+    const stageMap = {
+      Draft: { count: 0, total: 0 },
+      Sent: { count: 0, total: 0 },
+      PendingApproval: { count: 0, total: 0 },
+      Approved: { count: 0, total: 0 },
+      ConvertedToOrder: { count: 0, total: 0 },
+      Rejected: { count: 0, total: 0 },
+    };
+
+    quotes.forEach((q) => {
+      const st = q.status || 'Draft';
+      if (!stageMap[st]) stageMap[st] = { count: 0, total: 0 };
+      stageMap[st].count += 1;
+      stageMap[st].total += (q.grandTotal || 0);
+    });
+
+    setPipelineOverview({
+      totalPipelineValue: totalQuoted,
+      totalDeals: quotes.length,
+      stages: Object.entries(stageMap).map(([stageName, data]) => ({
+        stageName,
+        count: data.count,
+        totalValue: data.total,
+      })),
+    });
+
+    setMetrics({
+      totalQuotedRevenue: totalQuoted,
+      totalBookedRevenue: bookedRevenue,
+      averageMarginPercent: Math.round(avgMargin * 10) / 10,
+      averageRiskScore: Math.round(avgRisk * 10) / 10,
+      pendingApprovalsCount: pendingCount,
+      activeOrdersCount: activeOrders,
+      totalQuotes: quotes.length,
+    });
+  };
+
+  const loadDashboardData = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setIsRefreshing(true);
+    else setIsLoading(true);
     setError(null);
 
     try {
-      // 1. Fetch real quotations
+      // 1. Fetch real quotations (Sales Rep sees only their own, Managers/Admins see all)
       const quotesRes = await quotationApi.getQuotations(
         isSalesRep && !isAdmin && !isSalesManager ? { salesRepId: user?.id } : {}
       );
       const quotes = Array.isArray(quotesRes) ? quotesRes : quotesRes?.value || [];
-      setRecentQuotes(quotes.slice(0, 5));
+      setRecentQuotes(quotes.slice(0, 6));
 
-      // 2. Compute or fetch report metrics
+      // 2. Fetch authoritative report metrics if authorized
       if (isSalesManager || isFinance || isAdmin) {
         try {
           const reportData = await reportApi.getDashboardMetrics();
@@ -69,10 +124,18 @@ export const DashboardPage = () => {
             averageRiskScore: reportData.averageRiskScore || 0,
             pendingApprovalsCount: reportData.pendingApprovalsCount || 0,
             activeOrdersCount: reportData.activeOrdersCount || 0,
-            totalQuotes: quotes.length,
+            totalQuotes: reportData.totalQuotationsCount || quotes.length,
           });
         } catch {
-          // Fallback calculation from quotes array
+          calculateLocalMetrics(quotes);
+        }
+
+        // Pipeline Overview
+        try {
+          const pipeRes = await reportApi.getPipelineOverview();
+          setPipelineOverview(pipeRes);
+        } catch {
+          // Fallback to quotation aggregation
           calculateLocalMetrics(quotes);
         }
 
@@ -81,81 +144,70 @@ export const DashboardPage = () => {
           const healthData = await dealHealthApi.getDealHealthSummary();
           setHealthSummary(healthData);
         } catch (e) {
-          console.warn('Could not fetch deal health summary:', e);
+          console.warn('Deal health unavailable:', e);
         }
 
-        // Pending Approvals
+        // Pending Approvals Queue
         try {
           const pendingRes = await approvalApi.getPendingApprovals();
           const pList = Array.isArray(pendingRes) ? pendingRes : pendingRes?.value || [];
           setPendingApprovals(pList.slice(0, 4));
         } catch (e) {
-          console.warn('Could not fetch pending approvals:', e);
+          console.warn('Pending approvals unavailable:', e);
         }
       } else {
-        // Sales Rep local metrics
+        // Sales Rep view strictly derived from user's quotes
         calculateLocalMetrics(quotes);
       }
     } catch (err) {
-      setError(err.message || 'Failed to load dashboard data.');
+      setError(err.message || 'Failed to load live sales operations telemetry.');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
-  };
+  }, [user, isSalesRep, isSalesManager, isFinance, isAdmin]);
 
-  const calculateLocalMetrics = (quotes) => {
-    const totalQuoted = quotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
-    const avgMargin = quotes.length > 0
-      ? quotes.reduce((sum, q) => sum + (q.marginPercent || 0), 0) / quotes.length
-      : 0;
-    const avgRisk = quotes.length > 0
-      ? quotes.reduce((sum, q) => sum + (q.riskScore || 0), 0) / quotes.length
-      : 0;
-    const pendingCount = quotes.filter((q) => q.status === 'PendingApproval').length;
-
-    setMetrics({
-      totalQuotedRevenue: totalQuoted,
-      totalBookedRevenue: totalQuoted * 0.45,
-      averageMarginPercent: Math.round(avgMargin * 10) / 10,
-      averageRiskScore: Math.round(avgRisk * 10) / 10,
-      pendingApprovalsCount: pendingCount,
-      activeOrdersCount: quotes.filter((q) => q.status === 'ConvertedToOrder').length,
-      totalQuotes: quotes.length,
-    });
-  };
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   if (isLoading) {
-    return <LoadingSpinner message="Aggregating sales intelligence & deal telemetry..." size="lg" />;
+    return <LoadingSpinner message="Aggregating sales operations intelligence..." size="lg" />;
   }
 
   if (error) {
     return (
       <div className="py-8">
-        <ErrorAlert message={error} onRetry={loadDashboardData} />
+        <ErrorAlert message={error} onRetry={() => loadDashboardData(true)} />
       </div>
     );
   }
 
   const quoteColumns = [
     {
-      header: 'Quote #',
+      header: 'Quotation #',
       accessor: 'quotationNumber',
       render: (q) => (
-        <span className="font-semibold text-blue-600 hover:text-blue-700">
+        <span className="font-semibold text-blue-600 hover:text-blue-700 font-mono">
           {q.quotationNumber}
         </span>
       ),
     },
     {
-      header: 'Customer',
+      header: 'Customer Account',
       accessor: 'customerName',
-      render: (q) => <span className="font-medium text-slate-900">{q.customerName}</span>,
+      render: (q) => (
+        <div>
+          <span className="font-medium text-slate-900 block">{q.customerName}</span>
+          <span className="text-[11px] text-slate-400">Created: {new Date(q.createdAtUtc).toLocaleDateString()}</span>
+        </div>
+      ),
     },
     {
-      header: 'Deal Value',
+      header: 'Total Value',
       accessor: 'grandTotal',
       render: (q) => (
-        <span className="font-semibold text-slate-900">
+        <span className="font-semibold text-slate-900 font-mono">
           ${(q.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </span>
       ),
@@ -171,32 +223,63 @@ export const DashboardPage = () => {
       render: (q) => <StatusBadge type="risk" value={q.riskScore} />,
     },
     {
-      header: 'Lifecycle Status',
+      header: 'Lifecycle State',
       accessor: 'status',
       render: (q) => <StatusBadge status={q.status} />,
     },
   ];
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const getStageBadgeColor = (stageName) => {
+    switch (stageName) {
+      case 'Draft': return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'PendingApproval': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'Approved': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'ConvertedToOrder': return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'Rejected': return 'bg-rose-50 text-rose-700 border-rose-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* ── 1. Contextual Header ───────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-200/80">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sales Operations Command</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              {getGreeting()}, {user?.fullName?.split(' ')[0] || 'Team'}
+            </h1>
             <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-              Live Governance
+              {user?.role || 'Live Governance'}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Real-time margin surveillance, automated discount compliance, and fulfillment routing.
+            Real-time margin governance, automated tiered discount ceilings, and multi-depot fulfillment.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            isLoading={isRefreshing}
+            onClick={() => loadDashboardData(true)}
+          >
+            Refresh
+          </Button>
+
+          <Button
             variant="primary"
-            size="md"
+            size="sm"
             icon={Plus}
             onClick={() => navigate('/workspace/quotations/new')}
           >
@@ -205,172 +288,231 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* ── 2. Real-Time Financial & Pipeline KPI Grid ────────── */}
+      {/* ── 2. Real-Time Financial & Governance KPI Grid ──────── */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Pipeline Value */}
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pipeline Value</span>
-            <DollarSign className="w-4 h-4 text-blue-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Pipeline</span>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <DollarSign className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
+          <div className="text-2xl font-bold text-slate-900 font-mono">
             ${metrics.totalQuotedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-            <span className="font-semibold text-slate-700">{metrics.totalQuotes}</span> active proposals
+            <span className="font-semibold text-slate-800">{metrics.totalQuotes}</span> active proposals
           </div>
         </div>
 
+        {/* Booked Revenue */}
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Booked Revenue</span>
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Booked Revenue</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
+          <div className="text-2xl font-bold text-slate-900 font-mono">
             ${metrics.totalBookedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-            <span>Orders converted</span>
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{metrics.activeOrdersCount} orders confirmed</span>
           </div>
         </div>
 
+        {/* Avg Gross Margin */}
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Avg Gross Margin</span>
-            <Percent className="w-4 h-4 text-purple-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Avg Gross Margin</span>
+            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <Percent className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
+          <div className="text-2xl font-bold text-slate-900 font-mono">
             {metrics.averageMarginPercent}%
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs">
-            <span className={metrics.averageMarginPercent >= 25 ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium'}>
-              {metrics.averageMarginPercent >= 25 ? 'Healthy Margin Target' : 'Under Governance Target'}
+            <span className={`font-semibold ${metrics.averageMarginPercent >= 25 ? 'text-emerald-600' : 'text-amber-600'}`}>
+              {metrics.averageMarginPercent >= 25 ? 'Healthy Target (>=25%)' : 'Margin Attention Required'}
             </span>
           </div>
         </div>
 
+        {/* Pending Approvals */}
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending Approvals</span>
-            <ShieldAlert className="w-4 h-4 text-amber-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Pending Approvals</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
+          <div className="text-2xl font-bold text-slate-900 font-mono">
             {metrics.pendingApprovalsCount}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-600 font-medium">
-            <span>Awaiting authorization</span>
+            <span>Requiring manager authorization</span>
           </div>
         </div>
       </div>
 
-      {/* ── 3. Intelligence Area: Deal Health & Risk Alerts ────── */}
-      {healthSummary && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-          <div className="px-5 py-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-blue-600" />
-              <h2 className="text-sm font-semibold text-slate-900">Deal Health & Anomaly Surveillance</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500">Overall Health Score:</span>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {healthSummary.healthScore}%
-              </span>
-            </div>
-          </div>
-
-          <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-3.5 rounded-lg border border-amber-200/80 bg-amber-50/40">
-              <div className="flex items-center justify-between text-amber-800">
-                <span className="text-xs font-semibold">Stalled Deals</span>
-                <Clock className="w-4 h-4 text-amber-600" />
+      {/* ── 3. Attention Required & Deal Health Surveillance ───── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Pending Approvals Triage (8 cols if manager, or full width if items) */}
+        <div className={healthSummary ? 'lg:col-span-7 space-y-4' : 'lg:col-span-12 space-y-4'}>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+            <div className="px-5 py-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <h2 className="text-sm font-semibold text-slate-900">Attention Required: Pending Approvals</h2>
               </div>
-              <div className="text-xl font-bold text-amber-900 mt-1">
-                {healthSummary.stalledDealsCount || 0}
-              </div>
-              <p className="text-[11px] text-amber-700 mt-1">
-                Inactive for &gt; 5 days without customer interaction
-              </p>
+              {pendingApprovals.length > 0 && (
+                <Button
+                  variant="link"
+                  size="xs"
+                  onClick={() => navigate('/workspace/approvals')}
+                >
+                  View Desk ({pendingApprovals.length})
+                </Button>
+              )}
             </div>
 
-            <div className="p-3.5 rounded-lg border border-rose-200/80 bg-rose-50/40">
-              <div className="flex items-center justify-between text-rose-800">
-                <span className="text-xs font-semibold">Discount Anomalies</span>
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
+            {pendingApprovals.length === 0 ? (
+              <div className="p-8 text-center">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-slate-800">All Approvals Clear</p>
+                <p className="text-xs text-slate-400 mt-0.5">No pending discount violations awaiting authorization.</p>
               </div>
-              <div className="text-xl font-bold text-rose-900 mt-1">
-                {healthSummary.discountAnomaliesCount || 0}
-              </div>
-              <p className="text-[11px] text-rose-700 mt-1">
-                Rep discount violation &gt; 2σ historical variance
-              </p>
-            </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {pendingApprovals.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs text-blue-600 font-mono">{req.quotationNumber}</span>
+                        <span className="text-xs font-medium text-slate-900">{req.customerName}</span>
+                        <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono">
+                          {req.salesRepName}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {req.reason || 'Requested discount exceeds standard rep authorization ceiling.'}
+                      </p>
+                    </div>
 
-            <div className="p-3.5 rounded-lg border border-purple-200/80 bg-purple-50/40">
-              <div className="flex items-center justify-between text-purple-800">
-                <span className="text-xs font-semibold">High Risk Proposals</span>
-                <ShieldAlert className="w-4 h-4 text-purple-600" />
+                    <div className="flex items-center gap-3 self-end sm:self-center">
+                      <div className="text-right">
+                        <span className="block font-bold text-xs text-slate-900 font-mono">
+                          ${(req.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                        <StatusBadge type="risk" value={req.riskScore || 0} />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => navigate(`/workspace/approvals/${req.quotationId || req.id}`)}
+                      >
+                        Review
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="text-xl font-bold text-purple-900 mt-1">
-                {healthSummary.highRiskDealsCount || 0}
-              </div>
-              <p className="text-[11px] text-purple-700 mt-1">
-                Blended risk &gt; 50 requiring Finance Director approval
-              </p>
-            </div>
+            )}
           </div>
         </div>
-      )}
 
-      {/* ── 4. Action Area: Pending Approvals Triage ──────────── */}
-      {(isSalesManager || isFinance || isAdmin) && pendingApprovals.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-          <div className="px-5 py-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+        {/* Deal Health Surveillance Radar (5 cols) */}
+        {healthSummary && (
+          <div className="lg:col-span-5">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden h-full flex flex-col">
+              <div className="px-5 py-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-blue-600" />
+                  <h2 className="text-sm font-semibold text-slate-900">Deal Health Radar</h2>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400">Score:</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {healthSummary.healthScore}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-3 flex-1 flex flex-col justify-around">
+                <div className="p-3 rounded-lg border border-amber-200/80 bg-amber-50/40 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-amber-900 block">Stalled Quotations</span>
+                    <span className="text-[11px] text-amber-700">Inactive &gt; 5 days without response</span>
+                  </div>
+                  <span className="text-lg font-bold text-amber-900 font-mono">
+                    {healthSummary.stalledDealsCount || 0}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg border border-rose-200/80 bg-rose-50/40 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-rose-900 block">Discount Anomalies</span>
+                    <span className="text-[11px] text-rose-700">Discount &gt; 2σ standard deviation</span>
+                  </div>
+                  <span className="text-lg font-bold text-rose-900 font-mono">
+                    {healthSummary.discountAnomaliesCount || 0}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg border border-purple-200/80 bg-purple-50/40 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-purple-900 block">High Risk Proposals</span>
+                    <span className="text-[11px] text-purple-700">Risk score &gt; 50 requiring director signoff</span>
+                  </div>
+                  <span className="text-lg font-bold text-purple-900 font-mono">
+                    {healthSummary.highRiskDealsCount || 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 4. Pipeline Snapshot ───────────────────────────────── */}
+      {pipelineOverview && pipelineOverview.stages && (
+        <div className="rounded-xl border border-slate-200 bg-white shadow-xs p-5 space-y-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600" />
-              <h2 className="text-sm font-semibold text-slate-900">Immediate Action Required: Discount Approvals</h2>
+              <GitPullRequest className="w-4 h-4 text-blue-600" />
+              <h2 className="text-sm font-semibold text-slate-900">Pipeline Progression Snapshot</h2>
             </div>
             <Button
               variant="link"
               size="xs"
-              onClick={() => navigate('/workspace/approvals')}
+              icon={ArrowRight}
+              onClick={() => navigate('/workspace/pipeline')}
             >
-              View Full Queue ({pendingApprovals.length})
+              Open Kanban Board
             </Button>
           </div>
 
-          <div className="divide-y divide-slate-100">
-            {pendingApprovals.map((req) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {pipelineOverview.stages.map((st) => (
               <div
-                key={req.id}
-                className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors"
+                key={st.stageName}
+                onClick={() => navigate('/workspace/pipeline')}
+                className="p-3 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-blue-50/40 hover:border-blue-200 cursor-pointer transition-colors"
               >
-                <div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="font-semibold text-xs text-blue-600">{req.quotationNumber}</span>
-                    <span className="text-xs font-medium text-slate-900">{req.customerName}</span>
-                    <span className="text-[11px] px-2 py-0.2 rounded-md bg-slate-100 text-slate-700 font-mono">
-                      Rep: {req.salesRepName}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {req.reason || 'Requested discount exceeds standard rep authorization ceiling.'}
-                  </p>
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${getStageBadgeColor(st.stageName)}`}>
+                    {st.stageName}
+                  </span>
+                  <span className="text-xs font-bold text-slate-900 font-mono">{st.count}</span>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <span className="block font-bold text-sm text-slate-900">
-                      ${(req.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <StatusBadge type="risk" value={req.riskScore || 0} />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => navigate('/workspace/approvals')}
-                  >
-                    Review
-                  </Button>
+                <div className="text-xs font-semibold text-slate-800 font-mono mt-1">
+                  ${(st.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </div>
               </div>
             ))}
@@ -378,7 +520,7 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* ── 5. Recent Deal Flow Workspace Table ───────────────── */}
+      {/* ── 5. Recent Quotations & Deal Flow Table ─────────────── */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
