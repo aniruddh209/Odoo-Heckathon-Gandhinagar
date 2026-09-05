@@ -3,7 +3,7 @@
 ---
 
 ## Overview
-This document contains the complete visual Entity-Relationship Diagrams (ERD) for DealFlow360, rendered using standard GitHub-compatible Mermaid notation. It is partitioned into 9 domain-focused diagrams followed by the Complete System ERD connecting all domains.
+This document contains the complete visual Entity-Relationship Diagrams (ERD) for DealFlow360's Microsoft SQL Server database schema, rendered using standard GitHub-compatible Mermaid notation. It is partitioned into 9 domain-focused diagrams followed by the Complete System ERD.
 
 ---
 
@@ -11,24 +11,25 @@ This document contains the complete visual Entity-Relationship Diagrams (ERD) fo
 
 ```mermaid
 erDiagram
-    RES_USERS ||--o{ SALE_ORDER : "creates / owns"
-    RES_USERS ||--o{ DEALFLOW_APPROVAL_ACTION : "reviews"
-    RES_USERS ||--o{ DEALFLOW_AUDIT_LOG : "triggers"
-    CRM_TEAM ||--o{ RES_USERS : "groups"
+    USERS ||--o{ QUOTATIONS : "creates / owns"
+    USERS ||--o{ APPROVAL_ACTIONS : "reviews"
+    USERS ||--o{ AUDIT_LOGS : "triggers"
+    TEAMS ||--o{ USERS : "groups"
 
-    RES_USERS {
-        int id PK
-        string name
-        string login
-        string role
-        int team_id FK
-        decimal historical_discount_avg
-        boolean is_active
+    USERS {
+        int Id PK
+        string Name
+        string Email UK
+        string Role
+        int TeamId FK
+        decimal HistoricalDiscountAvg
+        boolean IsActive
+        datetime CreatedAt
     }
 
-    CRM_TEAM {
-        int id PK
-        string name
+    TEAMS {
+        int Id PK
+        string Name
     }
 ```
 
@@ -38,172 +39,152 @@ erDiagram
 
 ```mermaid
 erDiagram
-    DEALFLOW_CUSTOMER_TIER ||--o{ RES_PARTNER : "classifies"
-    PRODUCT_PRICELIST ||--o{ DEALFLOW_CUSTOMER_TIER : "default pricelist"
-    PRODUCT_PRICELIST ||--o{ PRODUCT_PRICELIST_ITEM : "contains"
-    PRODUCT_CATEGORY ||--o{ PRODUCT_PRODUCT : "categorizes"
-    PRODUCT_CATEGORY ||--|| DEALFLOW_CATEGORY_LIMIT : "defines limit"
-    PRODUCT_PRODUCT ||--o{ PRODUCT_PRICELIST_ITEM : "priced in"
-    RES_PARTNER ||--o{ SALE_ORDER : "customer"
+    CUSTOMER_TIERS ||--o{ CUSTOMERS : "classifies"
+    PRICE_LISTS ||--o{ CUSTOMER_TIERS : "default pricelist"
+    PRICE_LISTS ||--o{ PRICE_LIST_ITEMS : "contains"
+    PRODUCT_CATEGORIES ||--o{ PRODUCTS : "categorizes"
+    PRODUCT_CATEGORIES ||--|| CATEGORY_DISCOUNT_LIMITS : "defines limit"
+    PRODUCTS ||--o{ PRICE_LIST_ITEMS : "priced in"
+    CUSTOMERS ||--o{ QUOTATIONS : "customer"
 
-    DEALFLOW_CUSTOMER_TIER {
-        int id PK
-        string name
-        decimal max_discount_ceiling
-        int default_pricelist_id FK
+    CUSTOMER_TIERS {
+        int Id PK
+        string Name UK
+        decimal MaxDiscountCeiling
+        int DefaultPriceListId FK
     }
 
-    DEALFLOW_CATEGORY_LIMIT {
-        int id PK
-        int category_id FK
-        decimal max_rep_discount
-        decimal manager_approval_threshold
-        decimal finance_approval_threshold
+    CATEGORY_DISCOUNT_LIMITS {
+        int Id PK
+        int CategoryId FK
+        decimal MaxRepDiscount
+        decimal ManagerApprovalThreshold
     }
 
-    PRODUCT_PRODUCT {
-        int id PK
-        string name
-        string default_code
-        int category_id FK
-        string product_type
-        decimal list_price
-        decimal standard_price
-        boolean is_promoted
-        decimal min_margin_threshold
+    CUSTOMERS {
+        int Id PK
+        string Name
+        string Email
+        int CustomerTierId FK
+        string PortalToken UK
+        datetime PortalTokenExpiry
     }
 
-    RES_PARTNER {
-        int id PK
-        string name
-        string email
-        int customer_tier_id FK
-        string portal_token
-        datetime portal_token_expiry
-    }
-```
-
----
-
-## 3. Quotation & Discount Governance ERD
-
-```mermaid
-erDiagram
-    SALE_ORDER ||--o{ SALE_ORDER_LINE : "contains lines"
-    RES_USERS ||--o{ SALE_ORDER : "sales rep"
-    RES_PARTNER ||--o{ SALE_ORDER : "customer"
-    PRODUCT_PRODUCT ||--o{ SALE_ORDER_LINE : "product"
-
-    SALE_ORDER {
-        int id PK
-        string name
-        int partner_id FK
-        int user_id FK
-        string state
-        string approval_state
-        string highest_approval_level
-        decimal blended_risk_score
-        decimal amount_untaxed
-        decimal amount_discount
-        decimal amount_total
-        decimal order_margin_percent
-        decimal counter_discount_proposed
-        date promised_delivery_date
-        datetime last_activity_date
-        int concurrency_version
-    }
-
-    SALE_ORDER_LINE {
-        int id PK
-        int order_id FK
-        int product_id FK
-        decimal product_uom_qty
-        decimal price_unit
-        decimal discount
-        decimal effective_ceiling
-        boolean is_ceiling_violated
-        decimal violation_points
-        decimal price_subtotal
-        decimal cost_price
-        decimal line_margin_percent
-        string line_type
-        text customer_comment
+    PRODUCTS {
+        int Id PK
+        string Sku UK
+        string Name
+        int CategoryId FK
+        string ProductType
+        decimal ListPrice
+        decimal StandardCostPrice
+        decimal MinMarginThreshold
+        boolean IsPromoted
     }
 ```
 
 ---
 
-## 4. Multi-Level Approval Chain & Audit ERD
+## 3. Core Quotation & Line Items ERD
 
 ```mermaid
 erDiagram
-    SALE_ORDER ||--o{ DEALFLOW_APPROVAL_REQUEST : "requires"
-    DEALFLOW_APPROVAL_REQUEST ||--o{ DEALFLOW_APPROVAL_ACTION : "decision history"
-    RES_USERS ||--o{ DEALFLOW_APPROVAL_ACTION : "acted by"
-    SALE_ORDER ||--o{ DEALFLOW_AUDIT_LOG : "audited by"
+    CUSTOMERS ||--o{ QUOTATIONS : "requests"
+    USERS ||--o{ QUOTATIONS : "sales rep"
+    QUOTATIONS ||--o{ QUOTATION_LINES : "contains"
+    PRODUCTS ||--o{ QUOTATION_LINES : "ordered item"
 
-    DEALFLOW_APPROVAL_REQUEST {
-        int id PK
-        int order_id FK
-        string approval_level
-        string status
-        int assigned_user_id FK
-        datetime created_at
-        datetime completed_at
+    QUOTATIONS {
+        guid Id PK
+        string QuotationNumber UK
+        int CustomerId FK
+        int SalesRepresentativeId FK
+        string Status
+        string ApprovalLevelRequired
+        int CurrentApprovalLevel
+        decimal TotalGrossAmount
+        decimal TotalDiscountAmount
+        decimal TotalNetAmount
+        decimal TotalCostAmount
+        decimal OrderGrossMarginPercent
+        decimal BlendedDiscountRiskScore
+        int ConcurrencyVersion
+        datetime CreatedAt
     }
 
-    DEALFLOW_APPROVAL_ACTION {
-        int id PK
-        int request_id FK
-        int order_id FK
-        int actor_id FK
-        string action
-        text reason
-        decimal risk_score_at_action
-        datetime created_at
-    }
-
-    DEALFLOW_AUDIT_LOG {
-        bigint id PK
-        uuid event_uuid
-        string event_type
-        int order_id FK
-        string actor_email
-        string actor_role
-        string previous_state
-        string new_state
-        string payload_snapshot
-        text reason_text
-        datetime timestamp_utc
+    QUOTATION_LINES {
+        bigint Id PK
+        guid QuotationId FK
+        int ProductId FK
+        decimal Quantity
+        decimal UnitPrice
+        decimal DiscountPercentage
+        decimal SubtotalAmount
+        decimal UnitCostPrice
+        decimal LineMarginPercent
+        decimal EffectiveDiscountLimit
+        boolean RequiresApproval
+        string LineItemType
     }
 ```
 
 ---
 
-## 5. Live Upsell & Cross-Sell ERD
+## 4. Multi-Tier Approval Governance ERD
 
 ```mermaid
 erDiagram
-    PRODUCT_PRODUCT ||--o{ DEALFLOW_COPURCHASE_RULE : "source product"
-    PRODUCT_PRODUCT ||--o{ DEALFLOW_COPURCHASE_RULE : "recommended product"
-    SALE_ORDER ||--o{ DEALFLOW_UPSELL_RECOMMENDATION : "evaluates"
-    PRODUCT_PRODUCT ||--o{ DEALFLOW_UPSELL_RECOMMENDATION : "suggests"
+    QUOTATIONS ||--o{ APPROVAL_REQUESTS : "initiates"
+    APPROVAL_REQUESTS ||--o{ APPROVAL_ACTIONS : "action trail"
+    USERS ||--o{ APPROVAL_ACTIONS : "acted by"
 
-    DEALFLOW_COPURCHASE_RULE {
-        int id PK
-        int source_product_id FK
-        int recommended_product_id FK
-        decimal confidence_score
-        boolean is_active
+    APPROVAL_REQUESTS {
+        int Id PK
+        guid QuotationId FK
+        int RequiredLevel
+        string Status
+        decimal BlendedRiskScore
+        decimal PeakLineViolation
+        decimal WeightedMarginLoss
+        datetime RequestedAt
     }
 
-    DEALFLOW_UPSELL_RECOMMENDATION {
-        int id PK
-        int order_id FK
-        int product_id FK
-        decimal margin_delta_percent
-        string promotion_tag
-        string status
+    APPROVAL_ACTIONS {
+        int Id PK
+        int ApprovalRequestId FK
+        int ReviewerId FK
+        string ActionTaken
+        string Remarks
+        datetime ActionTimestamp
+    }
+```
+
+---
+
+## 5. Live Upsell & Co-Purchase Engine ERD
+
+```mermaid
+erDiagram
+    PRODUCTS ||--o{ CO_PURCHASE_RULES : "primary trigger"
+    PRODUCTS ||--o{ CO_PURCHASE_RULES : "recommended item"
+    QUOTATIONS ||--o{ UPSELL_RECOMMENDATIONS : "receives"
+    PRODUCTS ||--o{ UPSELL_RECOMMENDATIONS : "suggested product"
+
+    CO_PURCHASE_RULES {
+        int Id PK
+        int TriggerProductId FK
+        int RecommendedProductId FK
+        decimal AffinityScore
+        decimal DefaultDiscountPercent
+    }
+
+    UPSELL_RECOMMENDATIONS {
+        int Id PK
+        guid QuotationId FK
+        int RecommendedProductId FK
+        decimal MarginDeltaPercent
+        decimal ProjectedRevenue
+        boolean IsAccepted
     }
 ```
 
@@ -213,200 +194,194 @@ erDiagram
 
 ```mermaid
 erDiagram
-    STOCK_WAREHOUSE ||--o{ STOCK_QUANT : "stores"
-    PRODUCT_PRODUCT ||--o{ STOCK_QUANT : "inventory of"
-    SALE_ORDER ||--o{ DEALFLOW_FULFILLMENT : "splits across"
-    SALE_ORDER_LINE ||--o{ DEALFLOW_FULFILLMENT : "allocates"
-    STOCK_WAREHOUSE ||--o{ DEALFLOW_FULFILLMENT : "source location"
-    SALE_ORDER ||--o{ STOCK_PICKING : "dispatches"
-    STOCK_WAREHOUSE ||--o{ STOCK_PICKING : "ships from"
-    STOCK_PICKING ||--o{ STOCK_PICKING : "backorder parent"
+    QUOTATIONS ||--o{ FULFILLMENT_SPLITS : "split allocation"
+    WAREHOUSES ||--o{ FULFILLMENT_SPLITS : "sourced from"
+    WAREHOUSES ||--o{ STOCK_QUANTITIES : "holds stock"
+    PRODUCTS ||--o{ STOCK_QUANTITIES : "inventory item"
+    FULFILLMENT_SPLITS ||--o{ SHIPMENTS : "generates"
 
-    STOCK_WAREHOUSE {
-        int id PK
-        string name
-        string code
-        decimal shipping_cost_weight
+    WAREHOUSES {
+        int Id PK
+        string Code UK
+        string Name
+        string City
+        boolean IsCentralDepot
     }
 
-    STOCK_QUANT {
-        int id PK
-        int product_id FK
-        int warehouse_id FK
-        decimal quantity
+    STOCK_QUANTITIES {
+        int Id PK
+        int WarehouseId FK
+        int ProductId FK
+        decimal QuantityOnHand
+        decimal QuantityReserved
+        decimal QuantityAvailable
     }
 
-    DEALFLOW_FULFILLMENT {
-        int id PK
-        int order_id FK
-        int order_line_id FK
-        int warehouse_id FK
-        decimal allocated_qty
-        decimal backorder_qty
-        string status
-        decimal estimated_freight_cost
+    FULFILLMENT_SPLITS {
+        int Id PK
+        guid QuotationId FK
+        int WarehouseId FK
+        decimal EstimatedShippingCost
+        int EstimatedDeliveryDays
+        string Status
     }
 
-    STOCK_PICKING {
-        int id PK
-        string name
-        int order_id FK
-        int warehouse_id FK
-        int backorder_id FK
-        boolean is_backorder
-        string state
+    SHIPMENTS {
+        int Id PK
+        int FulfillmentSplitId FK
+        string TrackingNumber
+        string Carrier
+        datetime ShippedDate
+        string Status
     }
 ```
 
 ---
 
-## 7. Hybrid Billing, Subscriptions & Proration ERD
+## 7. Hybrid Billing & Subscriptions ERD
 
 ```mermaid
 erDiagram
-    SALE_ORDER ||--o{ DEALFLOW_SUBSCRIPTION : "creates contract"
-    RES_PARTNER ||--o{ DEALFLOW_SUBSCRIPTION : "subscriber"
-    PRODUCT_PRODUCT ||--o{ DEALFLOW_SUBSCRIPTION : "service product"
-    DEALFLOW_SUBSCRIPTION ||--o{ DEALFLOW_BILLING_SCHEDULE : "schedules"
-    SALE_ORDER ||--o{ ACCOUNT_MOVE : "one-time invoice"
-    DEALFLOW_SUBSCRIPTION ||--o{ ACCOUNT_MOVE : "subscription invoice"
-    ACCOUNT_MOVE ||--o{ ACCOUNT_PAYMENT : "reconciles"
+    QUOTATIONS ||--o{ INVOICES : "immediate invoice"
+    QUOTATIONS ||--o{ SUBSCRIPTION_CONTRACTS : "subscription contract"
+    SUBSCRIPTION_CONTRACTS ||--o{ BILLING_SCHEDULES : "schedule"
+    INVOICES ||--o{ INVOICE_LINES : "contains"
+    INVOICES ||--o{ PAYMENTS : "reconciled with"
+    CUSTOMERS ||--o{ INVOICES : "billed to"
 
-    DEALFLOW_SUBSCRIPTION {
-        int id PK
-        string code
-        int order_id FK
-        int partner_id FK
-        int product_id FK
-        string billing_interval
-        decimal quantity
-        decimal recurring_amount
-        date start_date
-        date next_billing_date
-        string status
-        decimal prorated_credit_balance
+    INVOICES {
+        guid Id PK
+        string InvoiceNumber UK
+        guid QuotationId FK
+        int CustomerId FK
+        string InvoiceType
+        string Status
+        decimal TotalAmount
+        datetime DueDate
     }
 
-    DEALFLOW_BILLING_SCHEDULE {
-        int id PK
-        int subscription_id FK
-        date scheduled_date
-        decimal projected_amount
-        int invoice_id FK
-        string status
+    INVOICE_LINES {
+        bigint Id PK
+        guid InvoiceId FK
+        int ProductId FK
+        decimal Quantity
+        decimal UnitPrice
+        decimal LineTotal
     }
 
-    ACCOUNT_MOVE {
-        int id PK
-        string name
-        int order_id FK
-        int partner_id FK
-        string move_type
-        decimal amount_total
-        string payment_state
-        date invoice_date
+    SUBSCRIPTION_CONTRACTS {
+        int Id PK
+        guid QuotationId FK
+        int CustomerId FK
+        string BillingInterval
+        decimal RecurringAmount
+        datetime StartDate
+        datetime NextBillingDate
+        string Status
     }
 
-    ACCOUNT_PAYMENT {
-        int id PK
-        int move_id FK
-        decimal amount
-        date payment_date
-        string state
+    BILLING_SCHEDULES {
+        int Id PK
+        int SubscriptionContractId FK
+        datetime ScheduledDate
+        decimal ProjectedAmount
+        string Status
     }
 ```
 
 ---
 
-## 8. Customer Portal Negotiation ERD
+## 8. Customer Portal Negotiation & Health Monitoring ERD
 
 ```mermaid
 erDiagram
-    SALE_ORDER ||--|| DEALFLOW_NEGOTIATION : "negotiates"
-    RES_PARTNER ||--o{ DEALFLOW_NEGOTIATION : "customer"
-    DEALFLOW_NEGOTIATION ||--o{ DEALFLOW_NEGOTIATION_MSG : "messages"
-    SALE_ORDER_LINE ||--o{ DEALFLOW_NEGOTIATION_MSG : "line comment"
+    QUOTATIONS ||--o{ NEGOTIATION_THREADS : "portal discussion"
+    NEGOTIATION_THREADS ||--o{ NEGOTIATION_MESSAGES : "messages"
+    QUOTATIONS ||--o{ DEAL_HEALTH_ALERTS : "health monitoring"
+    USERS ||--o{ DEAL_HEALTH_ALERTS : "assigned rep"
 
-    DEALFLOW_NEGOTIATION {
-        int id PK
-        int order_id FK
-        int partner_id FK
-        string current_status
-        decimal last_counter_discount
-        boolean re_approval_triggered
-        datetime updated_at
+    NEGOTIATION_THREADS {
+        int Id PK
+        guid QuotationId FK
+        string ThreadType
+        datetime CreatedAt
     }
 
-    DEALFLOW_NEGOTIATION_MSG {
-        int id PK
-        int thread_id FK
-        int line_id FK
-        string sender_type
-        string sender_name
-        text message_text
-        datetime created_at
+    NEGOTIATION_MESSAGES {
+        bigint Id PK
+        int ThreadId FK
+        string AuthorType
+        string MessageContent
+        decimal ProposedDiscountPercent
+        datetime SentAt
     }
-```
 
----
-
-## 9. Deal Health & Anomaly Alerts ERD
-
-```mermaid
-erDiagram
-    SALE_ORDER ||--o{ DEALFLOW_HEALTH_ALERT : "monitored for"
-
-    DEALFLOW_HEALTH_ALERT {
-        int id PK
-        int order_id FK
-        string alert_type
-        string severity
-        decimal metric_observed
-        decimal metric_threshold
-        string message
-        boolean is_resolved
-        datetime created_at
+    DEAL_HEALTH_ALERTS {
+        int Id PK
+        guid QuotationId FK
+        int AssignedRepId FK
+        string AlertType
+        string Severity
+        string Description
+        boolean IsResolved
+        datetime CreatedAt
     }
 ```
 
 ---
 
-## 10. Complete DealFlow360 System ERD
+## 9. Complete DealFlow360 System ERD
 
 ```mermaid
 erDiagram
-    RES_USERS ||--o{ SALE_ORDER : "creates / reps"
-    RES_PARTNER ||--o{ SALE_ORDER : "orders for"
-    DEALFLOW_CUSTOMER_TIER ||--o{ RES_PARTNER : "tiers"
-    PRODUCT_CATEGORY ||--o{ PRODUCT_PRODUCT : "categorizes"
-    PRODUCT_CATEGORY ||--|| DEALFLOW_CATEGORY_LIMIT : "limits"
-    PRODUCT_PRODUCT ||--o{ SALE_ORDER_LINE : "quoted in"
-    SALE_ORDER ||--o{ SALE_ORDER_LINE : "lines"
-    
-    SALE_ORDER ||--o{ DEALFLOW_APPROVAL_REQUEST : "routes approval"
-    DEALFLOW_APPROVAL_REQUEST ||--o{ DEALFLOW_APPROVAL_ACTION : "actions"
-    RES_USERS ||--o{ DEALFLOW_APPROVAL_ACTION : "reviews"
-    
-    PRODUCT_PRODUCT ||--o{ DEALFLOW_COPURCHASE_RULE : "pairs"
-    SALE_ORDER ||--o{ DEALFLOW_UPSELL_RECOMMENDATION : "upsells"
-    
-    STOCK_WAREHOUSE ||--o{ STOCK_QUANT : "stores"
-    PRODUCT_PRODUCT ||--o{ STOCK_QUANT : "quant"
-    SALE_ORDER ||--o{ DEALFLOW_FULFILLMENT : "splits"
-    STOCK_WAREHOUSE ||--o{ DEALFLOW_FULFILLMENT : "supplies"
-    SALE_ORDER ||--o{ STOCK_PICKING : "dispatches"
-    
-    SALE_ORDER ||--o{ DEALFLOW_SUBSCRIPTION : "starts recurring"
-    DEALFLOW_SUBSCRIPTION ||--o{ DEALFLOW_BILLING_SCHEDULE : "schedules"
-    SALE_ORDER ||--o{ ACCOUNT_MOVE : "bills one-time"
-    DEALFLOW_SUBSCRIPTION ||--o{ ACCOUNT_MOVE : "bills subscription"
-    ACCOUNT_MOVE ||--o{ ACCOUNT_PAYMENT : "pays"
-    
-    SALE_ORDER ||--|| DEALFLOW_NEGOTIATION : "portal negotiation"
-    DEALFLOW_NEGOTIATION ||--o{ DEALFLOW_NEGOTIATION_MSG : "messages"
-    SALE_ORDER_LINE ||--o{ DEALFLOW_NEGOTIATION_MSG : "line feedback"
-    
-    SALE_ORDER ||--o{ DEALFLOW_HEALTH_ALERT : "signals risk"
-    SALE_ORDER ||--o{ DEALFLOW_AUDIT_LOG : "audits"
-    RES_USERS ||--o{ DEALFLOW_AUDIT_LOG : "audited actor"
+    USERS ||--o{ QUOTATIONS : "creates / reps"
+    CUSTOMERS ||--o{ QUOTATIONS : "customer"
+    CUSTOMER_TIERS ||--o{ CUSTOMERS : "tier"
+    PRODUCT_CATEGORIES ||--o{ PRODUCTS : "category"
+    PRODUCTS ||--o{ QUOTATION_LINES : "line product"
+    QUOTATIONS ||--o{ QUOTATION_LINES : "contains"
+    QUOTATIONS ||--o{ APPROVAL_REQUESTS : "approval"
+    APPROVAL_REQUESTS ||--o{ APPROVAL_ACTIONS : "actions"
+    USERS ||--o{ APPROVAL_ACTIONS : "reviews"
+    QUOTATIONS ||--o{ FULFILLMENT_SPLITS : "splits"
+    WAREHOUSES ||--o{ FULFILLMENT_SPLITS : "source"
+    QUOTATIONS ||--o{ INVOICES : "one-time billing"
+    QUOTATIONS ||--o{ SUBSCRIPTION_CONTRACTS : "recurring billing"
+    QUOTATIONS ||--o{ DEAL_HEALTH_ALERTS : "monitored"
+    USERS ||--o{ AUDIT_LOGS : "audited actor"
+
+    QUOTATIONS {
+        guid Id PK
+        string QuotationNumber UK
+        string Status
+        decimal TotalNetAmount
+        decimal OrderGrossMarginPercent
+        decimal BlendedDiscountRiskScore
+    }
+
+    APPROVAL_REQUESTS {
+        int Id PK
+        int RequiredLevel
+        string Status
+    }
+
+    INVOICES {
+        guid Id PK
+        string InvoiceType
+        decimal TotalAmount
+    }
+
+    SUBSCRIPTION_CONTRACTS {
+        int Id PK
+        string BillingInterval
+        decimal RecurringAmount
+    }
+
+    AUDIT_LOGS {
+        bigint Id PK
+        string EntityName
+        string ActionType
+        int ActorUserId FK
+        datetime Timestamp
+    }
 ```

@@ -198,7 +198,7 @@
     - Button: `Generate Commercial Invoice`.
   - **Pane B: Recurring Subscriptions**:
     - Lists active SaaS plans, user counts, and billing frequency (Monthly/Quarterly/Yearly).
-    - **Upcoming Billing Schedule Table**: Shows scheduled dates, projected billing amounts, and automated cron run dates.
+    - **Upcoming Billing Schedule Table**: Shows scheduled dates, projected billing amounts, and automated background billing run dates.
     - **Mid-Cycle Modification Tool**: Interactive quantity slider showing instant calendar proration charges:
       > *"Increasing licenses from 10 to 15 will generate an immediate prorated charge of $16.67 for 10 remaining cycle days."*
     - Button: `Cancel Subscription` -> Triggers automated credit note generation preview modal.

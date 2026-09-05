@@ -436,136 +436,123 @@ flowchart TD
 
 ## H. Database & Data Model
 
-`[IMPLEMENTATION DECISION]` Grounded in relational schema design compatible with PostgreSQL and Odoo ORM models.
+`[IMPLEMENTATION DECISION]` Grounded in enterprise relational schema design implemented on Microsoft SQL Server via Entity Framework Core.
 
 ```mermaid
 erDiagram
-    RES_USERS ||--o{ SALE_ORDER : "creates"
-    RES_PARTNER ||--o{ SALE_ORDER : "customer"
-    CUSTOMER_TIER ||--o{ RES_PARTNER : "classifies"
-    PRODUCT_CATEGORY ||--o{ PRODUCT_TEMPLATE : "categorizes"
-    PRODUCT_CATEGORY ||--o{ CATEGORY_DISCOUNT_LIMIT : "defines limit"
-    PRODUCT_TEMPLATE ||--o{ PRODUCT_PRODUCT : "variants"
-    PRODUCT_PRODUCT ||--o{ SALE_ORDER_LINE : "ordered in"
-    SALE_ORDER ||--o{ SALE_ORDER_LINE : "contains"
-    SALE_ORDER ||--o{ DEAL_APPROVAL_REQUEST : "requires"
-    SALE_ORDER ||--o{ DEAL_AUDIT_LOG : "audited by"
-    SALE_ORDER ||--o{ FULFILLMENT_ALLOCATION : "fulfilled by"
-    STOCK_WAREHOUSE ||--o{ FULFILLMENT_ALLOCATION : "source"
-    SALE_ORDER ||--o{ SUBSCRIPTION_CONTRACT : "generates"
-    SALE_ORDER ||--o{ DEAL_HEALTH_ALERT : "monitored by"
+    USERS ||--o{ QUOTATIONS : "creates / reps"
+    CUSTOMERS ||--o{ QUOTATIONS : "customer"
+    CUSTOMER_TIERS ||--o{ CUSTOMERS : "classifies"
+    PRODUCT_CATEGORIES ||--o{ PRODUCTS : "categorizes"
+    PRODUCT_CATEGORIES ||--|| CATEGORY_DISCOUNT_LIMITS : "defines limit"
+    PRODUCTS ||--o{ QUOTATION_LINES : "ordered item"
+    QUOTATIONS ||--o{ QUOTATION_LINES : "contains"
+    QUOTATIONS ||--o{ APPROVAL_REQUESTS : "requires"
+    QUOTATIONS ||--o{ AUDIT_LOGS : "audited by"
+    QUOTATIONS ||--o{ FULFILLMENT_SPLITS : "fulfilled by"
+    WAREHOUSES ||--o{ FULFILLMENT_SPLITS : "source"
+    QUOTATIONS ||--o{ SUBSCRIPTION_CONTRACTS : "generates"
+    QUOTATIONS ||--o{ DEAL_HEALTH_ALERTS : "monitored by"
 ```
 
-### Entity Specifications
+### Entity Specifications (Microsoft SQL Server & EF Core)
 
-#### 1. `res_partner` (Customer Master & Tiering)
-- `id`: Primary Key (UUID / Integer)
-- `name`: String, Required
-- `email`: String, Required, Indexed
-- `customer_tier_id`: Many2one -> `dealflow_customer_tier`, Required (Bronze, Silver, Gold)
-- `portal_token`: String, Unique (Magic-link token)
-- `portal_token_expiry`: Datetime
+#### 1. `Customers` (Customer Master & Tiering)
+- `Id`: Primary Key (`INT IDENTITY(1,1)`)
+- `Name`: `NVARCHAR(255)`, Required
+- `Email`: `NVARCHAR(255)`, Required, Indexed
+- `CustomerTierId`: FK -> `CustomerTiers(Id)`, Required (Bronze, Silver, Gold)
+- `PortalToken`: `NVARCHAR(128)`, Unique, Cryptographic HMAC magic-link token
+- `PortalTokenExpiry`: `DATETIME2(7)`
+- `IsActive`: `BIT`, Default: 1
 
-#### 2. `dealflow_customer_tier`
-- `id`: Primary Key
-- `name`: String (`Bronze`, `Silver`, `Gold`)
-- `max_discount_ceiling`: Float, Required (e.g., 5.0, 10.0, 15.0)
-- `default_pricelist_id`: Many2one -> `product_pricelist`
+#### 2. `CustomerTiers`
+- `Id`: Primary Key (`INT IDENTITY(1,1)`)
+- `Name`: `NVARCHAR(50)` (`Bronze`, `Silver`, `Gold`), Unique
+- `MaxDiscountCeiling`: `DECIMAL(5, 2)`, Required (e.g., `5.00%`, `10.00%`, `15.00%`)
+- `DefaultPriceListId`: FK -> `PriceLists(Id)`, Nullable
+- `Description`: `NVARCHAR(255)`
 
-#### 3. `product_template` & `product_product`
-- `id`: Primary Key
-- `name`: String, Required
-- `category_id`: Many2one -> `product_category`, Required
-- `product_type`: Selection: `one_time_hardware`, `service`, `recurring_subscription`
-- `list_price`: Float, Required
-- `standard_price` (Cost): Float, Required (Internal only)
-- `uom`: String (Units, Hours, Months)
-- `is_promoted`: Boolean, Default: False
-- `min_margin_threshold`: Float, Default: 20.0
+#### 3. `Products`
+- `Id`: Primary Key (`INT IDENTITY(1,1)`)
+- `Sku`: `NVARCHAR(100)`, Required, Unique
+- `Name`: `NVARCHAR(255)`, Required
+- `CategoryId`: FK -> `ProductCategories(Id)`, Required
+- `ProductType`: `NVARCHAR(50)` (`one_time_hardware`, `service`, `recurring_subscription`)
+- `ListPrice`: `DECIMAL(18, 4)`, Required
+- `StandardCostPrice`: `DECIMAL(18, 4)`, Required (Internal only, strictly shielded from portal)
+- `Uom`: `NVARCHAR(50)` (Units, Hours, Months)
+- `IsPromoted`: `BIT`, Default: 0
+- `MinMarginThreshold`: `DECIMAL(5, 2)`, Default: 20.00
 
-#### 4. `dealflow_category_discount_limit`
-- `id`: Primary Key
-- `category_id`: Many2one -> `product_category`, Required, Unique
-- `max_rep_discount`: Float, Required (e.g., Hardware: 15.0, Services: 10.0)
-- `manager_approval_threshold`: Float, Required (e.g., >15.0 up to 25.0)
-- `finance_approval_threshold`: Float, Required (e.g., >25.0)
+#### 4. `CategoryDiscountLimits`
+- `Id`: Primary Key (`INT IDENTITY(1,1)`)
+- `CategoryId`: FK -> `ProductCategories(Id)`, Required, Unique
+- `MaxRepDiscount`: `DECIMAL(5, 2)`, Required (e.g., Hardware: 15.00%, Services: 10.00%)
+- `ManagerApprovalThreshold`: `DECIMAL(5, 2)`, Required (e.g., >15.00% up to 25.00%)
+- `FinanceApprovalThreshold`: `DECIMAL(5, 2)`, Required (e.g., >25.00%)
 
-#### 5. `sale_order` (Quotation / Deal Master)
-- `id`: Primary Key
-- `name`: String, Required, Unique (e.g., `SO-2026-001`)
-- `partner_id`: Many2one -> `res_partner`, Required
-- `user_id` (Sales Rep): Many2one -> `res_users`, Required
-- `state`: Selection: `draft`, `pending_approval`, `approved`, `sent`, `under_negotiation`, `confirmed`, `done`, `cancelled`
-- `blended_risk_score`: Float, Default: 0.0
-- `highest_approval_level_required`: Selection: `none`, `sales_manager`, `sales_manager_and_finance`
-- `approval_state`: Selection: `not_required`, `pending_manager`, `pending_finance`, `approved`, `rejected`, `revision_requested`
-- `amount_untaxed`: Float, Computed
-- `amount_discount`: Float, Computed
-- `amount_total`: Float, Computed
-- `order_margin_amount`: Float, Computed (Internal only)
-- `order_margin_percent`: Float, Computed (Internal only)
-- `counter_discount_proposed`: Float (From customer portal)
-- `customer_notes`: Text
-- `last_activity_date`: Datetime, Indexed
-- `promised_delivery_date`: Date
+#### 5. `Quotations` (Quotation / Deal Master Aggregate)
+- `Id`: Primary Key (`UNIQUEIDENTIFIER`, `NEWSEQUENTIALID()`)
+- `QuotationNumber`: `NVARCHAR(50)`, Required, Unique (e.g., `QT-2026-0001`)
+- `CustomerId`: FK -> `Customers(Id)`, Required
+- `SalesRepresentativeId`: FK -> `Users(Id)`, Required
+- `Status`: `NVARCHAR(50)` (`draft`, `pending_approval`, `approved`, `sent`, `negotiation_active`, `confirmed`, `rejected`, `revise_requested`, `cancelled`)
+- `BlendedDiscountRiskScore`: `DECIMAL(5, 2)`, Default: 0.00
+- `ApprovalLevelRequired`: `NVARCHAR(50)` (`auto_approved`, `level_1_manager`, `level_2_finance`)
+- `CurrentApprovalLevel`: `INT`, Default: 0
+- `TotalGrossAmount`: `DECIMAL(18, 4)`, Computed
+- `TotalDiscountAmount`: `DECIMAL(18, 4)`, Computed
+- `TotalNetAmount`: `DECIMAL(18, 4)`, Computed
+- `TotalCostAmount`: `DECIMAL(18, 4)`, Internal only
+- `OrderGrossMarginAmount`: `DECIMAL(18, 4)`, Internal only
+- `OrderGrossMarginPercent`: `DECIMAL(5, 2)`, Internal only
+- `CustomerCounterDiscount`: `DECIMAL(5, 2)`, Nullable
+- `CustomerSplitDeliveryConsent`: `BIT`, Default: 0
+- `CustomerNotes`: `NVARCHAR(MAX)`
+- `InternalRemarks`: `NVARCHAR(MAX)`, Internal only
+- `LastCustomerActivityDate`: `DATETIME2(7)`, Indexed
+- `PromisedDeliveryDate`: `DATETIME2(7)`
+- `ConcurrencyVersion`: `INT`, Default: 1 (Optimistic locking token)
 
-#### 6. `sale_order_line` (Quotation Line Items)
-- `id`: Primary Key
-- `order_id`: Many2one -> `sale_order`, Required, Cascade Delete
-- `product_id`: Many2one -> `product_product`, Required
-- `product_category_id`: Many2one -> `product_category`, Related
-- `line_type`: Selection: `one_time`, `recurring`
-- `product_uom_qty`: Float, Required
-- `price_unit`: Float, Required
-- `discount`: Float, Default: 0.0
-- `discount_ceiling_applied`: Float (Resolved category/tier ceiling)
-- `is_ceiling_violated`: Boolean, Computed
-- `ceiling_violation_points`: Float, Computed (Discount - Ceiling)
-- `price_subtotal`: Float, Computed
-- `cost_price`: Float (Unit cost)
-- `line_margin_amount`: Float, Computed
-- `line_margin_percent`: Float, Computed
-- `customer_comment`: Text (Portal line comment)
+#### 6. `QuotationLines` (Quotation Line Items)
+- `Id`: Primary Key (`BIGINT IDENTITY(1,1)`)
+- `QuotationId`: FK -> `Quotations(Id)`, Required, Cascade Delete
+- `ProductId`: FK -> `Products(Id)`, Required
+- `Quantity`: `DECIMAL(18, 4)`, Required
+- `UnitPrice`: `DECIMAL(18, 4)`, Required
+- `DiscountPercentage`: `DECIMAL(5, 2)`, Default: 0.00
+- `EffectiveDiscountLimit`: `DECIMAL(5, 2)`, Resolved category/tier ceiling
+- `RequiresApproval`: `BIT`, Default: 0
+- `ApprovalReason`: `NVARCHAR(255)`
+- `SubtotalAmount`: `DECIMAL(18, 4)`, Computed
+- `UnitCostPrice`: `DECIMAL(18, 4)`, Internal only
+- `TotalCostAmount`: `DECIMAL(18, 4)`, Internal only
+- `LineMarginAmount`: `DECIMAL(18, 4)`, Internal only
+- `LineMarginPercent`: `DECIMAL(5, 2)`, Internal only
+- `LineItemType`: `NVARCHAR(50)` (`one_time_hardware`, `service`, `recurring_subscription`)
 
-#### 7. `dealflow_approval_request` & `dealflow_audit_log`
-- `id`: Primary Key
-- `order_id`: Many2one -> `sale_order`, Required
-- `reviewer_id`: Many2one -> `res_users`, Required
-- `reviewer_role`: Selection: `sales_manager`, `finance_user`
-- `action`: Selection: `approve`, `reject`, `request_revision`
-- `reason`: Text, Required
-- `risk_score_at_action`: Float
-- `timestamp`: Datetime, Required, Default: Now
+#### 7. `ApprovalRequests` & `ApprovalActions`
+- `ApprovalRequests`: `Id` (PK), `QuotationId` (FK), `RequiredLevel` (`INT`), `Status`, `BlendedRiskScore`, `PeakLineViolation`, `WeightedMarginLoss`, `RequestedAt`.
+- `ApprovalActions` (Immutable Audit Log): `Id` (PK), `ApprovalRequestId` (FK), `ReviewerId` (FK -> `Users(Id)`), `ActionTaken` (`approved`, `rejected`, `revision_requested`), `Remarks` (`NVARCHAR(1000)`, Min 10 chars), `ActionTimestamp`.
 
-#### 8. `stock_warehouse` & `dealflow_fulfillment_allocation`
-- `id`: Primary Key
-- `order_id`: Many2one -> `sale_order`, Required
-- `order_line_id`: Many2one -> `sale_order_line`, Required
-- `warehouse_id`: Many2one -> `stock_warehouse`, Required
-- `allocated_qty`: Float, Required
-- `backorder_qty`: Float, Default: 0.0
-- `status`: Selection: `suggested`, `accepted`, `overridden`, `dispatched`, `backordered`, `consolidated`
-- `estimated_shipping_cost`: Float
+#### 8. `Warehouses` & `FulfillmentSplits`
+- `Warehouses`: `Id` (PK), `Code`, `Name`, `City`, `IsCentralDepot`.
+- `FulfillmentSplits`: `Id` (PK), `QuotationId` (FK), `WarehouseId` (FK), `EstimatedShippingCost` (`DECIMAL(18, 4)`), `EstimatedDeliveryDays`, `Status` (`allocated`, `dispatched`, `delivered`).
 
-#### 9. `dealflow_subscription_contract` & `billing_schedule`
-- `id`: Primary Key
-- `order_id`: Many2one -> `sale_order`, Required
-- `partner_id`: Many2one -> `res_partner`, Required
-- `plan_period`: Selection: `monthly`, `quarterly`, `yearly`
-- `start_date`: Date, Required
-- `next_billing_date`: Date, Required
-- `recurring_amount`: Float, Required
-- `status`: Selection: `active`, `paused`, `cancelled`
-- `prorated_adjustment_pending`: Float, Default: 0.0
+#### 9. `SubscriptionContracts` & `BillingSchedules`
+- `SubscriptionContracts`: `Id` (PK), `QuotationId` (FK), `CustomerId` (FK), `BillingInterval` (`monthly`, `quarterly`, `annually`), `RecurringAmount` (`DECIMAL(18, 4)`), `StartDate`, `NextBillingDate`, `Status`.
+- `BillingSchedules`: `Id` (PK), `SubscriptionContractId` (FK), `ScheduledDate`, `ProjectedAmount`, `Status`.
 
-#### 10. `dealflow_health_alert`
-- `id`: Primary Key
-- `order_id`: Many2one -> `sale_order`, Required
-- `alert_type`: Selection: `stalled_deal`, `discount_anomaly`, `delivery_slippage`
-- `severity`: Selection: `info`, `warning`, `critical`
-- `message`: String, Required
-- `is_resolved`: Boolean, Default: False
-- `created_at`: Datetime, Default: Now
+#### 10. `DealHealthAlerts`
+- `Id`: Primary Key (`INT IDENTITY(1,1)`)
+- `QuotationId`: FK -> `Quotations(Id)`, Required
+- `AssignedRepId`: FK -> `Users(Id)`, Required
+- `AlertType`: `NVARCHAR(50)` (`stalled_deal`, `discount_anomaly`, `delivery_slippage`)
+- `Severity`: `NVARCHAR(20)` (`info`, `warning`, `critical`)
+- `Message`: `NVARCHAR(500)`, Required
+- `IsResolved`: `BIT`, Default: 0
+- `CreatedAt`: `DATETIME2(7)`, Default: `SYSUTCDATETIME()`
 
 ---
 
@@ -790,7 +777,7 @@ For each top-ranked candidate:
 
 ## P. API & Controller Contract
 
-`[IMPLEMENTATION DECISION]` RESTful JSON API specifications designed for decoupled frontend/backend operations while cleanly mapping to Odoo controllers or FastAPI/Node services.
+`[IMPLEMENTATION DECISION]` RESTful JSON API specifications designed for decoupled frontend/backend operations executed natively via ASP.NET Core Web APIs.
 
 ### 1. Authentication Endpoints
 - `POST /api/auth/login`: Internal user login (email, password) -> JWT token + user roles.
@@ -823,23 +810,23 @@ For each top-ranked candidate:
 
 ---
 
-## Q. Odoo Architecture Mapping
+## Q. Technology Architecture & Modernization Mapping (Locked Baseline: React + ASP.NET Core + SQL Server)
 
-`[PDF REQUIREMENT]` / `[REPOSITORY FACT]` Complete architectural mapping between standard Odoo modules and DealFlow360 custom requirements.
+`[PDF REQUIREMENT]` / `[ARCHITECTURAL DECISION]` Complete architectural mapping showing how all business requirements from `DealFlow360.pdf` are delivered natively via React, ASP.NET Core Web APIs, Entity Framework Core, and Microsoft SQL Server without legacy Odoo/Python dependencies:
 
-| DealFlow360 Requirement | Standard Odoo Capability | Strategy | Implementation Details |
+| DealFlow360 Requirement | Business Scope from PDF | Native Stack Component | Implementation Strategy (.NET / SQL Server / React) |
 | :--- | :--- | :--- | :--- |
-| **Product & Variants** | `product`, `product_variant` | **Reuse Odoo** | Standard `product.template`, `product.product`, `product.attribute`. |
-| **Customer Tier Pricing** | `product.pricelist` | **Extend Odoo** | Add `customer_tier_id` to `res.partner`; link tiers to price lists. |
-| **Discount Governance** | Odoo has basic manual limits | **Build Custom** | Custom model `dealflow.discount.rule`, automated blended risk engine on `sale.order`. |
-| **Multi-Level Approval** | Studio / Approvals module | **Build Custom** | Automated two-tier approval state machine (`sale.order` extension) with audit logging. |
-| **Live Upsell Panel** | Odoo Optional Products | **Build Custom** | Live reactive suggestion panel with margin delta calculations and co-purchase pairing. |
-| **Warehouse Fulfillment** | `stock.warehouse`, routes | **Extend Odoo** | Custom optimization logic to split delivery orders across warehouses by shipping cost. |
-| **Backorder Consolidation** | `stock.picking` backorders | **Extend Odoo** | Automated consolidation trigger when replenishment receipts are validated. |
-| **Hybrid Billing** | `sale`, `account`, `subscription` | **Extend Odoo** | Distinguish line types; generate `account.move` for one-time + subscription schedule. |
-| **Customer Portal Negotiation**| `portal`, `sale.portal_content` | **Build Custom** | Dedicated customer portal view with line comments, counter-discount, and auto re-approval. |
-| **Deal Health & Alerts** | Basic chatter / activities | **Build Custom** | Background cron evaluating stalled days, discount standard deviation, and promise dates. |
-| **Reporting & Export** | `sale.report` graph/pivot | **Extend Odoo** | Custom dashboard view + QWeb PDF and XlsxWriter export endpoints. |
+| **Product & Variants** | Product catalog, hardware, services, subscriptions | **C# Entity & EF Core** | `Products`, `ProductCategories`, `ProductVariants` in Microsoft SQL Server with strict `DECIMAL(18, 4)` precision. |
+| **Customer Tier Pricing** | Bronze (5%), Silver (10%), Gold (15%) discount ceilings | **C# Domain Engine** | `CustomerTiers` SQL table; `DiscountGovernanceEngine` enforces tier ceilings dynamically. |
+| **Discount Governance** | Category ceilings, multi-line rules, manager approvals | **C# Domain Engine** | `CategoryDiscountLimits` table; `DiscountGovernanceEngine` calculates peak and weighted violations. |
+| **Two-Tier Approval Chain**| Level 1 (Manager), Level 2 (Finance) routing | **C# State Machine** | `ApprovalRequests` and immutable `ApprovalActions` managed by `ApprovalRoutingEngine`. |
+| **Live Upsell Panel** | Real-time recommendations, affinity score, margin delta | **C# Engine + React** | `CoPurchaseRules` table; `UpsellRecommendationEngine` calculating live margin delta within 100ms. |
+| **Warehouse Fulfillment** | Multi-warehouse split optimization by shipping cost | **C# Domain Engine** | `FulfillmentSplits` table; `WarehouseAllocationEngine` executing greedy split algorithm across locations. |
+| **Backorder Consolidation**| Split backorders consolidated upon inventory restock | **.NET Domain Events** | `BackorderConsolidationEngine` triggered when replenishment goods receipts commit. |
+| **Hybrid Billing** | Unified order generates immediate invoice + subscription | **C# Domain Engine** | `Invoices`, `InvoiceLines`, and `SubscriptionContracts` partitioned cleanly in SQL Server. |
+| **Customer Portal View** | Isolated negotiation view; zero cost/margin leakage | **C# DTOs + React** | `CustomerQuoteDto` stripping all internal costs/margins; HMAC magic links (`/portal/quote/:token`). |
+| **Deal Health & Alerts** | Stalled deals (>5d), discount anomalies, slippage | **.NET BackgroundService** | `DealHealthEngine` executed via hosted background service with daily monitoring cadence. |
+| **Reporting & Export** | Executive sales KPIs, margin analysis, PDF/Excel export | **Dapper + QuestPDF** | Dapper high-speed aggregation queries; binary streaming endpoints for PDF and XLSX. |
 
 ---
 
@@ -1020,13 +1007,13 @@ Then the quotation status automatically transitions back to PENDING_APPROVAL.
 
 | PDF Req ID | Document Section | Primary Data Model | Backend Business Logic | Frontend Screen | Test Case ID |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **REQ-OVR-01** | Section J | `sale_order`, `dealflow_discount_rule` | `compute_blended_risk_score()` | Screen 3, 4 | `TC-DISC-01` |
-| **REQ-OVR-02** | Section K | `product_product`, `dealflow_copurchase`| `get_ranked_upsell_suggestions()` | Screen 3, 5 | `TC-UP-01` |
-| **REQ-OVR-03** | Section L | `stock_warehouse`, `fulfillment_split` | `calculate_optimal_warehouse_split()`| Screen 6 | `TC-WH-01` |
-| **REQ-OVR-04** | Section M | `sale_order_line`, `subscription` | `process_hybrid_billing_schedule()` | Screen 7 | `TC-SUB-01` |
-| **REQ-OVR-05** | Section O | `dealflow_health_alert` | `cron_evaluate_deal_health()` | Screen 9 | `TC-HLTH-01` |
-| **REQ-OVR-06** | Section N | `res_partner`, `sale_order` | `portal_customer_negotiation()` | Screen 8 | `TC-PORT-01` |
-| **REQ-OVR-07** | Section U | `sale_report` | `generate_sales_performance_report()` | Screen 1, Admin | `TC-REP-01` |
+| **REQ-OVR-01** | Section J | `Quotations`, `CategoryDiscountLimits` | `BlendedDiscountRiskEngine.CalculateRiskScore()` | Screen 3, 4 | `TC-DISC-01` |
+| **REQ-OVR-02** | Section K | `Products`, `CoPurchaseRules` | `UpsellRecommendationEngine.GetRankedSuggestions()` | Screen 3, 5 | `TC-UP-01` |
+| **REQ-OVR-03** | Section L | `Warehouses`, `FulfillmentSplits` | `WarehouseAllocationEngine.CalculateOptimalSplit()` | Screen 6 | `TC-WH-01` |
+| **REQ-OVR-04** | Section M | `QuotationLines`, `SubscriptionContracts` | `HybridBillingEngine.ProcessBillingSchedule()` | Screen 7 | `TC-SUB-01` |
+| **REQ-OVR-05** | Section O | `DealHealthAlerts` | `DealHealthBackgroundService.EvaluateAsync()` | Screen 9 | `TC-HLTH-01` |
+| **REQ-OVR-06** | Section N | `Customers`, `Quotations` | `CustomerNegotiationEngine.ProcessNegotiation()` | Screen 8 | `TC-PORT-01` |
+| **REQ-OVR-07** | Section U | `Quotations`, `Invoices` | `SalesReportingService.GeneratePerformanceReport()` | Screen 1, Admin | `TC-REP-01` |
 | **REQ-TEST-01** | Section W | Complete Data Model | End-to-End Execution | All Screens | `TC-QTF-01..08` |
 
 ---

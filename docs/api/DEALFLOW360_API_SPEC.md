@@ -12,7 +12,7 @@
 | **Status** | Implementation-Ready Architecture Specification |
 | **Primary Source of Truth** | `DealFlow360.pdf` (13-Page Problem Statement) |
 | **Companion Document** | `docs/DEALFLOW360_MASTER_PRD.md` |
-| **Target Architecture** | ASP.NET Core Web API / RESTful JSON / Odoo Decoupled Integration |
+| **Target Architecture** | ASP.NET Core Web API / RESTful JSON / C# & Entity Framework Core |
 | **Last Updated** | 2026-09-05 |
 
 ### Source Attribution Legend
