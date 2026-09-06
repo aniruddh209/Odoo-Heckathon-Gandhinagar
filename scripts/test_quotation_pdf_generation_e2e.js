@@ -1,3 +1,4 @@
+const http = require('http');
 const https = require('https');
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
@@ -5,12 +6,14 @@ const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 function request(url, options = {}, postData = null) {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
+    const isHttps = parsedUrl.protocol === 'https:';
+    const client = isHttps ? https : http;
     const reqOptions = {
       hostname: parsedUrl.hostname,
-      port: parsedUrl.port,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
       path: parsedUrl.pathname + parsedUrl.search,
       method: options.method || 'GET',
-      agent: httpsAgent,
+      agent: isHttps ? httpsAgent : undefined,
       headers: options.headers || {}
     };
 
@@ -19,7 +22,7 @@ function request(url, options = {}, postData = null) {
       reqOptions.headers['Content-Length'] = Buffer.byteLength(postData);
     }
 
-    const req = https.request(reqOptions, (res) => {
+    const req = client.request(reqOptions, (res) => {
       const chunks = [];
       res.on('data', chunk => chunks.push(chunk));
       res.on('end', () => {
@@ -63,14 +66,14 @@ async function runE2eTests() {
 
   // 1. Admin Login
   console.log('1. Authenticating Admin User...');
-  const adminLogin = await request('https://localhost:5001/api/auth/login', { method: 'POST' }, 
+  const adminLogin = await request('http://localhost:5042/api/auth/login', { method: 'POST' }, 
     JSON.stringify({ email: 'admin@dealflow360.test', password: 'Admin@123' }));
   assert(adminLogin.statusCode === 200, 'Admin login succeeded');
   const adminToken = adminLogin.json().accessToken;
 
   // 2. Sales Rep Login
   console.log('\n2. Authenticating Sales Rep User...');
-  const repLogin = await request('https://localhost:5001/api/auth/login', { method: 'POST' }, 
+  const repLogin = await request('http://localhost:5042/api/auth/login', { method: 'POST' }, 
     JSON.stringify({ email: 'rep@dealflow360.test', password: 'Rep@123' }));
   assert(repLogin.statusCode === 200, 'Sales Rep login succeeded');
   const repToken = repLogin.json().accessToken;
@@ -78,7 +81,7 @@ async function runE2eTests() {
 
   // 3. Customer User Login
   console.log('\n3. Authenticating Customer User (Sharma Tech)...');
-  const customerLogin = await request('https://localhost:5001/api/auth/login', { method: 'POST' }, 
+  const customerLogin = await request('http://localhost:5042/api/auth/login', { method: 'POST' }, 
     JSON.stringify({ email: 'customer@dealflow360.io', password: 'Customer@123' }));
   assert(customerLogin.statusCode === 200, 'Customer login succeeded');
   const customerToken = customerLogin.json().accessToken;
@@ -87,7 +90,7 @@ async function runE2eTests() {
 
   // 4. Fetch list of quotations
   console.log('\n4. Retrieving Quotations Catalog...');
-  const quotesRes = await request('https://localhost:5001/api/quotations', {
+  const quotesRes = await request('http://localhost:5042/api/quotations', {
     headers: { 'Authorization': `Bearer ${adminToken}` }
   });
   assert(quotesRes.statusCode === 200, 'Retrieved quotations list');
@@ -99,7 +102,7 @@ async function runE2eTests() {
 
   // 5. Download PDF as Admin / Sales Rep
   console.log('\n5. Generating and Downloading Quotation PDF via Internal Staff API...');
-  const pdfRes = await request(`https://localhost:5001/api/quotations/${sampleQuote.id}/pdf`, {
+  const pdfRes = await request(`http://localhost:5042/api/quotations/${sampleQuote.id}/pdf`, {
     headers: { 'Authorization': `Bearer ${adminToken}` }
   });
   assert(pdfRes.statusCode === 200, 'PDF generated successfully with HTTP 200');
@@ -125,7 +128,7 @@ async function runE2eTests() {
 
   // 7. Customer Portal Magic-Link Token PDF Generation
   console.log('\n7. Generating Portal Magic-Link Token & Testing Portal PDF...');
-  const portalLinkRes = await request(`https://localhost:5001/api/quotations/${sampleQuote.id}/generate-portal-link`, {
+  const portalLinkRes = await request(`http://localhost:5042/api/quotations/${sampleQuote.id}/generate-portal-link`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${adminToken}` }
   });
@@ -134,20 +137,20 @@ async function runE2eTests() {
   const token = portalLink.split('/').pop();
   console.log(`   Extracted Portal Token: ${token.slice(0, 20)}...`);
 
-  const portalPdfRes = await request(`https://localhost:5001/api/portal/quote/${token}/pdf`);
+  const portalPdfRes = await request(`http://localhost:5042/api/portal/quote/${token}/pdf`);
   assert(portalPdfRes.statusCode === 200, 'Public customer portal PDF download succeeded (HTTP 200)');
   assert(portalPdfRes.headers['content-type'] === 'application/pdf', 'Portal PDF Content-Type is application/pdf');
   assert(portalPdfRes.buffer.slice(0, 5).toString('ascii') === '%PDF-', 'Portal PDF starts with %PDF- header');
 
   // Test invalid portal token
   console.log('\n8. Testing Invalid Portal Token Protection...');
-  const invalidPortalPdfRes = await request('https://localhost:5001/api/portal/quote/invalid-token-123456/pdf');
+  const invalidPortalPdfRes = await request('http://localhost:5042/api/portal/quote/invalid-token-123456/pdf');
   assert(invalidPortalPdfRes.statusCode === 401 || invalidPortalPdfRes.statusCode === 403, 
     `Tampered/invalid portal token rejected with HTTP ${invalidPortalPdfRes.statusCode}`);
 
   // 9. Authenticated Customer Portal PDF & Tenant Isolation
   console.log('\n9. Testing Authenticated Customer Portal PDF & Multi-Tenant Isolation...');
-  const myQuotesRes = await request('https://localhost:5001/api/customer/me/quotations', {
+  const myQuotesRes = await request('http://localhost:5042/api/customer/me/quotations', {
     headers: { 'Authorization': `Bearer ${customerToken}` }
   });
   assert(myQuotesRes.statusCode === 200, 'Customer retrieved their quotations');
@@ -156,7 +159,7 @@ async function runE2eTests() {
 
   if (myQuotes.length > 0) {
     const myQuote = myQuotes[0];
-    const custPdfRes = await request(`https://localhost:5001/api/customer/me/quotations/${myQuote.id}/pdf`, {
+    const custPdfRes = await request(`http://localhost:5042/api/customer/me/quotations/${myQuote.id}/pdf`, {
       headers: { 'Authorization': `Bearer ${customerToken}` }
     });
     assert(custPdfRes.statusCode === 200, `Customer downloaded own quotation PDF (Quote #${myQuote.id})`);
@@ -167,7 +170,7 @@ async function runE2eTests() {
   // CustomerOrgId is 36. Quote #2384 or earlier quotes belong to other customers.
   let otherCustomerQuoteId = null;
   for (const q of quotes) {
-    const detailRes = await request(`https://localhost:5001/api/quotations/${q.id}`, {
+    const detailRes = await request(`http://localhost:5042/api/quotations/${q.id}`, {
       headers: { 'Authorization': `Bearer ${adminToken}` }
     });
     if (detailRes.statusCode === 200) {
@@ -181,7 +184,7 @@ async function runE2eTests() {
   }
 
   if (otherCustomerQuoteId) {
-    const attackRes = await request(`https://localhost:5001/api/customer/me/quotations/${otherCustomerQuoteId}/pdf`, {
+    const attackRes = await request(`http://localhost:5042/api/customer/me/quotations/${otherCustomerQuoteId}/pdf`, {
       headers: { 'Authorization': `Bearer ${customerToken}` }
     });
     assert(attackRes.statusCode === 401 || attackRes.statusCode === 403 || attackRes.statusCode === 404, 
@@ -191,7 +194,7 @@ async function runE2eTests() {
   // 11. Create a Hybrid Quote (One-Time Item + Recurring Subscription) to Verify Section Segregation
   console.log('\n11. Testing Hybrid Quotation (One-Time Items + Recurring Subscription Schedules)...');
   // Get products
-  const productsRes = await request('https://localhost:5001/api/admin/products', {
+  const productsRes = await request('http://localhost:5042/api/admin/products', {
     headers: { 'Authorization': `Bearer ${adminToken}` }
   });
   const rawProducts = productsRes.json();
@@ -205,7 +208,7 @@ async function runE2eTests() {
     console.log(`   Subscription Product: ${subProduct.name} (${subProduct.sku})`);
 
     // Create quote
-    const newQuoteRes = await request('https://localhost:5001/api/quotations', {
+    const newQuoteRes = await request('http://localhost:5042/api/quotations', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${adminToken}` }
     }, JSON.stringify({
@@ -232,7 +235,7 @@ async function runE2eTests() {
       const createdQuote = newQuoteRes.json();
       console.log(`   Created hybrid quote #${createdQuote.id} (${createdQuote.quotationNumber})`);
 
-      const hybridPdfRes = await request(`https://localhost:5001/api/quotations/${createdQuote.id}/pdf`, {
+      const hybridPdfRes = await request(`http://localhost:5042/api/quotations/${createdQuote.id}/pdf`, {
         headers: { 'Authorization': `Bearer ${adminToken}` }
       });
       assert(hybridPdfRes.statusCode === 200, 'Hybrid quotation PDF generated successfully');
@@ -254,7 +257,7 @@ async function runE2eTests() {
       });
     }
 
-    const multiQuoteRes = await request('https://localhost:5001/api/quotations', {
+    const multiQuoteRes = await request('http://localhost:5042/api/quotations', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${adminToken}` }
     }, JSON.stringify({
@@ -268,7 +271,7 @@ async function runE2eTests() {
       const multiQuote = multiQuoteRes.json();
       console.log(`   Created multi-page quote #${multiQuote.id} with ${multiLines.length} lines`);
 
-      const multiPdfRes = await request(`https://localhost:5001/api/quotations/${multiQuote.id}/pdf`, {
+      const multiPdfRes = await request(`http://localhost:5042/api/quotations/${multiQuote.id}/pdf`, {
         headers: { 'Authorization': `Bearer ${adminToken}` }
       });
       assert(multiPdfRes.statusCode === 200, 'Multi-page quotation PDF generated successfully');

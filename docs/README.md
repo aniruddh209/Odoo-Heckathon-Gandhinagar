@@ -1,76 +1,46 @@
-# DealFlow360: Master Documentation Index & Authority Directory
+# DealFlow360 — Master Documentation Directory & Engineering Index
+
+Welcome to the central documentation directory for **DealFlow360**, an enterprise sales operations, automated governance, fulfillment, and revenue management platform.
 
 ---
 
-## 1. Documentation Authority Model & Single Source of Truth
+## 1. Primary Documentation Catalogue
 
-The DealFlow360 project is governed by a strict four-tier documentation hierarchy:
+The table below provides direct access to all authoritative system documentation:
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│               1. BUSINESS REQUIREMENT SOURCE OF TRUTH                  │
-│                     `DealFlow360.pdf` (13 Pages)                       │
-│    Defines WHAT the system must achieve, rules, roles, and constraints │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Governs
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│            2. PRIMARY ENGINEERING / ARCHITECTURE REFERENCE             │
-│   `DealFlow360_ASPNet_SQLServer_React_Complete_Implementation_Spec.pdf` │
-│    Defines HOW we build it: ASP.NET Core, EF Core, SQL Server, React   │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Governs
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                    3. MASTER TRACEABILITY MATRIX                       │
-│      `docs/requirements/DEALFLOW360_REQUIREMENT_TRACEABILITY.md`       │
-│    Guarantees 100% bidirectional traceability from PDF to code & tests  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Governs
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   4. DOMAIN ARCHITECTURAL BLUEPRINTS                   │
-│   API • Database • Backend • Frontend • Security • Testing • Workflows  │
-└────────────────────────────────────────────────────────────────────────┘
-```
+| Document | File Path | Target Audience | Primary Scope |
+| :--- | :--- | :--- | :--- |
+| **Quick Start & Overview** | [`README.md`](../README.md) | All Personas | System introduction, quick start in < 1 min, locked tech stack, and core workflows. |
+| **Installation & Setup** | [`INSTALLATION.md`](INSTALLATION.md) | Developers, DevOps | Prerequisites, database configuration, backend & frontend startup, and verification. |
+| **Technical Architecture** | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Architects, Leads | Decoupled React 19 + .NET 10 architecture, 13 domain engines, and security boundaries. |
+| **End-to-End Workflows** | [`WORKFLOWS.md`](WORKFLOWS.md) | Operations, QA | Quotation lifecycle, discount tiers, multi-tier approvals, fulfillment, billing, and negotiation. |
+| **Roles & Permissions** | [`ROLES_AND_PERMISSIONS.md`](ROLES_AND_PERMISSIONS.md) | Security, QA | Functional permission matrix across Admin, Sales Manager, Sales Rep, Finance, and Customer. |
+| **REST API Specification** | [`API.md`](API.md) | Developers, Integrators | Complete RESTful route catalogue, request/response models, and Scalar / OpenAPI reference. |
+| **Database Architecture** | [`DATABASE.md`](DATABASE.md) | DBAs, Developers | 38 SQL Server tables, `DECIMAL(18, 4)` precision standard, ERDs, and seeding lifecycle. |
+| **Testing & Quality Assurance**| [`TESTING.md`](TESTING.md) | QA Engineers, Leads | Automated test suites (`scripts/`), 13-phase master E2E audit, and reproduction commands. |
+| **QA Reference Master Dataset** | [`QA_DATA.md`](QA_DATA.md) | QA, Demo Presenters | 5 customer accounts, 12 demo users, 24 catalog products, warehouses, and discount limits. |
+| **Production Deployment** | [`DEPLOYMENT.md`](DEPLOYMENT.md) | DevOps, SREs | Packaging, Dockerfiles, Nginx reverse proxy config, environment variables, and pre-flight checks. |
+| **Security & Data Governance** | [`SECURITY.md`](SECURITY.md) | Security Engineers | BCrypt hashing, JWT Bearer claims, HMAC magic links, Zero-Leak DTO shielding, and audit logs. |
+| **Troubleshooting Runbook** | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Support, Developers | Solutions for LocalDB connection issues, port conflicts, seeding behavior, and domain edge cases. |
+| **Script Reference** | [`SCRIPTS.md`](SCRIPTS.md) | Developers, DevOps | Guide to all npm lifecycle hooks, database reset scripts, and node automation test runners. |
+| **Contributing Guidelines** | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | Contributors | Branching strategy, Conventional Commits, coding standards, and PR requirements. |
 
 ---
 
-## 2. Master Documentation Directory
+## 2. Interactive API Documentation
 
-| Domain | Document Path | Scope & Authority |
-| :--- | :--- | :--- |
-| **Requirements & PRD** | [`docs/DEALFLOW360_MASTER_PRD.md`](DEALFLOW360_MASTER_PRD.md) | Comprehensive Master Product Requirements Document capturing all functional personas, rules, and acceptance criteria. |
-| **Traceability Matrix** | [`docs/requirements/DEALFLOW360_REQUIREMENT_TRACEABILITY.md`](requirements/DEALFLOW360_REQUIREMENT_TRACEABILITY.md) | Complete 39-requirement traceability matrix mapping PDF requirements to services, endpoints, tables, screens, and tests. |
-| **Architecture Decision** | [`docs/architecture/ADR-001-TECHNOLOGY-STACK.md`](architecture/ADR-001-TECHNOLOGY-STACK.md) | Official Architecture Decision Record locking React + ASP.NET Core + SQL Server and justifying the elimination of legacy monoliths. |
-| **Consistency Audit** | [`docs/architecture/ARCHITECTURE_CONSISTENCY_REPORT.md`](architecture/ARCHITECTURE_CONSISTENCY_REPORT.md) | Repository-wide stack audit verifying zero lingering architectural contradictions. |
-| **API Contract** | [`docs/api/DEALFLOW360_API_SPEC.md`](api/DEALFLOW360_API_SPEC.md) | 28 RESTful HTTP endpoints, route catalogue, request/response DTOs, status codes, and error envelopes. |
-| **API Traceability** | [`docs/api/DEALFLOW360_API_TRACEABILITY.md`](api/DEALFLOW360_API_TRACEABILITY.md) | Maps API routes to business engines, SQL Server tables, and automated test cases. |
-| **Database Blueprint** | [`docs/database/DEALFLOW360_DATABASE_ARCHITECTURE.md`](database/DEALFLOW360_DATABASE_ARCHITECTURE.md) | 30 Microsoft SQL Server relational tables, T-SQL data types (`DECIMAL(18, 4)`), nonclustered indexes, and EF Core configurations. |
-| **Visual ER Diagrams** | [`docs/database/DEALFLOW360_ERD.md`](database/DEALFLOW360_ERD.md) | 10 GitHub-compatible visual Mermaid ER diagrams covering all system domains. |
-| **Backend Architecture** | [`docs/backend/DEALFLOW360_BACKEND_ARCHITECTURE.md`](backend/DEALFLOW360_BACKEND_ARCHITECTURE.md) | C# 12 / .NET 9 Clean Architecture, 13 core business engines, concurrency middleware, and background hosted workers. |
-| **Frontend Architecture**| [`docs/frontend/DEALFLOW360_FRONTEND_ARCHITECTURE.md`](frontend/DEALFLOW360_FRONTEND_ARCHITECTURE.md) | React 18/19 (Vite + TS + Tailwind), 13 role-based screens, TanStack Query server caching, Zustand UI stores, and zero-leak portal. |
-| **Security Architecture**| [`docs/security/DEALFLOW360_SECURITY_ARCHITECTURE.md`](security/DEALFLOW360_SECURITY_ARCHITECTURE.md) | RBAC model, JWT Bearer claims, HMAC magic links, Zero-Leak DTO shielding, optimistic concurrency, and audit logging. |
-| **Workflows & States** | [`docs/workflows/DEALFLOW360_END_TO_END_WORKFLOWS.md`](workflows/DEALFLOW360_END_TO_END_WORKFLOWS.md) | The 17 core end-to-end operational workflows and 7 state machines (Quote, Approval, Order, Invoice, Subscription, Negotiation, Health). |
-| **Testing Strategy** | [`docs/testing/DEALFLOW360_TESTING_STRATEGY.md`](testing/DEALFLOW360_TESTING_STRATEGY.md) | xUnit test architecture, 15-step must-pass E2E test, authorization test matrix, business edge cases, and 5-minute judge demo script. |
-| **Deployment & Docker** | [`docs/deployment/DEALFLOW360_DEPLOYMENT_ARCHITECTURE.md`](deployment/DEALFLOW360_DEPLOYMENT_ARCHITECTURE.md) | Docker Compose specification, multi-stage Dockerfiles for backend and frontend, local developer setup, and hardening checklist. |
-| **Documentation Log** | [`docs/CHANGELOG_DOCUMENTATION.md`](CHANGELOG_DOCUMENTATION.md) | Complete audit log of all document modifications, additions, and contradiction resolutions. |
+When the backend server is running (`http://localhost:5042`), interactive documentation and schema definitions are accessible at:
+
+- **Scalar Interactive API Console:** `http://localhost:5042/scalar/v1`
+- **OpenAPI 3.0 Raw Specification:** `http://localhost:5042/openapi/v1.json`
 
 ---
 
-## 3. Quick Reference: Where Do I Find...?
+## 3. Specialized Deep-Dive Blueprints
 
-- **How is the Blended Risk Score calculated?**
-  $\rightarrow$ See [`docs/backend/DEALFLOW360_BACKEND_ARCHITECTURE.md` §4.2](backend/DEALFLOW360_BACKEND_ARCHITECTURE.md#42-blended-discount-risk-score-engine).
-- **How is customer data shielded during negotiations?**
-  $\rightarrow$ See [`docs/security/DEALFLOW360_SECURITY_ARCHITECTURE.md` §5](security/DEALFLOW360_SECURITY_ARCHITECTURE.md#5-strict-zero-leak-customer-boundary).
-- **What are the exact SQL Server table definitions?**
-  $\rightarrow$ See [`docs/database/DEALFLOW360_DATABASE_ARCHITECTURE.md` §3](database/DEALFLOW360_DATABASE_ARCHITECTURE.md#3-table--field-specifications-t-sql-data-types).
-- **What endpoints exist for quotes and approvals?**
-  $\rightarrow$ See [`docs/api/DEALFLOW360_API_SPEC.md` §10 & §12](api/DEALFLOW360_API_SPEC.md).
-- **What are the valid state transitions for quotations?**
-  $\rightarrow$ See [`docs/workflows/DEALFLOW360_END_TO_END_WORKFLOWS.md` §3.1](workflows/DEALFLOW360_END_TO_END_WORKFLOWS.md#31-quotation-lifecycle-state-machine).
-- **How do I execute the 5-Minute Judge Demo?**
-  $\rightarrow$ See [`docs/testing/DEALFLOW360_TESTING_STRATEGY.md` §7](testing/DEALFLOW360_TESTING_STRATEGY.md#7-five-minute-judge-demo-script).
-- **How do I spin up the local development environment?**
-  $\rightarrow$ See [`docs/deployment/DEALFLOW360_DEPLOYMENT_ARCHITECTURE.md` §5](deployment/DEALFLOW360_DEPLOYMENT_ARCHITECTURE.md#5-local-developer-setup-windows-host).
+For granular reference from earlier planning and domain modeling phases, consult the domain subdirectories:
+- `docs/architecture/ADR-001-TECHNOLOGY-STACK.md` — Architectural Decision Record locking React + .NET.
+- `docs/backend/DEALFLOW360_BACKEND_ARCHITECTURE.md` — Granular backend implementation blueprints.
+- `docs/database/DEALFLOW360_ERD.md` — Visual Mermaid entity-relationship diagrams.
+- `docs/frontend/DEALFLOW360_FRONTEND_ARCHITECTURE.md` — Detailed frontend view and screen specifications.
+- `docs/requirements/DEALFLOW360_REQUIREMENT_TRACEABILITY.md` — Bidirectional requirement traceability.
