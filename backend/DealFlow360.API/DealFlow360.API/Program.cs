@@ -154,8 +154,11 @@ public class Program
             app.MapScalarApiReference();
             app.MapOpenApi();
         }
+        else
+        {
+            app.UseHttpsRedirection();
+        }
 
-        app.UseHttpsRedirection();
         app.UseCors("AllowReact");
 
         app.UseAuthentication();

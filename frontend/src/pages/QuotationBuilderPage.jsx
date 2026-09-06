@@ -251,7 +251,17 @@ export const QuotationBuilderPage = () => {
   const handleUpdateLine = (index, field, value) => {
     setLines((prev) => {
       const updated = [...prev];
-      const item = { ...updated[index], [field]: value };
+      let finalValue = value;
+
+      if (field === 'discountPercent') {
+        const val = parseFloat(value);
+        if (!isNaN(val)) {
+          if (val > 100) finalValue = '100';
+          else if (val < 0) finalValue = '0';
+        }
+      }
+
+      const item = { ...updated[index], [field]: finalValue };
 
       if (field === 'productId') {
         item.variantId = '';
@@ -691,9 +701,20 @@ export const QuotationBuilderPage = () => {
                       max="100"
                       value={orderDiscountPercent}
                       onChange={(e) => {
-                        const val = e.target.value;
+                        let val = e.target.value;
+                        let num = parseFloat(val);
+                        if (!isNaN(num)) {
+                          if (num > 100) {
+                            num = 100;
+                            val = '100';
+                          } else if (num < 0) {
+                            num = 0;
+                            val = '0';
+                          }
+                        } else {
+                          num = 0;
+                        }
                         setOrderDiscountPercent(val);
-                        const num = parseFloat(val) || 0;
                         setLines((prev) => prev.map((l) => ({ ...l, discountPercent: num })));
                       }}
                       placeholder="0.0"
