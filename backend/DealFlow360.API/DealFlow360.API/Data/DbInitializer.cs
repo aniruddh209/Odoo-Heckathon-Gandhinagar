@@ -9,10 +9,10 @@ public static class DbInitializer
 {
     public static async Task SeedAsync(AppDbContext context)
     {
-        await ResetAndSeedQaDataAsync(context);
+        await ResetAndSeedQaDataAsync(context, seedQuotations: false);
     }
 
-    public static async Task<Dictionary<string, object>> ResetAndSeedQaDataAsync(AppDbContext context)
+    public static async Task<Dictionary<string, object>> ResetAndSeedQaDataAsync(AppDbContext context, bool seedQuotations = false)
     {
         // 0. Ensure Database is created & migrations applied
         if (context.Database.IsRelational())
@@ -878,6 +878,8 @@ public static class DbInitializer
             }
         }
 
+        if (seedQuotations)
+        {
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 18: PREDEFINED TEST QUOTATIONS (Q-TEST-001 TO Q-TEST-005)
         // ═══════════════════════════════════════════════════════════════════════
@@ -1101,6 +1103,7 @@ public static class DbInitializer
         ComputeQuoteTotals(qSlippage, 30.0m);
         context.Quotations.Add(qSlippage);
         await context.SaveChangesAsync();
+        }
 
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 20: AUDIT LOG & POST-SEED SUMMARY
@@ -1152,5 +1155,76 @@ public static class DbInitializer
         q.MarginAmount = q.GrandTotal - q.CostTotal - q.TaxTotal;
         q.MarginPercent = q.GrandTotal > 0 ? (q.MarginAmount / (q.GrandTotal - q.TaxTotal)) * 100 : 0;
         q.RiskScore = riskScore;
+    }
+
+    public static async Task<Dictionary<string, object>> ClearQuotationsAndDealsAsync(AppDbContext context)
+    {
+        // 1. Unlink any SalesConnectionRequests pointing to Quotations
+        var salesConnections = await context.SalesConnectionRequests.Where(s => s.QuotationId != null).ToListAsync();
+        foreach (var sc in salesConnections)
+        {
+            sc.QuotationId = null;
+        }
+
+        // 2. Remove downstream invoices, credit notes, and payments
+        context.CreditNotes.RemoveRange(context.CreditNotes);
+        context.Payments.RemoveRange(context.Payments);
+        context.InvoiceLines.RemoveRange(context.InvoiceLines);
+        context.Invoices.RemoveRange(context.Invoices);
+
+        // 3. Remove billing schedules
+        context.BillingSchedules.RemoveRange(context.BillingSchedules);
+
+        // 4. Remove fulfillment, backorders, order lines, and orders
+        context.Backorders.RemoveRange(context.Backorders);
+        context.WarehouseAllocations.RemoveRange(context.WarehouseAllocations);
+        context.OrderLines.RemoveRange(context.OrderLines);
+        context.Orders.RemoveRange(context.Orders);
+
+        // 5. Remove approval actions and requests
+        context.ApprovalActions.RemoveRange(context.ApprovalActions);
+        context.ApprovalRequests.RemoveRange(context.ApprovalRequests);
+
+        // 6. Remove quotation changes, comments, lines, deal health snapshots, and quotations
+        context.QuotationLineComments.RemoveRange(context.QuotationLineComments);
+        context.QuotationChanges.RemoveRange(context.QuotationChanges);
+        context.QuotationLines.RemoveRange(context.QuotationLines);
+        context.DealHealthSnapshots.RemoveRange(context.DealHealthSnapshots);
+        context.Quotations.RemoveRange(context.Quotations);
+
+        // 7. Remove deal and quotation notifications
+        var dealNotifications = await context.Notifications
+            .Where(n => n.RelatedEntityType == "Quotation" || n.RelatedEntityType == "Order" || n.RelatedEntityType == "Deal")
+            .ToListAsync();
+        context.Notifications.RemoveRange(dealNotifications);
+
+        // 8. Reset all reserved inventory stock quantities back to 0
+        var stocks = await context.InventoryStocks.ToListAsync();
+        foreach (var s in stocks)
+        {
+            s.Reserved = 0;
+        }
+
+        // 9. Audit log entry
+        context.AuditLogs.Add(new AuditLog
+        {
+            UserId = null,
+            EntityName = "Quotations",
+            EntityId = 0,
+            Action = "ClearQuotationsAndDeals",
+            Reason = "All quotations, deals, orders, and related transactions cleared.",
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await context.SaveChangesAsync();
+
+        return new Dictionary<string, object>
+        {
+            ["Success"] = true,
+            ["Message"] = "All quotations, deals, orders, and related transactions have been successfully cleared.",
+            ["QuotationCount"] = await context.Quotations.CountAsync(),
+            ["OrderCount"] = await context.Orders.CountAsync(),
+            ["TotalInventoryReserved"] = await context.InventoryStocks.SumAsync(s => s.Reserved)
+        };
     }
 }

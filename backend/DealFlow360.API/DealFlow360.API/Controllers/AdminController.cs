@@ -48,6 +48,10 @@ public class AdminController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ResetQaData() => Ok(await _adminService.ResetQaDataAsync());
 
+    [HttpPost("clear-deals-data")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ClearDealsData() => Ok(await _adminService.ClearDealsAndQuotationsAsync());
+
     // ─── Users ──────────────────────────────────────────────────
     [HttpGet("users")]
     [Authorize(Roles = "Admin")]

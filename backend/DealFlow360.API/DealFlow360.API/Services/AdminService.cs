@@ -101,6 +101,7 @@ public interface IAdminService
     Task<PlatformOverviewResponse> GetPlatformOverviewAsync();
     Task<List<AdminAuditLogDto>> GetAuditLogsAsync(int take = 50);
     Task<object> ResetQaDataAsync();
+    Task<object> ClearDealsAndQuotationsAsync();
 }
 
 public class AdminService : IAdminService
@@ -1682,6 +1683,11 @@ public class AdminService : IAdminService
 
     public async Task<object> ResetQaDataAsync()
     {
-        return await DbInitializer.ResetAndSeedQaDataAsync(_context);
+        return await DbInitializer.ResetAndSeedQaDataAsync(_context, seedQuotations: false);
+    }
+
+    public async Task<object> ClearDealsAndQuotationsAsync()
+    {
+        return await DbInitializer.ClearQuotationsAndDealsAsync(_context);
     }
 }

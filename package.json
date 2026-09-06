@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "db:reset:qa": "node scripts/db_reset_qa.js"
+    "db:reset:qa": "node scripts/db_reset_qa.js",
+    "db:clear:deals": "node scripts/clear_deals.js"
   }
 }
