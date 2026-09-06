@@ -97,18 +97,43 @@ public class SalesConnectionService : ISalesConnectionService
 
     public async Task<List<ProductCatalogItemDto>> GetAvailableProductsAsync(int? companyId = null, int? categoryId = null, string? search = null)
     {
+        var defaultCompany = await _context.Companies.FirstOrDefaultAsync(c => c.IsActive && c.Code == "DF360") 
+                             ?? await _context.Companies.FirstOrDefaultAsync(c => c.IsActive);
+        var defaultCompanyId = defaultCompany?.Id;
+
+        // Auto-heal any active products created without a CompanyId so they are immediately available
+        if (defaultCompanyId.HasValue)
+        {
+            var orphanedProducts = await _context.Products.Where(p => p.IsActive && p.CompanyId == null).ToListAsync();
+            if (orphanedProducts.Any())
+            {
+                foreach (var op in orphanedProducts)
+                {
+                    op.CompanyId = defaultCompanyId.Value;
+                }
+                await _context.SaveChangesAsync();
+            }
+        }
+
         var excludedCompanyCodes = new[] { "CISCO", "DELL", "HPE", "SAMSUNG", "LENOVO_TEST" };
         var query = _context.Products
             .Include(p => p.Category)
             .Include(p => p.Company)
-            .Where(p => p.IsActive && p.Company != null && p.Company.IsActive)
-            .Where(p => p.Company != null && !excludedCompanyCodes.Contains(p.Company.Code.ToUpper()))
+            .Where(p => p.IsActive)
+            .Where(p => p.Company == null || (p.Company.IsActive && !excludedCompanyCodes.Contains(p.Company.Code.ToUpper())))
             .Where(p => !p.SKU.StartsWith("SKU-AUD") && !p.SKU.StartsWith("PROD-TEST") && !p.Name.StartsWith("Audit"))
             .AsNoTracking();
 
         if (companyId.HasValue)
         {
-            query = query.Where(p => p.CompanyId == companyId.Value);
+            if (defaultCompanyId.HasValue && companyId.Value == defaultCompanyId.Value)
+            {
+                query = query.Where(p => p.CompanyId == companyId.Value || p.CompanyId == null);
+            }
+            else
+            {
+                query = query.Where(p => p.CompanyId == companyId.Value);
+            }
         }
 
         if (categoryId.HasValue)
@@ -131,8 +156,8 @@ public class SalesConnectionService : ISalesConnectionService
                 Description = p.Description,
                 CategoryId = p.CategoryId,
                 CategoryName = p.Category.Name,
-                CompanyId = p.CompanyId,
-                CompanyName = p.Company != null ? p.Company.Name : "Universal",
+                CompanyId = p.CompanyId ?? defaultCompanyId,
+                CompanyName = p.Company != null ? p.Company.Name : (defaultCompany != null ? defaultCompany.Name : "DealFlow360 Technologies Pvt. Ltd."),
                 BasePrice = p.BasePrice,
                 Unit = p.Unit,
                 ProductType = p.ProductType.ToString(),

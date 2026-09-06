@@ -336,6 +336,7 @@ public class AdminService : IAdminService
     {
         var query = _context.Products
             .Include(p => p.Category)
+            .Include(p => p.Company)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -362,7 +363,10 @@ public class AdminService : IAdminService
                 SKU = p.SKU,
                 Name = p.Name,
                 Description = p.Description,
+                CategoryId = p.CategoryId,
                 CategoryName = p.Category.Name,
+                CompanyId = p.CompanyId,
+                CompanyName = p.Company != null ? p.Company.Name : null,
                 ProductType = p.ProductType.ToString(),
                 BasePrice = p.BasePrice,
                 CostPrice = p.CostPrice,
@@ -375,6 +379,7 @@ public class AdminService : IAdminService
     {
         var product = await _context.Products
             .Include(p => p.Category)
+            .Include(p => p.Company)
             .Include(p => p.Variants)
             .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -388,6 +393,8 @@ public class AdminService : IAdminService
             Description = product.Description,
             CategoryId = product.CategoryId,
             CategoryName = product.Category?.Name ?? string.Empty,
+            CompanyId = product.CompanyId,
+            CompanyName = product.Company?.Name,
             ProductType = product.ProductType.ToString(),
             BasePrice = product.BasePrice,
             CostPrice = product.CostPrice,
@@ -507,12 +514,22 @@ public class AdminService : IAdminService
         var category = await _context.ProductCategories.FindAsync(request.CategoryId);
         if (category == null) throw new KeyNotFoundException($"Product category {request.CategoryId} not found.");
 
+        // Default to the primary active operating company (DF360) if not specified
+        int? companyId = request.CompanyId;
+        if (!companyId.HasValue)
+        {
+            var defaultCompany = await _context.Companies.FirstOrDefaultAsync(c => c.IsActive && c.Code == "DF360") 
+                                 ?? await _context.Companies.FirstOrDefaultAsync(c => c.IsActive);
+            companyId = defaultCompany?.Id;
+        }
+
         var product = new Product
         {
             SKU = skuNormalized,
             Name = request.Name.Trim(),
             Description = request.Description?.Trim(),
             CategoryId = request.CategoryId,
+            CompanyId = companyId,
             ProductType = Enum.Parse<ProductType>(request.ProductType, true),
             BasePrice = request.BasePrice,
             CostPrice = request.CostPrice,
@@ -528,6 +545,8 @@ public class AdminService : IAdminService
 
         await LogAuditAsync(actingUserId, "Product", product.Id, "ProductCreated", $"Created product {product.Name} [{product.SKU}]", null, product);
 
+        var savedCompany = companyId.HasValue ? await _context.Companies.FindAsync(companyId.Value) : null;
+
         return new ProductDetailResponse
         {
             Id = product.Id,
@@ -536,6 +555,8 @@ public class AdminService : IAdminService
             Description = product.Description,
             CategoryId = product.CategoryId,
             CategoryName = category.Name,
+            CompanyId = product.CompanyId,
+            CompanyName = savedCompany?.Name,
             ProductType = product.ProductType.ToString(),
             BasePrice = product.BasePrice,
             CostPrice = product.CostPrice,
@@ -547,7 +568,10 @@ public class AdminService : IAdminService
 
     public async Task<ProductDetailResponse> UpdateProductAsync(int id, UpdateProductRequest request, int? actingUserId = null)
     {
-        var product = await _context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
+        var product = await _context.Products
+            .Include(p => p.Category)
+            .Include(p => p.Company)
+            .FirstOrDefaultAsync(p => p.Id == id);
         if (product == null) throw new KeyNotFoundException($"Product {id} not found.");
 
         if (string.IsNullOrWhiteSpace(request.Name)) throw new ArgumentException("Product name is required.");
@@ -565,6 +589,17 @@ public class AdminService : IAdminService
 
         var category = await _context.ProductCategories.FindAsync(request.CategoryId);
         if (category == null) throw new KeyNotFoundException($"Product category {request.CategoryId} not found.");
+
+        if (request.CompanyId.HasValue)
+        {
+            product.CompanyId = request.CompanyId.Value;
+        }
+        else if (product.CompanyId == null)
+        {
+            var defaultCompany = await _context.Companies.FirstOrDefaultAsync(c => c.IsActive && c.Code == "DF360") 
+                                 ?? await _context.Companies.FirstOrDefaultAsync(c => c.IsActive);
+            if (defaultCompany != null) product.CompanyId = defaultCompany.Id;
+        }
 
         var oldSnapshot = new { product.Name, product.SKU, product.BasePrice, product.CostPrice, product.TaxRate, product.IsActive };
 
@@ -592,6 +627,8 @@ public class AdminService : IAdminService
             Description = product.Description,
             CategoryId = product.CategoryId,
             CategoryName = category.Name,
+            CompanyId = product.CompanyId,
+            CompanyName = product.Company?.Name,
             ProductType = product.ProductType.ToString(),
             BasePrice = product.BasePrice,
             CostPrice = product.CostPrice,

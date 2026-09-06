@@ -6,6 +6,7 @@ public class CreateProductRequest
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public int CategoryId { get; set; }
+    public int? CompanyId { get; set; }
     public string ProductType { get; set; } = "OneTime";
     public decimal BasePrice { get; set; }
     public decimal CostPrice { get; set; }
@@ -19,6 +20,7 @@ public class UpdateProductRequest
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public int CategoryId { get; set; }
+    public int? CompanyId { get; set; }
     public string ProductType { get; set; } = "OneTime";
     public decimal BasePrice { get; set; }
     public decimal CostPrice { get; set; }
@@ -46,7 +48,10 @@ public class ProductListResponse
     public string SKU { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public int CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
+    public int? CompanyId { get; set; }
+    public string? CompanyName { get; set; }
     public string ProductType { get; set; } = string.Empty;
     public decimal BasePrice { get; set; }
     public decimal CostPrice { get; set; }
@@ -62,6 +67,8 @@ public class ProductDetailResponse
     public string? Description { get; set; }
     public int CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
+    public int? CompanyId { get; set; }
+    public string? CompanyName { get; set; }
     public string ProductType { get; set; } = string.Empty;
     public decimal BasePrice { get; set; }
     public decimal CostPrice { get; set; }
