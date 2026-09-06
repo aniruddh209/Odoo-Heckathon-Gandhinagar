@@ -100,6 +100,7 @@ public interface IAdminService
     // Platform Analytics & Audit
     Task<PlatformOverviewResponse> GetPlatformOverviewAsync();
     Task<List<AdminAuditLogDto>> GetAuditLogsAsync(int take = 50);
+    Task<object> ResetQaDataAsync();
 }
 
 public class AdminService : IAdminService
@@ -1677,5 +1678,10 @@ public class AdminService : IAdminService
                 NewValueJson = a.NewValueJson,
                 CreatedAtUtc = a.CreatedAtUtc
             }).ToListAsync();
+    }
+
+    public async Task<object> ResetQaDataAsync()
+    {
+        return await DbInitializer.ResetAndSeedQaDataAsync(_context);
     }
 }

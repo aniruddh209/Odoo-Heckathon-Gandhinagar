@@ -44,6 +44,10 @@ public class AdminController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAuditLogs([FromQuery] int take = 50) => Ok(await _adminService.GetAuditLogsAsync(take));
 
+    [HttpPost("reset-qa-data")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ResetQaData() => Ok(await _adminService.ResetQaDataAsync());
+
     // ─── Users ──────────────────────────────────────────────────
     [HttpGet("users")]
     [Authorize(Roles = "Admin")]
