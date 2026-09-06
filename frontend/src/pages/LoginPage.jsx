@@ -51,10 +51,29 @@ export const LoginPage = () => {
     { role: 'Customer', email: 'customer@dealflow360.io', password: 'Customer@123', name: 'Rahul Verma (Sharma Tech)', badge: 'Client Portal Collaboration' },
   ];
 
-  const handleSelectQuickRole = (item) => {
+  const handleSelectQuickRole = async (item) => {
     setEmail(item.email);
     setPassword(item.password);
     setError(null);
+    setIsLoading(true);
+
+    try {
+      const res = await login({ email: item.email, password: item.password });
+
+      if (res.user.mustChangePassword) {
+        setPendingUser(res.user);
+        setCurrentPassword(item.password);
+        setRequirePasswordChange(true);
+        toast.info('Action Required', 'Please set a new secure password for your account.');
+      } else {
+        toast.success('Welcome Back', `Authenticated as ${res.user.fullName} (${res.user.role})`);
+        handleLoginSuccess(res.user);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to authenticate. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getRoleLandingRoute = (role) => {

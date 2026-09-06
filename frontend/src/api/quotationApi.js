@@ -76,6 +76,22 @@ export const quotationApi = {
   negotiateDeal: async (quotationId, data) => {
     return apiClient.post(`quotations/${quotationId}/negotiate`, data);
   },
+
+  sendQuotation: async (quotationId, data = {}) => {
+    return apiClient.post(`quotations/${quotationId}/send`, data);
+  },
+
+  acceptCounterOffer: async (quotationId, data = {}) => {
+    return apiClient.post(`quotations/${quotationId}/negotiate/accept`, data);
+  },
+
+  rejectCounterOffer: async (quotationId, data = {}) => {
+    return apiClient.post(`quotations/${quotationId}/negotiate/reject`, data);
+  },
+
+  disqualifyQuotation: async (quotationId, data = {}) => {
+    return apiClient.post(`quotations/${quotationId}/disqualify`, data);
+  },
 };
 
 export default quotationApi;

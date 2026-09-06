@@ -101,16 +101,19 @@ export const CustomerAccountPage = () => {
       if (pRes) setProfile(pRes);
 
       // If drawer is open, keep selected quote updated
-      if (selectedQuote) {
-        const updated = loadedQuotes.find((q) => q.id === selectedQuote.id);
-        if (updated) setSelectedQuote(updated);
-      }
+      setSelectedQuote((prevSelected) => {
+        if (prevSelected) {
+          const updated = loadedQuotes.find((q) => q.id === prevSelected.id);
+          return updated || prevSelected;
+        }
+        return prevSelected;
+      });
     } catch (err) {
       setError(err.message || 'Failed to load customer account records.');
     } finally {
       setIsLoading(false);
     }
-  }, [isCustomer, selectedQuote]);
+  }, [isCustomer]);
 
   useEffect(() => {
     let isCancelled = false;

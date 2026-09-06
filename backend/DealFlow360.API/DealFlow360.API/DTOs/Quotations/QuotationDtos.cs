@@ -103,6 +103,15 @@ public class QuotationDetailResponse
     public List<QuotationLineResponse> Lines { get; set; } = new();
     public List<ApprovalStepResponse> ApprovalSteps { get; set; } = new();
     public List<string> AllowedActions { get; set; } = new();
+
+    // Negotiation & Governance Metadata
+    public List<QuotationChangeResponse> ChangeRequests { get; set; } = new();
+    public bool HasPendingCounterOffer { get; set; }
+    public decimal? LatestCounterDiscount { get; set; }
+    public string? LatestCounterReason { get; set; }
+    public int? LatestCounterLineId { get; set; }
+    public bool IsDiscountLocked { get; set; }
+    public bool IsAutoApproved { get; set; }
 }
 
 public class QuotationLineResponse
@@ -124,6 +133,9 @@ public class QuotationLineResponse
     public decimal MarginAmount { get; set; }
     public int? SubscriptionPlanId { get; set; }
     public string? SubscriptionPlanName { get; set; }
+    public bool IsNegotiatedLocked { get; set; }
+    public decimal? CounterDiscountPercent { get; set; }
+    public string? CounterReason { get; set; }
 
     // Negotiation & Customer Inquiries
     public List<LineCommentResponse> Comments { get; set; } = new();
@@ -192,6 +204,8 @@ public class NegotiatePriceRequest
 {
     public decimal? TargetUnitPrice { get; set; }
     public decimal? TargetDiscountPercent { get; set; }
+    public decimal? ProposedDiscountPercent { get; set; }
+    public decimal? ProposedUnitPrice { get; set; }
     public int? Quantity { get; set; }
     public string? Reason { get; set; }
 }
@@ -200,4 +214,43 @@ public class NegotiateDealRequest
 {
     public decimal OverallDiscountPercent { get; set; }
     public string? Reason { get; set; }
+}
+
+public class QuotationChangeResponse
+{
+    public int Id { get; set; }
+    public int QuotationId { get; set; }
+    public string ChangeType { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int RequestedByUserId { get; set; }
+    public string? RequestedByUserName { get; set; }
+    public string? OldValueJson { get; set; }
+    public string? NewValueJson { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+}
+
+public class SendQuotationRequest
+{
+    public string? Notes { get; set; }
+}
+
+public class AcceptCounterOfferRequest
+{
+    public int? LineId { get; set; }
+    public decimal? CounterDiscountPercent { get; set; }
+    public string? Reason { get; set; }
+}
+
+public class RejectCounterOfferRequest
+{
+    public int? LineId { get; set; }
+    public decimal? CounterDiscountPercent { get; set; }
+    public decimal? CounterUnitPrice { get; set; }
+    public bool DisqualifyDeal { get; set; }
+    public string? Reason { get; set; }
+}
+
+public class DisqualifyQuotationRequest
+{
+    public string Reason { get; set; } = string.Empty;
 }

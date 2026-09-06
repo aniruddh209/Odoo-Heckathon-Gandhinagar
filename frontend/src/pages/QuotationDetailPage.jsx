@@ -37,8 +37,10 @@ import {
   AlertTriangle,
   DollarSign,
   Tag,
+  Lock,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { RepNegotiationModal } from '../components/quotation/RepNegotiationModal';
 
 export const QuotationDetailPage = () => {
   const { id } = useParams();
@@ -85,6 +87,10 @@ export const QuotationDetailPage = () => {
   // Portal Link Modal
   const [portalLink, setPortalLink] = useState('');
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+
+  // Sales Rep Negotiation Modal
+  const [isRepNegotiateOpen, setIsRepNegotiateOpen] = useState(false);
+  const [isSendingQuotation, setIsSendingQuotation] = useState(false);
 
   useEffect(() => {
     loadQuoteData();
@@ -216,6 +222,19 @@ export const QuotationDetailPage = () => {
       setIsPortalModalOpen(true);
     } catch (err) {
       toast.error('Portal Error', err.message);
+    }
+  };
+
+  const handleSendQuotation = async () => {
+    setIsSendingQuotation(true);
+    try {
+      const res = await quotationApi.sendQuotation(id);
+      toast.success('Quotation Sent', res.message || 'Quotation successfully dispatched to client. Commercial negotiation is now active.');
+      await loadQuoteData();
+    } catch (err) {
+      toast.error('Failed to Send Quotation', err.message || 'An error occurred.');
+    } finally {
+      setIsSendingQuotation(false);
     }
   };
 
@@ -396,7 +415,42 @@ export const QuotationDetailPage = () => {
             Client Portal Link
           </Button>
 
-          {!isApproved && !isConverted && (
+          {!isConverted && (quote.status === 'Draft' || quote.status === 'Approved') && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Send}
+              isLoading={isSendingQuotation}
+              onClick={handleSendQuotation}
+              className="border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              Send to Customer
+            </Button>
+          )}
+
+          {!isConverted && (quote.status === 'Sent' || quote.status === 'UnderNegotiation' || quote.hasPendingCounterOffer) && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={MessageSquare}
+              onClick={() => setIsRepNegotiateOpen(true)}
+              className={`relative ${
+                quote.hasPendingCounterOffer
+                  ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-400/50'
+                  : 'bg-indigo-600 hover:bg-indigo-700'
+              }`}
+            >
+              {quote.hasPendingCounterOffer && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+              )}
+              Negotiate Terms
+            </Button>
+          )}
+
+          {!isApproved && !isConverted && quote.status !== 'Approved' && quote.approvalStatus !== 'Approved' && quote.status !== 'Sent' && quote.status !== 'UnderNegotiation' && (
             <Button
               variant="primary"
               size="sm"
@@ -430,6 +484,51 @@ export const QuotationDetailPage = () => {
           )}
         </div>
       </div>
+
+      {/* ── Pending Customer Counter-Offer Negotiation Banner ─────────── */}
+      {quote.hasPendingCounterOffer && !isConverted && (
+        <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <MessageSquare className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-amber-950 text-sm">
+                  Active Customer Counter-Offer: {quote.latestCounterDiscount}% Discount
+                </h3>
+                <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                  (quote.latestCounterDiscount || 0) <= tierLimit
+                    ? 'bg-emerald-200 text-emerald-900'
+                    : 'bg-amber-200 text-amber-900'
+                }`}>
+                  {(quote.latestCounterDiscount || 0) <= tierLimit ? '✓ Pre-Approved Tier Safe' : '⚠ Exceeds Tier Limit'}
+                </span>
+              </div>
+              {quote.latestCounterReason && (
+                <p className="text-xs text-amber-900 mt-1 italic">
+                  "{quote.latestCounterReason}"
+                </p>
+              )}
+              <p className="text-xs text-amber-800 mt-1">
+                {(quote.latestCounterDiscount || 0) <= tierLimit
+                  ? `Customer counter is within the pre-authorized ${tierLimit}% tier limit. Accepting will immediately finalize terms and auto-approve without manager escalation.`
+                  : `Customer counter exceeds the ${tierLimit}% tier ceiling. Accepting will require sales manager authorization.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={MessageSquare}
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => setIsRepNegotiateOpen(true)}
+            >
+              Review & Respond (3 Options)
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── Pre-Approved Tier Banner ─────────────────────────── */}
       {isApproved && !isConverted && (
@@ -683,7 +782,12 @@ export const QuotationDetailPage = () => {
                         <span className={`font-semibold ${line.discountPercent > tierLimit ? 'text-rose-600' : 'text-slate-700'}`}>
                           {line.discountPercent}%
                         </span>
-                        {line.discountPercent > 0 && (
+                        {line.isNegotiatedLocked && (
+                          <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200/60 mt-0.5 flex items-center gap-0.5 whitespace-nowrap">
+                            <Lock className="w-2.5 h-2.5" /> Negotiated
+                          </span>
+                        )}
+                        {!line.isNegotiatedLocked && line.discountPercent > 0 && (
                           line.discountPercent <= tierLimit ? (
                             <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 mt-0.5 whitespace-nowrap">
                               ✓ ≤ {tierLimit}% Tier Safe
@@ -1075,9 +1179,14 @@ export const QuotationDetailPage = () => {
               min="0"
               max="100"
               step="0.5"
+              disabled={Boolean(editingLine.isNegotiatedLocked || quote?.isDiscountLocked)}
               value={editDiscount}
               onChange={(e) => setEditDiscount(e.target.value)}
-              helperText="Exceeding client tier ceiling triggers approval workflow."
+              helperText={
+                editingLine.isNegotiatedLocked || quote?.isDiscountLocked
+                  ? '🔒 Agreed via Negotiation. Discount is locked and cannot be manually modified.'
+                  : 'Exceeding client tier ceiling triggers approval workflow.'
+              }
             />
 
             <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
@@ -1191,6 +1300,14 @@ export const QuotationDetailPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* ── Sales Representative Negotiation Console Modal ─────── */}
+      <RepNegotiationModal
+        isOpen={isRepNegotiateOpen}
+        onClose={() => setIsRepNegotiateOpen(false)}
+        quote={quote}
+        onSuccess={loadQuoteData}
+      />
     </div>
   );
 };

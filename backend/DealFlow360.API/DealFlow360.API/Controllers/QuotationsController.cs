@@ -107,6 +107,42 @@ public class QuotationsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id}/send")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> SendQuotation(int id, [FromBody] SendQuotationRequest? request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.SendQuotationAsync(id, request ?? new SendQuotationRequest(), userId);
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/negotiate/accept")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> AcceptCounterOffer(int id, [FromBody] AcceptCounterOfferRequest? request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.AcceptCounterOfferAsync(id, request ?? new AcceptCounterOfferRequest(), userId);
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/negotiate/reject")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> RejectCounterOffer(int id, [FromBody] RejectCounterOfferRequest? request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.RejectCounterOfferAsync(id, request ?? new RejectCounterOfferRequest(), userId);
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/disqualify")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> DisqualifyQuotation(int id, [FromBody] DisqualifyQuotationRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.DisqualifyQuotationAsync(id, request, userId);
+        return Ok(result);
+    }
+
     [HttpPost("{id}/recalculate")]
     public async Task<IActionResult> Recalculate(int id)
     {

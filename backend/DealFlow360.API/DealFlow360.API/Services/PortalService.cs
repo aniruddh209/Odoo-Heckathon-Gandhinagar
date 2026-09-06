@@ -192,6 +192,7 @@ public class PortalService : IPortalService
             _context.ApprovalRequests.Add(approvalRequest);
         }
 
+        quotation.Status = QuoteStatus.UnderNegotiation;
         quotation.Version++;
         quotation.UpdatedAtUtc = DateTime.UtcNow;
         _context.Quotations.Update(quotation);

@@ -20,8 +20,10 @@ import {
   FileText,
   Copy,
   Check,
+  MessageSquare,
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatPercent } from '../../utils/formatters';
+import { RepNegotiationModal } from '../quotation/RepNegotiationModal';
 
 export const DealDetailDrawer = ({
   isOpen,
@@ -75,6 +77,24 @@ export const DealDetailDrawer = ({
     setCopiedLink(true);
     toast.success('Customer portal negotiation link copied to clipboard');
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const [isRepNegotiateOpen, setIsRepNegotiateOpen] = useState(false);
+  const [isSendingQuote, setIsSendingQuote] = useState(false);
+
+  const handleSendQuote = async () => {
+    if (!activeQuote?.id) return;
+    setIsSendingQuote(true);
+    try {
+      const res = await quotationApi.sendQuotation(activeQuote.id);
+      toast.success(res.message || 'Quotation sent to client');
+      await loadFullDetails(activeQuote.id);
+      onQuoteUpdated?.();
+    } catch (err) {
+      toast.error(err.message || 'Failed to send quotation');
+    } finally {
+      setIsSendingQuote(false);
+    }
   };
 
   const handleSubmitForApproval = async () => {
@@ -146,8 +166,38 @@ export const DealDetailDrawer = ({
               Close
             </Button>
             <div className="flex items-center gap-2">
+              {/* Action: Send to Customer if Draft or Approved */}
+              {(activeQuote?.status === 'Draft' || activeQuote?.status === 'Approved') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Send}
+                  loading={isSendingQuote}
+                  onClick={handleSendQuote}
+                >
+                  Send Quote
+                </Button>
+              )}
+
+              {/* Action: Negotiate Terms if Sent or UnderNegotiation */}
+              {(activeQuote?.status === 'Sent' || activeQuote?.status === 'UnderNegotiation' || activeQuote?.hasPendingCounterOffer) && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={MessageSquare}
+                  onClick={() => setIsRepNegotiateOpen(true)}
+                  className={
+                    activeQuote?.hasPendingCounterOffer
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-indigo-600 hover:bg-indigo-700'
+                  }
+                >
+                  Negotiate
+                </Button>
+              )}
+
               {/* Contextual Action: Submit for approval if Draft */}
-              {activeQuote?.status === 'Draft' && (
+              {activeQuote?.status === 'Draft' && activeQuote?.approvalStatus !== 'Approved' && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -218,6 +268,31 @@ export const DealDetailDrawer = ({
               </div>
             </div>
           </div>
+
+          {/* Active Customer Counter-Offer Highlight in Pipeline Drawer */}
+          {activeQuote?.hasPendingCounterOffer && (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-300 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <MessageSquare className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-xs">
+                  <span className="font-bold text-amber-950 block">
+                    Customer Counter-Offer: {activeQuote.latestCounterDiscount}% Discount
+                  </span>
+                  {activeQuote.latestCounterReason && (
+                    <p className="text-amber-900 mt-0.5 italic">"{activeQuote.latestCounterReason}"</p>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                size="xs"
+                className="bg-amber-600 hover:bg-amber-700 shrink-0"
+                onClick={() => setIsRepNegotiateOpen(true)}
+              >
+                Negotiate
+              </Button>
+            </div>
+          )}
 
           {/* Deal Specifics Matrix */}
           <div className="space-y-2">
@@ -469,6 +544,17 @@ export const DealDetailDrawer = ({
           />
         </div>
       </Modal>
+
+      {/* Sales Representative Negotiation Modal */}
+      <RepNegotiationModal
+        isOpen={isRepNegotiateOpen}
+        onClose={() => setIsRepNegotiateOpen(false)}
+        quote={activeQuote}
+        onSuccess={() => {
+          loadFullDetails(activeQuote?.id);
+          onQuoteUpdated?.();
+        }}
+      />
     </>
   );
 };
