@@ -777,17 +777,19 @@ public class CustomerService : ICustomerService
 
         await _context.SaveChangesAsync();
 
-        // Trigger Warehouse Fulfillment Allocation
+        // Trigger Warehouse Fulfillment Allocation (non-critical — do not rethrow)
         try
         {
             await _fulfillmentService.ExecuteAllocationAsync(order.Id);
         }
         catch (Exception)
         {
-            // Non-storable or handled
+            // Fulfillment failure is non-critical; confirmation is already persisted.
+            // Do NOT call ChangeTracker.Clear() here — it detaches all entities and
+            // breaks subsequent billing and notification DB operations.
         }
 
-        // Trigger Hybrid Billing
+        // Trigger Hybrid Billing (non-critical — do not rethrow)
         BillingOverviewResponse? billingInfo = null;
         try
         {
@@ -795,23 +797,36 @@ public class CustomerService : ICustomerService
         }
         catch (Exception)
         {
-            // Handled
+            // Billing failure is non-critical; confirmation is already persisted.
         }
 
-        await _notificationService.SendNotificationAsync(
-            quotation.SalesRepId,
-            $"Quotation {quotation.QuotationNumber} Confirmed by Customer",
-            $"Customer {quotation.Customer?.Name} has formally confirmed commercial proposal {quotation.QuotationNumber}.",
-            "QuoteConfirmed",
-            "Quotation",
-            quotation.Id);
+        // Send notification to sales rep (non-critical — do not rethrow)
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                quotation.SalesRepId,
+                $"Quotation {quotation.QuotationNumber} Confirmed by Customer",
+                $"Customer {quotation.Customer?.Name} has formally confirmed commercial proposal {quotation.QuotationNumber}.",
+                "QuoteConfirmed",
+                "Quotation",
+                quotation.Id);
+        }
+        catch (Exception)
+        {
+            // Notification failure must never fail the confirmation response.
+        }
+
+        // Re-fetch order with lines for mapping (fulfillment may have mutated lines in DB)
+        var freshOrder = await _context.Orders
+            .Include(o => o.Lines).ThenInclude(ol => ol.Product)
+            .FirstOrDefaultAsync(o => o.Id == order.Id) ?? order;
 
         var changes = await _context.QuotationChanges
             .Where(c => c.QuotationId == quotation.Id)
             .OrderByDescending(c => c.CreatedAtUtc)
             .ToListAsync();
 
-        return MapToCustomerQuoteDto(quotation, changes, order, billingInfo?.InvoiceNumber, billingInfo?.ActiveSubscriptionsCount);
+        return MapToCustomerQuoteDto(quotation, changes, freshOrder, billingInfo?.InvoiceNumber, billingInfo?.ActiveSubscriptionsCount);
     }
 
     public async Task<CustomerQuoteDto> AcceptRepCounterOfferAsync(int customerId, int quotationId, string? remarks = null)

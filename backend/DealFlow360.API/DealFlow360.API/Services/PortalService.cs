@@ -409,13 +409,21 @@ public class PortalService : IPortalService
             // Handled
         }
 
-        await _notificationService.SendNotificationAsync(
-            quotation.SalesRepId,
-            $"Quotation {quotation.QuotationNumber} Confirmed by Customer",
-            $"Customer {customerEmail} has accepted and confirmed commercial proposal {quotation.QuotationNumber}.",
-            "QuoteConfirmed",
-            "Quotation",
-            quotation.Id);
+        // Send notification to sales rep (non-critical — do not rethrow)
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                quotation.SalesRepId,
+                $"Quotation {quotation.QuotationNumber} Confirmed by Customer",
+                $"Customer {customerEmail} has accepted and confirmed commercial proposal {quotation.QuotationNumber}.",
+                "QuoteConfirmed",
+                "Quotation",
+                quotation.Id);
+        }
+        catch (Exception)
+        {
+            // Notification failure must never fail the confirmation response.
+        }
 
         var changes = await _context.QuotationChanges
             .Where(c => c.QuotationId == quotation.Id)
