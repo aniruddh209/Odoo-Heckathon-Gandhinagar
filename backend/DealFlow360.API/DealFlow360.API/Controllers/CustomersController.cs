@@ -3,6 +3,7 @@ using System.Text.Json;
 using DealFlow360.API.DTOs.Customers;
 using DealFlow360.API.DTOs.Portal;
 using DealFlow360.API.Services;
+using DealFlow360.API.Services.Pdf;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,14 +11,17 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Route("api/customer")]
 [Authorize]
 public class CustomersController : ControllerBase
 {
     private readonly ICustomerService _customerService;
+    private readonly IQuotationPdfService _pdfService;
 
-    public CustomersController(ICustomerService customerService)
+    public CustomersController(ICustomerService customerService, IQuotationPdfService pdfService)
     {
         _customerService = customerService;
+        _pdfService = pdfService;
     }
 
     private int? GetCurrentCustomerId()
@@ -94,6 +98,22 @@ public class CustomersController : ControllerBase
 
         var result = await _customerService.GetCustomerQuotationByIdAsync(customerId.Value, id);
         return Ok(result);
+    }
+
+    [HttpGet("me/quotations/{id}/pdf")]
+    [Authorize(Roles = "Customer,Admin")]
+    public async Task<IActionResult> DownloadMyQuotationPdf(int id)
+    {
+        var customerId = GetCurrentCustomerId();
+        if (!customerId.HasValue)
+        {
+            return BadRequest(new { message = "User is not linked to a customer account." });
+        }
+
+        var quote = await _customerService.GetCustomerQuotationByIdAsync(customerId.Value, id);
+        var pdfBytes = await _pdfService.GenerateCustomerQuotationPdfAsync(id, customerId.Value);
+        var filename = $"DealFlow360_Quotation_{quote.QuotationNumber}.pdf";
+        return File(pdfBytes, "application/pdf", filename);
     }
 
     [HttpPost("me/quotations/{id}/lines/{lineId}/comment")]

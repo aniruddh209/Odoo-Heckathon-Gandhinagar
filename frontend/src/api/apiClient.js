@@ -130,11 +130,55 @@ export async function apiRequest(endpoint, options = {}) {
   return handleResponse(response);
 }
 
+export async function downloadBlob(endpoint, filename, options = {}) {
+  const token = options.token !== undefined ? options.token : getStoredToken();
+  const reqHeaders = {
+    Accept: 'application/pdf, application/octet-stream, */*',
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    reqHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+  const url = cleanEndpoint.startsWith('api/') ? `/${cleanEndpoint}` : `/api/${cleanEndpoint}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: reqHeaders,
+  });
+
+  if (!response.ok) {
+    let errMsg = `Failed to download file (Status ${response.status})`;
+    try {
+      const errData = await response.json();
+      errMsg = errData.message || errData.title || errMsg;
+    } catch {
+      // ignore
+    }
+    throw new Error(errMsg);
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(downloadUrl);
+  return true;
+}
+
 export const apiClient = {
   get: (url, options) => apiRequest(url, { method: 'GET', ...options }),
   post: (url, body, options) => apiRequest(url, { method: 'POST', body, ...options }),
   put: (url, body, options) => apiRequest(url, { method: 'PUT', body, ...options }),
   delete: (url, options) => apiRequest(url, { method: 'DELETE', ...options }),
+  download: (url, filename, options) => downloadBlob(url, filename, options),
 };
 
 export default apiClient;
+

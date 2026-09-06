@@ -2,6 +2,7 @@ using System.Security.Claims;
 using DealFlow360.API.DTOs.Quotations;
 using DealFlow360.API.Models.Enums;
 using DealFlow360.API.Services;
+using DealFlow360.API.Services.Pdf;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,10 +15,12 @@ namespace DealFlow360.API.Controllers;
 public class QuotationsController : ControllerBase
 {
     private readonly IQuotationService _quotationService;
+    private readonly IQuotationPdfService _pdfService;
 
-    public QuotationsController(IQuotationService quotationService)
+    public QuotationsController(IQuotationService quotationService, IQuotationPdfService pdfService)
     {
         _quotationService = quotationService;
+        _pdfService = pdfService;
     }
 
     private int GetCurrentUserId()
@@ -233,5 +236,16 @@ public class QuotationsController : ControllerBase
         var userId = GetCurrentUserId();
         var result = await _quotationService.ConvertToOrderAsync(id, userId);
         return Ok(result);
+    }
+
+    [HttpGet("{id}/pdf")]
+    public async Task<IActionResult> DownloadQuotationPdf(int id)
+    {
+        var userId = GetCurrentUserId();
+        var userRole = User.FindFirstValue(ClaimTypes.Role) ?? "SalesRep";
+        var pdfBytes = await _pdfService.GenerateQuotationPdfAsync(id, userId, userRole);
+        var quote = await _quotationService.GetQuotationByIdAsync(id);
+        var filename = $"DealFlow360_Quotation_{quote.QuotationNumber}.pdf";
+        return File(pdfBytes, "application/pdf", filename);
     }
 }

@@ -23,6 +23,7 @@ import {
   AlertCircle,
   History,
   Clock,
+  FileDown,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { portalApi } from '../../api/portalApi';
@@ -68,6 +69,25 @@ export const CustomerProposalView = ({
 
   // Expanded comments toggle by line ID
   const [expandedComments, setExpandedComments] = useState({});
+
+  // PDF Download State
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      if (token) {
+        await portalApi.downloadPdf(token, quote.quotationNumber || 'Proposal');
+      } else {
+        await customerApi.downloadMyQuotationPdf(quote.id, quote.quotationNumber || 'Proposal');
+      }
+      toast.success('Proposal PDF Downloaded', 'Official commercial quotation saved.');
+    } catch (err) {
+      toast.error('Download Failed', err.message || 'Could not download proposal PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   if (!quote) return null;
 
@@ -276,8 +296,20 @@ export const CustomerProposalView = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <StatusBadge status={quote.status} />
+
+            <Button
+              variant="outline"
+              size="sm"
+              icon={FileDown}
+              isLoading={isDownloadingPdf}
+              onClick={handleDownloadPdf}
+              className="border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
+              title="Download official vector PDF proposal"
+            >
+              {isDownloadingPdf ? 'Generating PDF...' : 'Download PDF'}
+            </Button>
             {onConnectSales && (
               <Button
                 variant="outline"

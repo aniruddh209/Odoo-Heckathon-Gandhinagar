@@ -64,6 +64,11 @@ export const customerApi = {
   getMyProfile: async () => {
     return apiClient.get('customers/me/profile');
   },
+
+  downloadMyQuotationPdf: async (id, quotationNumber = 'Quote') => {
+    const filename = `DealFlow360_Quotation_${quotationNumber}.pdf`;
+    return apiClient.download(`customers/me/quotations/${id}/pdf`, filename);
+  },
 };
 
 export default customerApi;

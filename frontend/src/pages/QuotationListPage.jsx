@@ -16,6 +16,7 @@ import {
   Filter,
   RefreshCw,
   FileText,
+  FileDown,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
@@ -114,6 +115,23 @@ export const QuotationListPage = () => {
         }`}>
           {q.approvalStatus || 'None'}
         </span>
+      ),
+    },
+    {
+      header: 'PDF',
+      accessor: 'id',
+      render: (q) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            quotationApi.downloadPdf(q.id, q.quotationNumber);
+          }}
+          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          title="Download vector PDF quotation"
+        >
+          <FileDown className="w-4 h-4" />
+        </button>
       ),
     },
   ];

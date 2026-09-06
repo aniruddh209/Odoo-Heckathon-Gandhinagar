@@ -38,6 +38,7 @@ import {
   DollarSign,
   Tag,
   Lock,
+  FileDown,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { RepNegotiationModal } from '../components/quotation/RepNegotiationModal';
@@ -91,6 +92,20 @@ export const QuotationDetailPage = () => {
   // Sales Rep Negotiation Modal
   const [isRepNegotiateOpen, setIsRepNegotiateOpen] = useState(false);
   const [isSendingQuotation, setIsSendingQuotation] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!quote?.id) return;
+    setIsDownloadingPdf(true);
+    try {
+      await quotationApi.downloadPdf(quote.id, quote.quotationNumber);
+      toast.success('PDF Downloaded', `Quotation ${quote.quotationNumber} PDF saved successfully.`);
+    } catch (err) {
+      toast.error('Download Failed', err.message || 'Could not generate quotation PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   useEffect(() => {
     loadQuoteData();
@@ -413,6 +428,18 @@ export const QuotationDetailPage = () => {
             onClick={handleGeneratePortal}
           >
             Client Portal Link
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            icon={FileDown}
+            isLoading={isDownloadingPdf}
+            onClick={handleDownloadPdf}
+            className="border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
+            title="Download authoritative vector PDF quotation"
+          >
+            {isDownloadingPdf ? 'Generating PDF...' : 'Download PDF'}
           </Button>
 
           {!isConverted && (quote.status === 'Draft' || quote.status === 'Approved') && (

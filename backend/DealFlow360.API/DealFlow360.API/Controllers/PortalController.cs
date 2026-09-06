@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DealFlow360.API.DTOs.Portal;
 using DealFlow360.API.Services;
+using DealFlow360.API.Services.Pdf;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,10 +13,12 @@ namespace DealFlow360.API.Controllers;
 public class PortalController : ControllerBase
 {
     private readonly IPortalService _portalService;
+    private readonly IQuotationPdfService _pdfService;
 
-    public PortalController(IPortalService portalService)
+    public PortalController(IPortalService portalService, IQuotationPdfService pdfService)
     {
         _portalService = portalService;
+        _pdfService = pdfService;
     }
 
     [HttpGet("quote/{token}")]
@@ -65,5 +68,14 @@ public class PortalController : ControllerBase
     {
         var result = await _portalService.ConfirmQuoteAsync(token);
         return Ok(result);
+    }
+
+    [HttpGet("quote/{token}/pdf")]
+    public async Task<IActionResult> DownloadPortalQuotePdf(string token)
+    {
+        var quote = await _portalService.GetCustomerQuoteAsync(token);
+        var pdfBytes = await _pdfService.GeneratePortalQuotationPdfAsync(token);
+        var filename = $"DealFlow360_Quotation_{quote.QuotationNumber}.pdf";
+        return File(pdfBytes, "application/pdf", filename);
     }
 }

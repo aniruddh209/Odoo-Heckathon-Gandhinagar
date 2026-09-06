@@ -21,6 +21,7 @@ import {
   Copy,
   Check,
   MessageSquare,
+  FileDown,
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatPercent } from '../../utils/formatters';
 import { RepNegotiationModal } from '../quotation/RepNegotiationModal';
@@ -221,6 +222,17 @@ export const DealDetailDrawer = ({
                   Review Deal
                 </Button>
               )}
+
+              {/* Quick Action: Download PDF */}
+              <Button
+                variant="outline"
+                size="sm"
+                icon={FileDown}
+                onClick={() => quotationApi.downloadPdf(activeQuote.id, activeQuote.quotationNumber)}
+                title="Download official vector PDF quotation"
+              >
+                PDF
+              </Button>
 
               {/* Primary Action: Open Full Quote Page */}
               <Button

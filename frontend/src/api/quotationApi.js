@@ -92,6 +92,11 @@ export const quotationApi = {
   disqualifyQuotation: async (quotationId, data = {}) => {
     return apiClient.post(`quotations/${quotationId}/disqualify`, data);
   },
+
+  downloadPdf: async (id, quotationNumber = 'Quote') => {
+    const filename = `DealFlow360_Quotation_${quotationNumber}.pdf`;
+    return apiClient.download(`quotations/${id}/pdf`, filename);
+  },
 };
 
 export default quotationApi;

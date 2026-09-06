@@ -29,6 +29,11 @@ export const portalApi = {
   confirmQuote: async (token) => {
     return apiClient.post(`portal/quote/${token}/confirm`);
   },
+
+  downloadPdf: async (token, quotationNumber = 'Proposal') => {
+    const filename = `DealFlow360_Quotation_${quotationNumber}.pdf`;
+    return apiClient.download(`portal/quote/${token}/pdf`, filename, { token: null });
+  },
 };
 
 export default portalApi;

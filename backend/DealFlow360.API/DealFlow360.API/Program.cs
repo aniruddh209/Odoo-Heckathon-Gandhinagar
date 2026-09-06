@@ -3,6 +3,7 @@ using DealFlow360.API.Data;
 using DealFlow360.API.Middleware;
 using DealFlow360.API.Services;
 using DealFlow360.API.Services.Engines;
+using DealFlow360.API.Services.Pdf;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -16,6 +17,9 @@ public class Program
 {
     public static void Main(string[] args)
     {
+        // ─── QuestPDF Community License ────────────────────────
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
         var builder = WebApplication.CreateBuilder(args);
 
         // ─── Database Context ──────────────────────────────────
@@ -121,6 +125,7 @@ public class Program
         builder.Services.AddScoped<IDealHealthService, DealHealthService>();
         builder.Services.AddScoped<ISalesConnectionService, SalesConnectionService>();
         builder.Services.AddScoped<IDashboardReportService, DashboardReportService>();
+        builder.Services.AddScoped<IQuotationPdfService, QuotationPdfService>();
 
         // ─── Build Application ─────────────────────────────────
         var app = builder.Build();
