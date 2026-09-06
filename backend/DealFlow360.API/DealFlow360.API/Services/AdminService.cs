@@ -1205,13 +1205,18 @@ public class AdminService : IAdminService
                 WarehouseId = warehouseId,
                 ProductId = request.ProductId,
                 OnHand = request.OnHand,
-                Reserved = 0,
+                Reserved = request.Reserved ?? 0,
                 UpdatedAtUtc = DateTime.UtcNow
             };
             _context.InventoryStocks.Add(stock);
         }
         else
         {
+            if (request.Reserved.HasValue)
+            {
+                stock.Reserved = Math.Max(0, request.Reserved.Value);
+            }
+
             if (request.OnHand < stock.Reserved)
             {
                 throw new InvalidOperationException($"Cannot reduce stock on-hand ({request.OnHand}) below currently reserved quantity ({stock.Reserved}).");

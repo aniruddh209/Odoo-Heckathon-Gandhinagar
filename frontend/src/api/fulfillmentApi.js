@@ -32,6 +32,10 @@ export const fulfillmentApi = {
   consolidateBackorders: async (orderId) => {
     return apiClient.post(`fulfillment/consolidate/${orderId}`);
   },
+
+  getConsolidationOptions: async (orderId) => {
+    return apiClient.get(`fulfillment/orders/${orderId}/consolidation-options`);
+  },
 };
 
 export default fulfillmentApi;

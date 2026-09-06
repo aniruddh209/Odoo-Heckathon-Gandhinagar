@@ -17,6 +17,7 @@ public interface IFulfillmentService
     Task ConsolidateOnReplenishmentAsync(int warehouseId, int productId);
     Task<FulfillmentPreviewResponse> OverrideAllocationAsync(int orderId, FulfillmentOverrideRequest request);
     Task<ConsolidateBackorderResponse> ConsolidateOrderBackordersAsync(int orderId);
+    Task<ConsolidationOptionResponse> GetConsolidationOptionsAsync(int orderId);
 }
 
 public class FulfillmentService : IFulfillmentService
@@ -78,19 +79,65 @@ public class FulfillmentService : IFulfillmentService
 
         if (order == null) throw new KeyNotFoundException($"Order {orderId} not found.");
 
+        var orderLineIds = order.Lines.Select(l => l.Id).ToList();
+        var existingAllocations = await _context.WarehouseAllocations
+            .Where(a => orderLineIds.Contains(a.OrderLineId))
+            .ToListAsync();
+        var existingBackorders = await _context.Backorders
+            .Where(b => b.OrderId == order.Id)
+            .ToListAsync();
+
+        var warehouseMap = await _context.Warehouses.ToDictionaryAsync(w => w.Id);
+        var productMap = await _context.Products.ToDictionaryAsync(p => p.Id);
+
+        if (existingAllocations.Any() || existingBackorders.Any())
+        {
+            int totalShipments = existingAllocations.Select(a => a.WarehouseId).Distinct().Count();
+            decimal totalCost = existingAllocations.Sum(a => a.ShipmentCost);
+            bool isFullyAllocated = !existingBackorders.Any(b => b.Status == "Pending");
+
+            return new FulfillmentPreviewResponse
+            {
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                IsFullyAllocated = isFullyAllocated,
+                TotalShipments = totalShipments,
+                TotalShipmentCost = totalCost,
+                Allocations = existingAllocations.Select(a => new AllocationResponse
+                {
+                    OrderLineId = a.OrderLineId,
+                    ProductName = order.Lines.FirstOrDefault(ol => ol.Id == a.OrderLineId)?.Product?.Name ?? string.Empty,
+                    WarehouseId = a.WarehouseId,
+                    WarehouseName = warehouseMap.GetValueOrDefault(a.WarehouseId)?.Name ?? string.Empty,
+                    Quantity = a.Quantity,
+                    ShipmentCost = a.ShipmentCost
+                }).ToList(),
+                Backorders = existingBackorders.Select(b => new BackorderResponse
+                {
+                    Id = b.Id,
+                    OrderId = b.OrderId,
+                    OrderLineId = b.OrderLineId,
+                    ProductId = b.ProductId,
+                    ProductName = productMap.GetValueOrDefault(b.ProductId)?.Name ?? string.Empty,
+                    Quantity = b.Quantity,
+                    Status = b.Status,
+                    CreatedAtUtc = b.CreatedAtUtc
+                }).ToList()
+            };
+        }
+
         var warehouses = await _context.Warehouses.ToListAsync();
         var stocks = await _context.InventoryStocks.ToListAsync();
 
         var result = _allocationEngine.CalculateAllocation(order, warehouses, stocks);
-
-        var warehouseMap = warehouses.ToDictionary(w => w.Id);
-        var productMap = await _context.Products.ToDictionaryAsync(p => p.Id);
 
         return new FulfillmentPreviewResponse
         {
             OrderId = order.Id,
             OrderNumber = order.OrderNumber,
             IsFullyAllocated = result.IsFullyAllocated,
+            TotalShipments = result.TotalShipments,
+            TotalShipmentCost = result.TotalShipmentCost,
             Allocations = result.Allocations.Select(a => new AllocationResponse
             {
                 OrderLineId = a.OrderLineId,
@@ -138,14 +185,33 @@ public class FulfillmentService : IFulfillmentService
 
         var result = _allocationEngine.CalculateAllocation(order, warehouses, stocks);
 
-        _context.WarehouseAllocations.AddRange(result.Allocations);
-        _context.Backorders.AddRange(result.Backorders);
-
-        // Commit stock reservation changes
-        foreach (var stock in stocks)
+        // LIVE CONCURRENCY VALIDATION (Test 6)
+        // Verify inventory availability immediately before committing reservations
+        foreach (var alloc in result.Allocations)
         {
+            var line = order.Lines.FirstOrDefault(l => l.Id == alloc.OrderLineId);
+            if (line == null) continue;
+
+            var stock = stocks.FirstOrDefault(s => s.WarehouseId == alloc.WarehouseId && s.ProductId == line.ProductId);
+            if (stock == null)
+            {
+                throw new InvalidOperationException($"Stock record missing for Product {line.ProductId} at Warehouse {alloc.WarehouseId}.");
+            }
+
+            int available = stock.OnHand - stock.Reserved;
+            if (available < alloc.Quantity)
+            {
+                throw new InvalidOperationException(
+                    $"Concurrency conflict: Available inventory at Warehouse {alloc.WarehouseId} for Product {line.ProductId} is insufficient ({available} available, {alloc.Quantity} required). Allocation rejected to prevent overselling.");
+            }
+
+            // Reserve stock
+            stock.Reserved += alloc.Quantity;
             stock.UpdatedAtUtc = DateTime.UtcNow;
         }
+
+        _context.WarehouseAllocations.AddRange(result.Allocations);
+        _context.Backorders.AddRange(result.Backorders);
         _context.InventoryStocks.UpdateRange(stocks);
 
         var newStatus = _fulfillmentEngine.DetermineOrderStatus(order, result.Allocations, result.Backorders);
@@ -314,6 +380,14 @@ public class FulfillmentService : IFulfillmentService
                 if (wh == null) throw new KeyNotFoundException($"Warehouse {reqAlloc.WarehouseId} not found.");
 
                 var stock = await _context.InventoryStocks.FirstOrDefaultAsync(s => s.WarehouseId == wh.Id && s.ProductId == line.ProductId);
+                int availableStock = stock != null ? (stock.OnHand - stock.Reserved) : 0;
+
+                // VALIDATE MANUAL OVERRIDE CAPACITY (Test 8)
+                if (reqAlloc.Quantity > availableStock)
+                {
+                    throw new InvalidOperationException($"Cannot allocate {reqAlloc.Quantity} units from warehouse '{wh.Name}'. Only {availableStock} units are currently available.");
+                }
+
                 if (stock == null)
                 {
                     stock = new InventoryStock { WarehouseId = wh.Id, ProductId = line.ProductId, OnHand = 0, Reserved = 0, CreatedAtUtc = DateTime.UtcNow };
@@ -324,7 +398,7 @@ public class FulfillmentService : IFulfillmentService
                 stock.Reserved += reqAlloc.Quantity;
                 stock.UpdatedAtUtc = DateTime.UtcNow;
 
-                decimal shipmentCost = wh.ShippingCostWeight * 10.00m;
+                decimal shipmentCost = reqAlloc.Quantity * wh.ShippingCostWeight * 10.00m;
 
                 newAllocations.Add(new WarehouseAllocation
                 {
@@ -482,6 +556,105 @@ public class FulfillmentService : IFulfillmentService
             ConsolidatedAllocationsCount = consolidatedCount,
             RemainingBackordersCount = order.Backorders.Count(b => b.Status == "Pending"),
             NewOrderStatus = order.Status.ToString()
+        };
+    }
+
+    public async Task<ConsolidationOptionResponse> GetConsolidationOptionsAsync(int orderId)
+    {
+        var order = await _context.Orders
+            .Include(o => o.Lines).ThenInclude(ol => ol.Product)
+            .Include(o => o.Backorders)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        if (order == null) throw new KeyNotFoundException($"Order {orderId} not found.");
+
+        var pendingBackorders = order.Backorders.Where(b => b.Status == "Pending").ToList();
+        if (!pendingBackorders.Any())
+        {
+            return new ConsolidationOptionResponse
+            {
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                CanConsolidate = false,
+                Explanation = "No active pending backorders exist for this order."
+            };
+        }
+
+        var orderLineIds = order.Lines.Select(l => l.Id).ToList();
+        var existingAllocations = await _context.WarehouseAllocations
+            .Where(a => orderLineIds.Contains(a.OrderLineId))
+            .ToListAsync();
+
+        var existingWarehouseIds = existingAllocations.Select(a => a.WarehouseId).Distinct().ToHashSet();
+        var warehouses = await _context.Warehouses.Where(w => w.IsActive).ToDictionaryAsync(w => w.Id);
+        var products = await _context.Products.ToDictionaryAsync(p => p.Id);
+
+        var opportunities = new List<ConsolidationOpportunityDto>();
+
+        foreach (var bo in pendingBackorders)
+        {
+            var product = products.GetValueOrDefault(bo.ProductId);
+            var stocks = await _context.InventoryStocks
+                .Where(s => s.ProductId == bo.ProductId)
+                .ToListAsync();
+
+            foreach (var stock in stocks)
+            {
+                var wh = warehouses.GetValueOrDefault(stock.WarehouseId);
+                if (wh == null) continue;
+
+                int available = Math.Max(0, stock.OnHand - stock.Reserved);
+                if (available <= 0) continue;
+
+                int fulfillable = Math.Min(available, bo.Quantity);
+
+                // MEANINGFUL BENEFIT:
+                // 1. Warehouse already has an active allocation for this order -> saves a separate shipment!
+                // 2. Warehouse has enough stock to fulfill 100% of the remaining backorder in 1 consolidated shipment!
+                bool isExistingWarehouse = existingWarehouseIds.Contains(wh.Id);
+                bool canFulfillEntireBackorder = fulfillable >= bo.Quantity;
+
+                if (isExistingWarehouse || canFulfillEntireBackorder)
+                {
+                    int shipmentsSaved = isExistingWarehouse ? 1 : 0;
+                    decimal costSavings = isExistingWarehouse ? (wh.ShippingCostWeight * 10.00m) : 0m;
+
+                    opportunities.Add(new ConsolidationOpportunityDto
+                    {
+                        WarehouseId = wh.Id,
+                        WarehouseName = wh.Name,
+                        ProductId = bo.ProductId,
+                        ProductName = product?.Name ?? $"Product #{bo.ProductId}",
+                        AvailableQuantity = available,
+                        BackorderQuantity = bo.Quantity,
+                        FulfillableQuantity = fulfillable,
+                        ShipmentsSaved = shipmentsSaved,
+                        EstimatedCostSavings = costSavings,
+                        Reason = $"{fulfillable} units of {product?.Name ?? "item"} are now available at {wh.Name}. Consolidating the remaining backorder can reduce the remaining shipment count."
+                    });
+                }
+            }
+        }
+
+        if (opportunities.Any())
+        {
+            var best = opportunities.OrderByDescending(o => o.ShipmentsSaved).ThenByDescending(o => o.FulfillableQuantity).First();
+            return new ConsolidationOptionResponse
+            {
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                CanConsolidate = true,
+                Explanation = $"{best.FulfillableQuantity} units are now available at {best.WarehouseName}. Consolidating the remaining backorder can reduce the remaining shipment count.",
+                Opportunities = opportunities
+            };
+        }
+
+        return new ConsolidationOptionResponse
+        {
+            OrderId = order.Id,
+            OrderNumber = order.OrderNumber,
+            CanConsolidate = false,
+            Explanation = "Newly arrived stock does not reduce shipment count or provide a logistics cost advantage."
         };
     }
 }

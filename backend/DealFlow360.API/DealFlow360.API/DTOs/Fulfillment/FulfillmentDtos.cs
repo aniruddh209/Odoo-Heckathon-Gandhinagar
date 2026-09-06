@@ -94,3 +94,27 @@ public class ConsolidateBackorderResponse
     public int RemainingBackordersCount { get; set; }
     public string NewOrderStatus { get; set; } = string.Empty;
 }
+
+public class ConsolidationOptionResponse
+{
+    public int OrderId { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public bool CanConsolidate { get; set; }
+    public string Explanation { get; set; } = string.Empty;
+    public List<ConsolidationOpportunityDto> Opportunities { get; set; } = new();
+}
+
+public class ConsolidationOpportunityDto
+{
+    public int WarehouseId { get; set; }
+    public string WarehouseName { get; set; } = string.Empty;
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public int AvailableQuantity { get; set; }
+    public int BackorderQuantity { get; set; }
+    public int FulfillableQuantity { get; set; }
+    public int ShipmentsSaved { get; set; }
+    public decimal EstimatedCostSavings { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
+

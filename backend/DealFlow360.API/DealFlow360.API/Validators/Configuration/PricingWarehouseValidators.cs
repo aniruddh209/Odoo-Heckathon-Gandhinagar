@@ -166,5 +166,11 @@ public class AdjustStockRequestValidator : AbstractValidator<AdjustStockRequest>
     {
         RuleFor(x => x.OnHand)
             .GreaterThanOrEqualTo(0).WithMessage("On-hand quantity must be >= 0.");
+
+        When(x => x.Reserved.HasValue, () =>
+        {
+            RuleFor(x => x.Reserved!.Value)
+                .GreaterThanOrEqualTo(0).WithMessage("Reserved quantity must be >= 0.");
+        });
     }
 }

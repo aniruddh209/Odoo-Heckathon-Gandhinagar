@@ -162,17 +162,31 @@ public class RecommendationResponse
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public string SKU { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal CostPrice { get; set; }
     public decimal MarginPerUnit { get; set; }
+    public decimal ProductMarginPercent { get; set; }
     public decimal CurrentQuoteMargin { get; set; }
     public decimal MarginAfterAddition { get; set; }
     public decimal MarginDeltaPercent { get; set; }
+    public decimal BaseRelevanceScore { get; set; }
+    public decimal PromotionScore { get; set; }
     public decimal Score { get; set; }
     public bool IsPromoted { get; set; }
     public string RuleType { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
+    public int CoPurchaseCount { get; set; }
+    public bool HasCustomerAffinity { get; set; }
 }
+
+public class RecommendationPreviewRequest
+{
+    public List<int> ProductIds { get; set; } = new();
+    public int? CustomerId { get; set; }
+    public decimal? MinimumMarginThreshold { get; set; }
+}
+
 
 public class NegotiatePriceRequest
 {

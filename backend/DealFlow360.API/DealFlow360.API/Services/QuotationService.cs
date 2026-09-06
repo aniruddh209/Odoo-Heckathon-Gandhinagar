@@ -20,7 +20,9 @@ public interface IQuotationService
     Task<QuotationDetailResponse> RecalculateQuotationAsync(int id);
     Task<QuotationDetailResponse> SubmitForApprovalAsync(int id, int userId);
     Task<List<RecommendationResponse>> GetUpsellRecommendationsAsync(int id);
-    Task<List<RecommendationResponse>> PreviewCartRecommendationsAsync(List<int> productIds);
+    Task<List<RecommendationResponse>> PreviewCartRecommendationsAsync(List<int> productIds, int? customerId = null, decimal? minMargin = null);
+    Task<QuotationDetailResponse> AddRecommendationToQuoteAsync(int quotationId, int productId, int userId);
+    Task<bool> DismissRecommendationAsync(int quotationId, int productId, int userId);
     Task<string> GeneratePortalLinkAsync(int quotationId);
     Task<QuotationDetailResponse> AddLineCommentAsync(int quotationId, int lineId, string comment, int userId);
     Task<QuotationDetailResponse> NegotiateLinePriceAsync(int quotationId, int lineId, NegotiatePriceRequest request, int userId);
@@ -707,24 +709,200 @@ public class QuotationService : IQuotationService
     public async Task<List<RecommendationResponse>> GetUpsellRecommendationsAsync(int id)
     {
         var quotation = await _context.Quotations
-            .Include(q => q.Lines)
+            .Include(q => q.Customer)
+            .Include(q => q.Lines).ThenInclude(l => l.Product)
             .FirstOrDefaultAsync(q => q.Id == id);
 
         if (quotation == null) throw new KeyNotFoundException($"Quotation {id} not found.");
 
-        var rules = await _context.UpsellCrossSellRules.ToListAsync();
-        var products = await _context.Products.ToListAsync();
+        var cartProductIds = quotation.Lines.Select(l => l.ProductId).ToHashSet();
+        var cartProductIdsList = cartProductIds.ToList();
 
-        return _upsellEngine.GetRecommendations(quotation, rules, products);
+        var ordersWithCartProducts = await _context.OrderLines
+            .Where(ol => cartProductIdsList.Contains(ol.ProductId))
+            .Select(ol => ol.OrderId)
+            .Distinct()
+            .ToListAsync();
+
+        var coPurchases = await _context.OrderLines
+            .Where(ol => ordersWithCartProducts.Contains(ol.OrderId) && !cartProductIdsList.Contains(ol.ProductId))
+            .GroupBy(ol => ol.ProductId)
+            .Select(g => new { ProductId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Count);
+
+        var customerPastProductIds = await _context.Orders
+            .Where(o => o.CustomerId == quotation.CustomerId)
+            .SelectMany(o => o.Lines)
+            .Select(ol => ol.ProductId)
+            .Distinct()
+            .ToListAsync();
+
+        var incompatibleRules = await _context.UpsellCrossSellRules
+            .Where(r => r.IsActive && r.RuleType == "Incompatible" &&
+                  (cartProductIdsList.Contains(r.TriggerProductId) || cartProductIdsList.Contains(r.SuggestedProductId)))
+            .ToListAsync();
+
+        var incompatibleProductIds = incompatibleRules
+            .Select(r => cartProductIdsList.Contains(r.TriggerProductId) ? r.SuggestedProductId : r.TriggerProductId)
+            .ToHashSet();
+
+        var dismissedProductLogs = await _context.AuditLogs
+            .Where(a => a.EntityName == "Quotation" && a.EntityId == quotation.Id && a.Action == "RecommendationDismissed")
+            .ToListAsync();
+
+        var dismissedProductIds = new HashSet<int>();
+        foreach (var log in dismissedProductLogs)
+        {
+            if (int.TryParse(log.NewValueJson, out var dId))
+            {
+                dismissedProductIds.Add(dId);
+            }
+        }
+
+        var context = new RecommendationContext
+        {
+            QuotationId = quotation.Id,
+            CustomerId = quotation.CustomerId,
+            CartProductIds = cartProductIds,
+            CurrentRevenue = quotation.SubTotal - quotation.DiscountTotal,
+            CurrentCost = quotation.Lines.Sum(l => l.Product != null ? l.Product.CostPrice * l.Quantity : 0m),
+            MinimumMarginThreshold = 15.0m,
+            HistoricalCoPurchases = coPurchases,
+            CustomerHistoricalProductIds = customerPastProductIds.ToHashSet(),
+            IncompatibleProductIds = incompatibleProductIds,
+            DismissedProductIds = dismissedProductIds
+        };
+
+        var rules = await _context.UpsellCrossSellRules.Include(r => r.TriggerProduct).Include(r => r.SuggestedProduct).ToListAsync();
+        var products = await _context.Products.Include(p => p.Category).ToListAsync();
+
+        return _upsellEngine.GetRecommendations(context, rules, products);
     }
 
-    public async Task<List<RecommendationResponse>> PreviewCartRecommendationsAsync(List<int> productIds)
+    public async Task<List<RecommendationResponse>> PreviewCartRecommendationsAsync(List<int> productIds, int? customerId = null, decimal? minMargin = null)
     {
         if (productIds == null || !productIds.Any()) return new List<RecommendationResponse>();
-        var rules = await _context.UpsellCrossSellRules.ToListAsync();
-        var products = await _context.Products.ToListAsync();
-        return _upsellEngine.GetRecommendationsForProductIds(productIds, rules, products);
+
+        var cartProductIds = productIds.ToHashSet();
+        var cartProductIdsList = cartProductIds.ToList();
+
+        var ordersWithCartProducts = await _context.OrderLines
+            .Where(ol => cartProductIdsList.Contains(ol.ProductId))
+            .Select(ol => ol.OrderId)
+            .Distinct()
+            .ToListAsync();
+
+        var coPurchases = await _context.OrderLines
+            .Where(ol => ordersWithCartProducts.Contains(ol.OrderId) && !cartProductIdsList.Contains(ol.ProductId))
+            .GroupBy(ol => ol.ProductId)
+            .Select(g => new { ProductId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Count);
+
+        var customerPastProductIds = new List<int>();
+        if (customerId.HasValue && customerId.Value > 0)
+        {
+            customerPastProductIds = await _context.Orders
+                .Where(o => o.CustomerId == customerId.Value)
+                .SelectMany(o => o.Lines)
+                .Select(ol => ol.ProductId)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        var incompatibleRules = await _context.UpsellCrossSellRules
+            .Where(r => r.IsActive && r.RuleType == "Incompatible" &&
+                  (cartProductIdsList.Contains(r.TriggerProductId) || cartProductIdsList.Contains(r.SuggestedProductId)))
+            .ToListAsync();
+
+        var incompatibleProductIds = incompatibleRules
+            .Select(r => cartProductIdsList.Contains(r.TriggerProductId) ? r.SuggestedProductId : r.TriggerProductId)
+            .ToHashSet();
+
+        var context = new RecommendationContext
+        {
+            CustomerId = customerId,
+            CartProductIds = cartProductIds,
+            MinimumMarginThreshold = minMargin ?? 15.0m,
+            HistoricalCoPurchases = coPurchases,
+            CustomerHistoricalProductIds = customerPastProductIds.ToHashSet(),
+            IncompatibleProductIds = incompatibleProductIds
+        };
+
+        var rules = await _context.UpsellCrossSellRules.Include(r => r.TriggerProduct).Include(r => r.SuggestedProduct).ToListAsync();
+        var products = await _context.Products.Include(p => p.Category).ToListAsync();
+
+        return _upsellEngine.GetRecommendations(context, rules, products);
     }
+
+    public async Task<QuotationDetailResponse> AddRecommendationToQuoteAsync(int quotationId, int productId, int userId)
+    {
+        var quotation = await _context.Quotations
+            .Include(q => q.Customer).ThenInclude(c => c.Tier)
+            .Include(q => q.Lines).ThenInclude(l => l.Product)
+            .FirstOrDefaultAsync(q => q.Id == quotationId);
+
+        if (quotation == null) throw new KeyNotFoundException($"Quotation {quotationId} not found.");
+
+        var product = await _context.Products.FindAsync(productId);
+        if (product == null) throw new KeyNotFoundException($"Product {productId} not found.");
+
+        var existingLine = quotation.Lines.FirstOrDefault(l => l.ProductId == productId);
+        if (existingLine != null)
+        {
+            existingLine.Quantity += 1;
+            _marginEngine.CalculateLine(existingLine, product);
+        }
+        else
+        {
+            decimal currentTierDiscount = quotation.Customer?.Tier?.MaxDiscountPercent ?? 0m;
+            var unitPrice = await ResolveProductPriceAsync(quotation.PriceListId, quotation.CustomerId, product, null);
+
+            var newLine = new QuotationLine
+            {
+                QuotationId = quotation.Id,
+                ProductId = product.Id,
+                Quantity = 1,
+                UnitPrice = unitPrice,
+                DiscountPercent = currentTierDiscount,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            _marginEngine.CalculateLine(newLine, product);
+            quotation.Lines.Add(newLine);
+            _context.QuotationLines.Add(newLine);
+        }
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = "Quotation",
+            EntityId = quotation.Id,
+            UserId = userId,
+            Action = "RecommendationAdded",
+            Reason = $"Added recommended product {product.Name} (SKU: {product.SKU}) to quote.",
+            NewValueJson = productId.ToString(),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await RecalculateAndSaveQuotationAsync(quotation);
+        return await GetQuotationByIdAsync(quotationId);
+    }
+
+    public async Task<bool> DismissRecommendationAsync(int quotationId, int productId, int userId)
+    {
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = "Quotation",
+            EntityId = quotationId,
+            UserId = userId,
+            Action = "RecommendationDismissed",
+            Reason = $"Dismissed recommended product ID {productId} for quotation.",
+            NewValueJson = productId.ToString(),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
 
     public async Task<string> GeneratePortalLinkAsync(int quotationId)
     {

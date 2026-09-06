@@ -17,6 +17,7 @@ public class AdjustStockRequest
 {
     public int ProductId { get; set; }
     public int OnHand { get; set; }
+    public int? Reserved { get; set; }
 }
 
 public class WarehouseResponse

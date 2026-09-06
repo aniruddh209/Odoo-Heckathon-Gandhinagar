@@ -45,6 +45,8 @@ export const FulfillmentPage = () => {
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [overrideAllocations, setOverrideAllocations] = useState([]);
   const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
+  const [consolidationOption, setConsolidationOption] = useState(null);
+  const [dismissedConsolidation, setDismissedConsolidation] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -53,7 +55,9 @@ export const FulfillmentPage = () => {
 
   useEffect(() => {
     if (selectedOrderId) {
+      setDismissedConsolidation(false);
       loadAllocationPreview(selectedOrderId);
+      loadConsolidationOption(selectedOrderId);
     }
   }, [selectedOrderId]);
 
@@ -107,6 +111,15 @@ export const FulfillmentPage = () => {
     }
   };
 
+  const loadConsolidationOption = async (orderId) => {
+    try {
+      const res = await fulfillmentApi.getConsolidationOptions(orderId);
+      setConsolidationOption(res);
+    } catch {
+      setConsolidationOption(null);
+    }
+  };
+
   const handleExecuteAllocation = async () => {
     if (!selectedOrderId) return;
     setIsAllocating(true);
@@ -114,10 +127,11 @@ export const FulfillmentPage = () => {
       const res = await fulfillmentApi.executeAllocation(selectedOrderId);
       setPreview(res);
       toast.success('Allocation Executed', 'Warehouse delivery splits committed to inventory.');
-      // Refresh backorders and orders
+      // Refresh backorders, orders, and consolidation option
       const [bo, ords] = await Promise.all([
         fulfillmentApi.getBackorders(),
         fulfillmentApi.getOrders(),
+        loadConsolidationOption(selectedOrderId),
       ]);
       setBackorders(Array.isArray(bo) ? bo : bo?.value || []);
       const refreshedOrders = Array.isArray(ords) ? ords : ords?.value || [];
@@ -254,11 +268,13 @@ export const FulfillmentPage = () => {
       const res = await fulfillmentApi.consolidateBackorders(selectedOrderId);
       toast.success(
         'Consolidation Complete',
-        res.message || `Consolidated ${res.consolidatedBackordersCount || 0} backorder units from warehouse receipts.`
+        res.message || `Consolidated backorder units from warehouse receipts.`
       );
-      // Reload preview and backorders
+      setConsolidationOption(null);
+      // Reload preview, consolidation options, and backorders
       await Promise.all([
         loadAllocationPreview(selectedOrderId),
+        loadConsolidationOption(selectedOrderId),
         fulfillmentApi.getBackorders().then((bo) => setBackorders(Array.isArray(bo) ? bo : bo?.value || [])),
       ]);
     } catch (err) {
@@ -383,6 +399,49 @@ export const FulfillmentPage = () => {
           </div>
         )}
       </div>
+
+      {/* Consolidation Opportunity Banner (Section B20, B38) */}
+      {consolidationOption?.canConsolidate && !dismissedConsolidation && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 border-2 border-indigo-300 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-lg bg-indigo-600 text-white shrink-0">
+              <Boxes className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                  Consolidation Opportunity Detected
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                  Save Shipments
+                </span>
+              </div>
+              <p className="text-xs text-slate-700 font-medium mt-1">
+                {consolidationOption.explanation}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0 self-end md:self-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDismissedConsolidation(true)}
+            >
+              Keep Current Plan
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={CheckCircle2}
+              isLoading={isConsolidating}
+              onClick={handleConsolidateBackorders}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Consolidate Remaining Backorder
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Allocation Preview View */}
       {preview ? (

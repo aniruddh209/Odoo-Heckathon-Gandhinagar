@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace DealFlow360.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
 [Authorize(Roles = "SalesRep,SalesManager,FinanceOperations,Admin")]
 public class FulfillmentController : ControllerBase
 {
@@ -17,21 +16,24 @@ public class FulfillmentController : ControllerBase
         _fulfillmentService = fulfillmentService;
     }
 
-    [HttpGet("orders")]
+    [HttpGet("api/fulfillment/orders")]
+    [HttpGet("api/orders/fulfillment")]
     public async Task<IActionResult> GetOrders()
     {
         var result = await _fulfillmentService.GetOrdersForFulfillmentAsync();
         return Ok(result);
     }
 
-    [HttpGet("preview/{orderId}")]
+    [HttpGet("api/fulfillment/preview/{orderId}")]
+    [HttpGet("api/orders/{orderId}/fulfillment/recommendation")]
     public async Task<IActionResult> PreviewAllocation(int orderId)
     {
         var result = await _fulfillmentService.PreviewAllocationAsync(orderId);
         return Ok(result);
     }
 
-    [HttpPost("allocate/{orderId}")]
+    [HttpPost("api/fulfillment/allocate/{orderId}")]
+    [HttpPost("api/orders/{orderId}/fulfillment/accept")]
     [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> ExecuteAllocation(int orderId)
     {
@@ -39,14 +41,14 @@ public class FulfillmentController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("backorders")]
+    [HttpGet("api/fulfillment/backorders")]
     public async Task<IActionResult> GetBackorders()
     {
         var result = await _fulfillmentService.GetBackordersAsync();
         return Ok(result);
     }
 
-    [HttpPost("backorders/{id}/cancel")]
+    [HttpPost("api/fulfillment/backorders/{id}/cancel")]
     [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> CancelBackorder(int id)
     {
@@ -54,14 +56,17 @@ public class FulfillmentController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("replenish")]
+    [HttpPost("api/fulfillment/replenish")]
     [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> ReplenishStock([FromQuery] int warehouseId, [FromQuery] int productId)
     {
         await _fulfillmentService.ConsolidateOnReplenishmentAsync(warehouseId, productId);
         return Ok(new { message = "Stock replenished and backorders consolidated successfully." });
     }
-    [HttpPut("override/{orderId}")]
+
+    [HttpPut("api/fulfillment/override/{orderId}")]
+    [HttpPost("api/fulfillment/override/{orderId}")]
+    [HttpPost("api/orders/{orderId}/fulfillment/manual-override")]
     [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> OverrideAllocation(int orderId, [FromBody] FulfillmentOverrideRequest request)
     {
@@ -69,7 +74,18 @@ public class FulfillmentController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("consolidate/{orderId}")]
+    [HttpGet("api/fulfillment/orders/{orderId}/consolidation-options")]
+    [HttpGet("api/fulfillment/consolidation-options/{orderId}")]
+    [HttpGet("api/orders/{orderId}/fulfillment/consolidation-options")]
+    public async Task<IActionResult> GetConsolidationOptions(int orderId)
+    {
+        var result = await _fulfillmentService.GetConsolidationOptionsAsync(orderId);
+        return Ok(result);
+    }
+
+    [HttpPost("api/fulfillment/consolidate/{orderId}")]
+    [HttpPost("api/fulfillment/orders/{orderId}/consolidate")]
+    [HttpPost("api/orders/{orderId}/fulfillment/consolidate")]
     [Authorize(Roles = "FinanceOperations,Admin")]
     public async Task<IActionResult> ConsolidateOrderBackorders(int orderId)
     {
@@ -77,3 +93,4 @@ public class FulfillmentController : ControllerBase
         return Ok(result);
     }
 }
+

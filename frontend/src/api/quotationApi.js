@@ -49,8 +49,16 @@ export const quotationApi = {
     return apiClient.get(`quotations/${id}/recommendations`);
   },
 
-  previewRecommendations: async (productIds) => {
-    return apiClient.post('quotations/recommendations/preview', productIds);
+  previewRecommendations: async (data) => {
+    return apiClient.post('quotations/recommendations/preview', data);
+  },
+
+  addRecommendation: async (quotationId, productId) => {
+    return apiClient.post(`quotations/${quotationId}/recommendations/${productId}/add`);
+  },
+
+  dismissRecommendation: async (quotationId, productId) => {
+    return apiClient.post(`quotations/${quotationId}/recommendations/${productId}/dismiss`);
   },
 
   generatePortalLink: async (id) => {

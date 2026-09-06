@@ -9,6 +9,7 @@ namespace DealFlow360.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Route("api/quotes")]
 [Authorize(Roles = "SalesRep,SalesManager,FinanceOperations,Admin")]
 public class QuotationsController : ControllerBase
 {
@@ -129,10 +130,58 @@ public class QuotationsController : ControllerBase
     }
 
     [HttpPost("recommendations/preview")]
-    public async Task<IActionResult> PreviewRecommendations([FromBody] List<int> productIds)
+    public async Task<IActionResult> PreviewRecommendations([FromBody] System.Text.Json.JsonElement body)
     {
-        var recommendations = await _quotationService.PreviewCartRecommendationsAsync(productIds);
+        List<int> productIds = new();
+        int? customerId = null;
+        decimal? minMargin = null;
+
+        if (body.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var item in body.EnumerateArray())
+            {
+                if (item.TryGetInt32(out var pId)) productIds.Add(pId);
+            }
+        }
+        else if (body.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            if (body.TryGetProperty("productIds", out var pArray) && pArray.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var item in pArray.EnumerateArray())
+                {
+                    if (item.TryGetInt32(out var pId)) productIds.Add(pId);
+                }
+            }
+            if (body.TryGetProperty("customerId", out var cId) && cId.TryGetInt32(out var parsedCustId))
+            {
+                customerId = parsedCustId;
+            }
+            if (body.TryGetProperty("minimumMarginThreshold", out var mThresh) && mThresh.TryGetDecimal(out var parsedMinMargin))
+            {
+                minMargin = parsedMinMargin;
+            }
+        }
+
+        var recommendations = await _quotationService.PreviewCartRecommendationsAsync(productIds, customerId, minMargin);
         return Ok(recommendations);
+    }
+
+    [HttpPost("{id}/recommendations/{productId}/add")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> AddRecommendation(int id, int productId)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.AddRecommendationToQuoteAsync(id, productId, userId);
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/recommendations/{productId}/dismiss")]
+    [Authorize(Roles = "SalesRep,SalesManager,Admin")]
+    public async Task<IActionResult> DismissRecommendation(int id, int productId)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _quotationService.DismissRecommendationAsync(id, productId, userId);
+        return Ok(new { success = result, message = "Recommendation dismissed." });
     }
 
     [HttpPost("{id}/generate-portal-link")]

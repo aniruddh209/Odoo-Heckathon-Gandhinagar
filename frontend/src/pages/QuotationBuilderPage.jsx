@@ -56,12 +56,16 @@ export const QuotationBuilderPage = () => {
     loadPrerequisites();
   }, []);
 
-  // Fetch live cart upsell/cross-sell recommendations whenever lines change
+  // Fetch live cart upsell/cross-sell recommendations whenever lines or selected customer changes
   useEffect(() => {
     const productIds = lines.map((l) => parseInt(l.productId, 10)).filter((id) => !isNaN(id) && id > 0);
     if (productIds.length > 0) {
       quotationApi
-        .previewRecommendations(productIds)
+        .previewRecommendations({
+          productIds,
+          customerId: selectedCustomerId ? parseInt(selectedCustomerId, 10) : undefined,
+          minimumMarginThreshold: 15.0,
+        })
         .then((res) => {
           const recs = Array.isArray(res) ? res : res?.value || [];
           setRecommendations(recs);
@@ -70,7 +74,7 @@ export const QuotationBuilderPage = () => {
     } else {
       setRecommendations([]);
     }
-  }, [lines]);
+  }, [lines, selectedCustomerId]);
 
   const handleAddRecommendation = (rec) => {
     const existingIdx = lines.findIndex((l) => parseInt(l.productId, 10) === rec.productId);
