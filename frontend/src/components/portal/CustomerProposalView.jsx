@@ -130,7 +130,7 @@ export const CustomerProposalView = ({
   const isRejected = quote.status === 'Rejected' || quote.status === 'Cancelled';
   const isPendingApproval = quote.status === 'PendingApproval' || quote.approvalStatus === 'Pending';
   const canConfirm = (isApproved || quote.status === 'Sent') && !isFinalized && !isRejected;
-  const canNegotiate = !isApproved && !isFinalized && !isRejected && !isPendingApproval;
+  const canNegotiate = !isFinalized && !isRejected && !isPendingApproval;
 
   // Formatting helpers
   const currency = quote.currencyCode || quote.currency || 'INR';

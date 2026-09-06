@@ -77,6 +77,7 @@ public class BillingService : IBillingService
     {
         var invoices = await _context.Invoices
             .Include(i => i.Customer)
+            .Include(i => i.Order)
             .Include(i => i.CreditNotes)
             .OrderByDescending(i => i.CreatedAtUtc)
             .ToListAsync();
@@ -89,6 +90,8 @@ public class BillingService : IBillingService
             {
                 Id = i.Id,
                 InvoiceNumber = i.InvoiceNumber,
+                OrderId = i.OrderId,
+                OrderNumber = i.Order?.OrderNumber,
                 CustomerName = i.Customer?.Name ?? string.Empty,
                 Type = i.Type,
                 Status = i.Status.ToString(),

@@ -194,7 +194,10 @@ public class PortalService : IPortalService
             _context.ApprovalRequests.Add(approvalRequest);
         }
 
-        quotation.Status = QuoteStatus.UnderNegotiation;
+        // NOTE: quotation.Status and quotation.ApprovalStatus are already set by the engine:
+        //   - PendingApproval + Pending   when counter-offer exceeds tier ceiling or requires re-approval
+        //   - UnderNegotiation + None     when counter-offer is within tier ceiling
+        // Do NOT override the engine decision here.
         quotation.Version++;
         quotation.UpdatedAtUtc = DateTime.UtcNow;
         _context.Quotations.Update(quotation);
