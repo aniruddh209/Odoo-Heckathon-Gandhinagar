@@ -282,7 +282,7 @@ export const ConnectSalesSection = ({ profile, onConnectionCreated, onNavigateTo
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shadow-blue-500/20">
                       {c.code?.substring(0, 2) || 'CO'}
                     </div>
                     <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">

@@ -61,6 +61,10 @@ export const customerApi = {
     return apiClient.get(`customers/me/invoices/${id}`);
   },
 
+  payInvoice: async (id, data) => {
+    return apiClient.post(`customers/me/invoices/${id}/pay`, data);
+  },
+
   getMyProfile: async () => {
     return apiClient.get('customers/me/profile');
   },

@@ -61,7 +61,7 @@ export const MetricCard = ({
         )}
       </div>
 
-      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight">
+      <div className="text-xl sm:text-2xl font-bold text-slate-900 font-mono tracking-tight truncate">
         {displayValue}
       </div>
 

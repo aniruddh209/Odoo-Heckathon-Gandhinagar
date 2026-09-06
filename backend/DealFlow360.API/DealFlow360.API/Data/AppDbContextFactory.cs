@@ -20,7 +20,7 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 
         var connStr = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
             ?? config.GetConnectionString("DefaultConnection")
-            ?? "Server=localhost;Database=DealFlow;Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=True;";
+            ?? "Data Source=localhost,1433;Initial Catalog=DealFlow360;User ID=sa;Password=Meet2007;TrustServerCertificate=True;Encrypt=False;";
 
         optionsBuilder.UseSqlServer(connStr);
 

@@ -66,7 +66,7 @@ export const PipelinePage = () => {
       {error && <ErrorAlert message={error} onRetry={loadPipeline} />}
 
       {/* Kanban Board Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start overflow-x-auto pb-6">
+      <div className="flex overflow-x-auto touch-scroll gap-4 items-start pb-6 snap-x snap-mandatory md:snap-none -mx-3 sm:mx-0 px-3 sm:px-0">
         {stages.map((stage) => {
           const stageQuotes = quotes.filter((q) => q.status === stage.key);
           const stageTotal = stageQuotes.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
@@ -74,7 +74,7 @@ export const PipelinePage = () => {
           return (
             <div
               key={stage.key}
-              className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/80 min-w-[240px] flex flex-col max-h-[75vh] shadow-2xs"
+              className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/80 w-[84vw] sm:w-[320px] md:w-[280px] lg:w-[300px] shrink-0 flex flex-col max-h-[75vh] shadow-2xs snap-center"
             >
               {/* Column Header */}
               <div className="pb-3 mb-3 border-b border-slate-200/80">
@@ -90,7 +90,7 @@ export const PipelinePage = () => {
               </div>
 
               {/* Cards Scrollable Area */}
-              <div className="space-y-2.5 overflow-y-auto pr-1">
+              <div className="space-y-2.5 overflow-y-auto pr-1 touch-scroll">
                 {stageQuotes.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-xs italic">
                     No deals in this stage

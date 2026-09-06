@@ -71,13 +71,13 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
   const roleInfo = getRoleBadge(user?.role);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/80 sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 shadow-2xs">
+    <header className="h-16 bg-white border-b border-slate-200/80 sticky top-0 z-20 flex items-center justify-between px-3 sm:px-6 shadow-2xs">
       {/* Left: Mobile Toggle & Breadcrumbs */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           type="button"
           onClick={onOpenMobile}
-          className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
           aria-label="Open sidebar menu"
         >
           <Menu className="w-5 h-5" />
@@ -85,14 +85,14 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="hidden lg:flex p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          className="hidden lg:flex p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
           title="Toggle sidebar"
         >
           <Menu className="w-5 h-5" />
         </button>
 
         <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate">
-          <Link to="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
+          <Link to="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors shrink-0">
             DealFlow360
           </Link>
           {pathParts.map((part, idx) => (
@@ -111,7 +111,7 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
       </div>
 
       {/* Right: Section 4 B1 Top Menu Actions, Role Badge, Quick Action, Profile */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Section 4 B1 Workspace Top Menu */}
         <div className="hidden lg:flex items-center gap-1 border-r border-slate-200/80 pr-2 sm:pr-3">
           <Link
@@ -157,9 +157,8 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
           </Link>
         </div>
 
-
         {/* Role Pill - Prominently Displayed */}
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border shadow-2xs ${roleInfo.bg}`}>
+        <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border shadow-2xs ${roleInfo.bg}`}>
           {roleInfo.label}
         </span>
 
@@ -184,7 +183,7 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
             className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
             aria-label="User profile menu"
           >
-            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shadow-blue-500/20">
               {user?.fullName?.slice(0, 1) || 'U'}
             </div>
           </button>

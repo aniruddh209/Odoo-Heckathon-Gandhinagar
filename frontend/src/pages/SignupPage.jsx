@@ -181,7 +181,7 @@ export const SignupPage = () => {
       </div>
 
       {/* Right Column: Customer Registration Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12 overflow-y-auto">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-4 sm:px-12 lg:px-16 py-8 sm:py-12 overflow-y-auto">
         <div className="max-w-md w-full mx-auto space-y-6">
           {/* Header */}
           <div>
@@ -192,7 +192,7 @@ export const SignupPage = () => {
               <span className="font-bold text-lg text-slate-900 tracking-tight">DealFlow<span className="text-blue-600">360</span></span>
             </div>
 
-            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
               Create Customer Account
             </h2>
             <p className="mt-1 text-xs text-slate-500">

@@ -252,7 +252,7 @@ export const LoginPage = () => {
       </div>
 
       {/* Right Column: Authentication Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12 overflow-y-auto">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-4 sm:px-12 lg:px-16 py-8 sm:py-12 overflow-y-auto">
         <div className="max-w-md w-full mx-auto space-y-6">
           {/* Header */}
           <div>
@@ -265,7 +265,7 @@ export const LoginPage = () => {
               </span>
             </div>
 
-            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
               Sign In to Platform
             </h2>
             <p className="mt-1 text-xs text-slate-500">
@@ -334,7 +334,7 @@ export const LoginPage = () => {
             >
               <span className="flex items-center gap-2 font-medium">
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                Quick Demo Role Switcher (Preloaded Profiles)
+                Quick Demo Role Switcher
               </span>
               <ChevronDown
                 className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${
@@ -354,13 +354,13 @@ export const LoginPage = () => {
                       key={item.role}
                       type="button"
                       onClick={() => handleSelectQuickRole(item)}
-                      className="w-full text-left p-2 rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition-colors flex items-center justify-between text-xs"
+                      className="w-full text-left p-2 rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition-colors flex flex-col xs:flex-row xs:items-center justify-between gap-1 text-xs"
                     >
-                      <div>
-                        <span className="font-semibold text-slate-900 mr-2">{item.role}:</span>
-                        <span className="text-slate-600">{item.name}</span>
+                      <div className="min-w-0 truncate">
+                        <span className="font-semibold text-slate-900 mr-1.5">{item.role}:</span>
+                        <span className="text-slate-600 truncate">{item.name}</span>
                       </div>
-                      <span className="text-[10px] text-blue-600 font-mono">
+                      <span className="text-[10px] text-blue-600 font-mono shrink-0">
                         {item.badge}
                       </span>
                     </button>

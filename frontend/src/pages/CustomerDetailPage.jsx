@@ -164,7 +164,7 @@ export const CustomerDetailPage = () => {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto pb-px">
+      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto touch-scroll pb-px">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

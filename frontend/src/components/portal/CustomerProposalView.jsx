@@ -23,6 +23,8 @@ import {
   AlertCircle,
   History,
   Clock,
+  Printer,
+  Download,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { portalApi } from '../../api/portalApi';
@@ -99,8 +101,8 @@ export const CustomerProposalView = ({
     quote.status === 'ConvertedToOrder';
   const isRejected = quote.status === 'Rejected' || quote.status === 'Cancelled';
   const isPendingApproval = quote.status === 'PendingApproval' || quote.approvalStatus === 'Pending';
-  const canConfirm = (isApproved || quote.status === 'Sent') && !isFinalized && !isRejected;
-  const canNegotiate = !isApproved && !isFinalized && !isRejected && !isPendingApproval;
+  const canConfirm = (isApproved || quote.status === 'Sent' || quote.status === 'UnderNegotiation') && !isFinalized && !isRejected;
+  const canNegotiate = !isFinalized && !isRejected;
 
   // Formatting helpers
   const currency = quote.currencyCode || quote.currency || 'INR';
@@ -276,8 +278,19 @@ export const CustomerProposalView = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <StatusBadge status={quote.status} />
+
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Printer}
+              onClick={() => window.print()}
+              title="Print / Save as PDF"
+            >
+              Print / PDF
+            </Button>
+
             {onConnectSales && (
               <Button
                 variant="outline"
@@ -891,6 +904,39 @@ export const CustomerProposalView = ({
         description={`Submit commercial counter-terms for ${activeLineForCounter?.productName}`}
       >
         <form onSubmit={handleSubmitCounter} className="space-y-4">
+          {activeLineForCounter && (() => {
+            const unitP = activeLineForCounter.unitPrice || 0;
+            const qty = activeLineForCounter.quantity || 1;
+            const curDisc = activeLineForCounter.discountPercent || 0;
+            const propDisc = parseFloat(proposedDiscount) || 0;
+            const curTot = unitP * (1 - curDisc / 100) * qty;
+            const propTot = unitP * (1 - propDisc / 100) * qty;
+            const sav = Math.max(0, curTot - propTot);
+
+            return (
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border border-blue-200 text-xs space-y-2.5">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Unit Base Price: <strong className="font-mono text-slate-900">{formatMoney(unitP)}</strong></span>
+                  <span>Quantity: <strong className="text-slate-900">{qty} units</strong></span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-blue-200/60 text-center">
+                  <div className="bg-white p-2 rounded-lg border border-blue-100">
+                    <span className="text-[10px] text-slate-400 block uppercase">Current Total</span>
+                    <span className="text-xs font-mono font-bold text-slate-800">{formatMoney(curTot)}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-blue-100">
+                    <span className="text-[10px] text-slate-400 block uppercase">Proposed Total</span>
+                    <span className="text-xs font-mono font-bold text-blue-700">{formatMoney(propTot)}</span>
+                  </div>
+                  <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                    <span className="text-[10px] text-emerald-700 font-bold block uppercase">You Save</span>
+                    <span className="text-xs font-mono font-bold text-emerald-700">{formatMoney(sav)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <Input
             label="Requested Discount (%)"
             type="number"

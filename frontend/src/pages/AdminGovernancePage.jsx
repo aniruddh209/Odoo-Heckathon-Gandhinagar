@@ -947,7 +947,7 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
       {error && <ErrorAlert message={error} onRetry={loadGovernanceData} />}
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 space-x-6 text-xs font-semibold overflow-x-auto">
+      <div className="flex border-b border-slate-200 gap-4 sm:gap-6 text-xs font-semibold overflow-x-auto touch-scroll pb-1">
         {[
           { id: 'tiers', label: `Customer Tiers (${tiers.length})`, icon: Layers },
           { id: 'discounts', label: `Discount Rules (${discountRules.length})`, icon: Shield },
@@ -963,14 +963,14 @@ export const AdminGovernancePage = ({ defaultTab = 'tiers' }) => {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
+              className={`py-3 border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-blue-600 text-blue-600 font-bold'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              {tab.label}
+              <Icon className="w-4 h-4 shrink-0" />
+              <span>{tab.label}</span>
             </button>
           );
         })}

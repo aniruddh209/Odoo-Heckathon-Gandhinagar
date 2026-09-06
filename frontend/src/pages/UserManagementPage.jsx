@@ -300,16 +300,16 @@ export const UserManagementPage = () => {
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex items-center gap-2 overflow-x-auto touch-scroll pb-1 sm:pb-0">
           {['All', 'SalesRep', 'SalesManager', 'FinanceOperations', 'Admin', 'Customer'].map((r) => (
             <button
               key={r}
               type="button"
               onClick={() => setRoleFilter(r)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer whitespace-nowrap ${
                 roleFilter === r
-                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs shadow-blue-500/25 border border-blue-500/30 font-semibold'
+                  : 'bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-2xs'
               }`}
             >
               {r === 'All' ? 'All Roles' : r}

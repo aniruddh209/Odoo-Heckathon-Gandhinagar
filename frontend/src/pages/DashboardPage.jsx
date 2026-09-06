@@ -536,7 +536,7 @@ export const DashboardPage = () => {
       )}
 
       {/* ── 4. Standard Financial & Governance KPI Ribbon (Rich White & ₹ INR) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard
           label="Total Pipeline"
           value={formatCurrency(metrics.totalQuotedRevenue)}

@@ -34,15 +34,15 @@ export const Modal = ({
   if (!isOpen) return null;
 
   const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
+    sm: 'max-w-full sm:max-w-md',
+    md: 'max-w-full sm:max-w-lg',
+    lg: 'max-w-full sm:max-w-2xl',
+    xl: 'max-w-full sm:max-w-4xl',
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
@@ -56,22 +56,22 @@ export const Modal = ({
       {/* Modal Dialog */}
       <div
         ref={modalRef}
-        className={`relative w-full ${sizes[size] || sizes.md} bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-10 animate-in zoom-in-95 duration-200`}
+        className={`relative w-full ${sizes[size] || sizes.md} bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-10 animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <div>
-            <h3 id="modal-title" className="text-base font-semibold text-slate-900">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 shrink-0">
+          <div className="min-w-0 pr-2">
+            <h3 id="modal-title" className="text-base font-semibold text-slate-900 truncate">
               {title}
             </h3>
             {description && (
-              <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+              <p className="text-xs text-slate-500 mt-0.5 truncate">{description}</p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
             aria-label="Close modal"
           >
             <X className="w-4 h-4" />
@@ -79,13 +79,13 @@ export const Modal = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 max-h-[calc(85vh-8rem)] overflow-y-auto">
+        <div className="p-4 sm:p-6 max-h-[calc(90vh-7rem)] overflow-y-auto touch-scroll">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-3.5 bg-slate-50 border-t border-slate-200">
+          <div className="flex items-center justify-end gap-2.5 sm:gap-3 px-4 sm:px-6 py-3 sm:py-3.5 bg-slate-50 border-t border-slate-200 shrink-0 flex-wrap">
             {footer}
           </div>
         )}

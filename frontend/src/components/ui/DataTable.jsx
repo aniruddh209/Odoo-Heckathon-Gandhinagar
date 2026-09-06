@@ -16,14 +16,14 @@ export const DataTable = ({
 }) => {
   return (
     <div className={`w-full overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs ${className}`}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div className="overflow-x-auto touch-scroll">
+        <table className="w-full text-left border-collapse min-w-full">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 select-none">
+            <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 select-none whitespace-nowrap">
               {columns.map((col, idx) => (
                 <th
                   key={col.id || col.header || idx}
-                  className={`py-3.5 px-4 ${col.className || ''} ${
+                  className={`py-3 sm:py-3.5 px-3 sm:px-4 ${col.className || ''} ${
                     col.align === 'right'
                       ? 'text-right'
                       : col.align === 'center'

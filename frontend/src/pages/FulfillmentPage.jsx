@@ -487,8 +487,8 @@ export const FulfillmentPage = () => {
               </h3>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+            <div className="overflow-x-auto touch-scroll">
+              <table className="w-full text-left border-collapse text-xs min-w-[500px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase">
                     <th className="py-3 px-4">Allocated Warehouse</th>

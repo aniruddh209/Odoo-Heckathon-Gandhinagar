@@ -222,6 +222,20 @@ public class CustomersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("me/invoices/{id}/pay")]
+    [Authorize(Roles = "Customer,Admin")]
+    public async Task<IActionResult> PayMyInvoice(int id, [FromBody] DealFlow360.API.DTOs.Invoices.RecordPaymentRequest request)
+    {
+        var customerId = GetCurrentCustomerId();
+        if (!customerId.HasValue)
+        {
+            return BadRequest(new { message = "User is not linked to a customer account." });
+        }
+
+        var result = await _customerService.PayCustomerInvoiceAsync(customerId.Value, id, request);
+        return Ok(result);
+    }
+
     [HttpGet("me/profile")]
     [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> GetMyProfile()

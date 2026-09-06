@@ -736,7 +736,7 @@ export const SalesConnectionsPage = () => {
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll pb-1">
           {[
             { id: 'ALL', label: 'All Inquiries' },
             { id: 'Pending', label: `New (${summary.new})` },
@@ -754,10 +754,10 @@ export const SalesConnectionsPage = () => {
                 setStatusFilter(tab.id);
                 setPage(1);
               }}
-              className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              className={`text-xs px-3.5 py-1.5 rounded-lg font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap ${
                 statusFilter === tab.id
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs shadow-blue-500/25 border border-blue-500/30'
+                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900 border border-transparent'
               }`}
             >
               {tab.label}
@@ -1261,12 +1261,12 @@ export const SalesConnectionsPage = () => {
                       Qualify Directly
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="danger"
                       size="sm"
                       icon={XCircle}
                       disabled={isSubmittingAction}
                       onClick={() => triggerRejectModal(selectedInquiry)}
-                      className="text-rose-300 border-rose-800 hover:bg-rose-950/40 text-xs"
+                      className="text-xs"
                     >
                       Disqualify
                     </Button>
@@ -1276,12 +1276,12 @@ export const SalesConnectionsPage = () => {
                 {selectedInquiry.status === 'Contacted' && (
                   <>
                     <Button
-                      variant="primary"
+                      variant="success"
                       size="sm"
                       icon={FileText}
                       disabled={isSubmittingAction}
                       onClick={() => handleOpenInQuoteBuilder(selectedInquiry)}
-                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-xs"
+                      className="text-xs font-semibold"
                     >
                       Generate Quotation
                     </Button>
@@ -1310,21 +1310,21 @@ export const SalesConnectionsPage = () => {
 
                 {selectedInquiry.status === 'Qualified' && !selectedInquiry.quotationId && (
                   <Button
-                    variant="primary"
+                    variant="success"
                     size="sm"
                     icon={FileText}
                     disabled={isSubmittingAction}
                     onClick={() => handleOpenInQuoteBuilder(selectedInquiry)}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-xs"
+                    className="text-xs font-semibold"
                   >
                     Generate Quotation
                   </Button>
                 )}
 
                 {selectedInquiry.quotationId && (
-                  <div className="flex items-center justify-between w-full">
-                    <div className="text-xs text-emerald-300 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <div className="flex items-center justify-between w-full flex-wrap gap-2">
+                    <div className="text-xs text-emerald-700 flex items-center gap-1.5 font-medium">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       <span>Commercial Quotation #{selectedInquiry.quotationNumber || selectedInquiry.quotationId} active</span>
                     </div>
                     <Button
@@ -1335,7 +1335,7 @@ export const SalesConnectionsPage = () => {
                         setIsDrawerOpen(false);
                         navigate(`/workspace/quotations/${selectedInquiry.quotationId}`);
                       }}
-                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs"
+                      className="text-xs font-semibold"
                     >
                       Open Quotation Workspace
                     </Button>

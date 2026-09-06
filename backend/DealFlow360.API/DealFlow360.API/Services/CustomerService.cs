@@ -31,6 +31,7 @@ public interface ICustomerService
     Task<CustomerOrderDetailDto> GetCustomerOrderByIdAsync(int customerId, int orderId);
     Task<List<InvoiceListResponse>> GetCustomerInvoicesAsync(int customerId);
     Task<CustomerInvoiceDetailDto> GetCustomerInvoiceByIdAsync(int customerId, int invoiceId);
+    Task<DealFlow360.API.DTOs.Invoices.PaymentResponse> PayCustomerInvoiceAsync(int customerId, int invoiceId, RecordPaymentRequest request);
     Task<CustomerProfileDto> GetCustomerProfileAsync(int customerId);
 }
 
@@ -1019,5 +1020,16 @@ public class CustomerService : ICustomerService
                 CreatedAtUtc = c.CreatedAtUtc
             }).ToList() ?? new List<NegotiationHistoryResponse>()
         };
+    }
+
+    public async Task<DealFlow360.API.DTOs.Invoices.PaymentResponse> PayCustomerInvoiceAsync(int customerId, int invoiceId, RecordPaymentRequest request)
+    {
+        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId && i.CustomerId == customerId);
+        if (invoice == null)
+        {
+            throw new KeyNotFoundException($"Invoice {invoiceId} was not found for customer {customerId}.");
+        }
+
+        return await _billingService.RecordPaymentAsync(invoiceId, request);
     }
 }

@@ -552,8 +552,8 @@ export const QuotationBuilderPage = () => {
                 </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="overflow-x-auto touch-scroll pb-2 -mx-2 sm:mx-0">
+                <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                   <thead>
                     <tr className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50/80">
                       <th className="py-2.5 px-3 min-w-[180px]">Product / Service</th>

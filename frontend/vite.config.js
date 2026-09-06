@@ -17,10 +17,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 3100,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_BACKEND_URL || 'http://localhost:5042',
+        target: process.env.VITE_API_BACKEND_URL || 'http://localhost:5080',
         changeOrigin: true,
         secure: false,
       },

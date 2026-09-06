@@ -37,6 +37,11 @@ import {
   AlertTriangle,
   DollarSign,
   Tag,
+  Percent,
+  History,
+  Clock,
+  User as UserIcon,
+  Shield,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
@@ -52,7 +57,7 @@ export const QuotationDetailPage = () => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('lines'); // lines, recommendations, approvals, fulfillment
+  const [activeTab, setActiveTab] = useState('lines'); // lines, negotiation, recommendations, approvals, fulfillment
 
   // Governance decision modal state
   const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
@@ -74,6 +79,20 @@ export const QuotationDetailPage = () => {
   const [editDiscount, setEditDiscount] = useState(0);
   const [editPrice, setEditPrice] = useState(0);
   const [isUpdatingLine, setIsUpdatingLine] = useState(false);
+
+  // Negotiation & Counter-Offer state
+  const [isNegotiateDrawerOpen, setIsNegotiateDrawerOpen] = useState(false);
+  const [negotiatingLine, setNegotiatingLine] = useState(null);
+  const [negDiscount, setNegDiscount] = useState(0);
+  const [negPrice, setNegPrice] = useState(0);
+  const [negQty, setNegQty] = useState(1);
+  const [negReason, setNegReason] = useState('');
+  const [isSubmittingNegotiate, setIsSubmittingNegotiate] = useState(false);
+
+  // Line comment reply state
+  const [replyingLineId, setReplyingLineId] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   // Dismissed recommendations list
   const [dismissedRecIds, setDismissedRecIds] = useState([]);
@@ -219,6 +238,65 @@ export const QuotationDetailPage = () => {
     }
   };
 
+  const handleOpenNegotiate = (line) => {
+    setNegotiatingLine(line);
+    setNegDiscount(line.discountPercent || 0);
+    setNegPrice(line.unitPrice || 0);
+    setNegQty(line.quantity || 1);
+    setNegReason('');
+    setIsNegotiateDrawerOpen(true);
+  };
+
+  const handleApplyNegotiation = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!negotiatingLine) return;
+    setIsSubmittingNegotiate(true);
+    try {
+      await quotationApi.negotiateLinePrice(id, negotiatingLine.id, {
+        targetUnitPrice: parseFloat(negPrice) || undefined,
+        targetDiscountPercent: parseFloat(negDiscount) || 0,
+        quantity: parseInt(negQty, 10) || undefined,
+        reason: negReason.trim() || 'Sales Rep applied commercial terms.',
+      });
+      toast.success('Terms Applied', 'Quotation recalculated with updated pricing and margins.');
+      setIsNegotiateDrawerOpen(false);
+      await loadQuoteData();
+    } catch (err) {
+      toast.error('Negotiation Failed', err.message || 'Could not apply negotiation terms.');
+    } finally {
+      setIsSubmittingNegotiate(false);
+    }
+  };
+
+  const handleAcceptCustomerOffer = async (lineId, proposedDiscount, reason) => {
+    try {
+      await quotationApi.negotiateLinePrice(id, lineId, {
+        targetDiscountPercent: proposedDiscount,
+        reason: `Accepted customer counter-offer: ${reason || 'Approved requested terms'}`,
+      });
+      toast.success('Counter-Offer Accepted', 'Terms applied and margins recalculated.');
+      await loadQuoteData();
+    } catch (err) {
+      toast.error('Acceptance Failed', err.message);
+    }
+  };
+
+  const handleSendLineComment = async (lineId) => {
+    if (!replyText.trim()) return;
+    setIsSubmittingReply(true);
+    try {
+      await quotationApi.addLineComment(id, lineId, replyText.trim());
+      toast.success('Reply Sent', 'Comment appended to negotiation audit thread.');
+      setReplyText('');
+      setReplyingLineId(null);
+      await loadQuoteData();
+    } catch (err) {
+      toast.error('Reply Failed', err.message);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
   const handleAcceptRecommendation = async (rec) => {
     try {
       await quotationApi.addLineItem(id, {
@@ -353,8 +431,8 @@ export const QuotationDetailPage = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-bold text-slate-900 font-mono tracking-tight">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 font-mono tracking-tight">
                 {quote.quotationNumber}
               </h1>
               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
@@ -368,7 +446,7 @@ export const QuotationDetailPage = () => {
                 </span>
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-1">
               Client: <strong className="text-slate-700">{quote.customerName}</strong> • Owner: <span className="text-slate-700">{quote.salesRepName}</span>
             </p>
           </div>
@@ -555,31 +633,31 @@ export const QuotationDetailPage = () => {
       )}
 
       {/* ── 2. Authoritative Financial Summary Strip ──────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Subtotal</span>
-          <span className="text-base font-bold text-slate-900 mt-0.5 block font-mono">
+          <span className="text-sm sm:text-base font-bold text-slate-900 mt-0.5 block font-mono truncate">
             {formatCurrency(quote.subTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
         <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Discount</span>
-          <span className="text-base font-bold text-emerald-600 mt-0.5 block font-mono">
+          <span className="text-sm sm:text-base font-bold text-emerald-600 mt-0.5 block font-mono truncate">
             -{formatCurrency(quote.discountTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
         <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Tax / GST</span>
-          <span className="text-base font-bold text-slate-900 mt-0.5 block font-mono">
+          <span className="text-sm sm:text-base font-bold text-slate-900 mt-0.5 block font-mono truncate">
             +{formatCurrency(quote.taxTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
 
         <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">Grand Total</span>
-          <span className="text-base font-bold text-blue-900 mt-0.5 block font-mono">
+          <span className="text-sm sm:text-base font-bold text-blue-900 mt-0.5 block font-mono truncate">
             {formatCurrency(quote.grandTotal || 0, quote.currency || 'INR')}
           </span>
         </div>
@@ -600,10 +678,14 @@ export const QuotationDetailPage = () => {
       </div>
 
       {/* ── 3. Workspace Navigation Tabs ──────────────────────── */}
-      <div className="border-b border-slate-200 flex items-center justify-between">
-        <nav className="flex space-x-6 text-xs font-semibold">
+      <div className="border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+        <nav className="flex space-x-6 text-xs font-semibold overflow-x-auto touch-scroll pb-1">
           {[
             { id: 'lines', label: `Quotation Lines (${quote.lines?.length || 0})` },
+            {
+              id: 'negotiation',
+              label: `Negotiation & Counter-Offers (${(quote.changeRequests?.length || 0) + (quote.lines?.reduce((acc, l) => acc + (l.comments?.length || 0), 0) || 0)})`,
+            },
             {
               id: 'recommendations',
               label: `Live Upsell Engine (${recommendations.filter((r) => !dismissedRecIds.includes(r.productId)).length})`,
@@ -617,19 +699,22 @@ export const QuotationDetailPage = () => {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 border-b-2 transition-colors ${
+              className={`py-3 border-b-2 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
+              {tab.id === 'negotiation' && (quote.changeRequests?.length > 0 || quote.status === 'UnderNegotiation') && (
+                <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
+              )}
               {tab.label}
             </button>
           ))}
         </nav>
 
         {activeTab === 'lines' && !isConverted && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             <Button
               variant="primary"
               size="xs"
@@ -645,8 +730,8 @@ export const QuotationDetailPage = () => {
       {/* ── 4. Tab Contents ───────────────────────────────────── */}
       {activeTab === 'lines' && (
         <div className="space-y-4">
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="overflow-x-auto touch-scroll rounded-xl border border-slate-200 bg-white shadow-xs pb-1">
+            <table className="w-full text-left border-collapse text-xs min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   <th className="py-3 px-4">Item & SKU</th>
@@ -672,28 +757,29 @@ export const QuotationDetailPage = () => {
                         {line.productType}
                       </span>
                     </td>
-                    <td className="py-3.5 px-3 text-right font-semibold text-slate-900">
+                    <td className="py-3.5 px-3 text-right font-medium text-slate-800">
                       {line.quantity}
                     </td>
-                    <td className="py-3.5 px-3 text-right font-mono">
+                    <td className="py-3.5 px-3 text-right font-mono text-slate-900">
                       {formatCurrency(line.unitPrice || 0, quote.currency || 'INR')}
                     </td>
                     <td className="py-3.5 px-3 text-right">
                       <div className="flex flex-col items-end">
-                        <span className={`font-semibold ${line.discountPercent > tierLimit ? 'text-rose-600' : 'text-slate-700'}`}>
-                          {line.discountPercent}%
+                        <span
+                          className={`font-semibold font-mono ${
+                            line.discountPercent > 0 ? 'text-blue-600' : 'text-slate-400'
+                          }`}
+                        >
+                          {line.discountPercent?.toFixed(1) || '0.0'}%
                         </span>
-                        {line.discountPercent > 0 && (
-                          line.discountPercent <= tierLimit ? (
-                            <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 mt-0.5 whitespace-nowrap">
-                              ✓ ≤ {tierLimit}% Tier Safe
-                            </span>
-                          ) : (
+                        {quote.customer?.tier && (() => {
+                          const tierLimit = quote.customer.tier.maxDiscountPercent || 5.0;
+                          return line.discountPercent > tierLimit ? (
                             <span className="text-[9px] font-bold text-rose-700 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/60 mt-0.5 whitespace-nowrap">
                               ⚠ &gt; {tierLimit}% Manager Req
                             </span>
-                          )
-                        )}
+                          ) : null;
+                        })()}
                       </div>
                     </td>
                     <td className="py-3.5 px-3 text-right font-bold text-slate-900 font-mono">
@@ -709,12 +795,21 @@ export const QuotationDetailPage = () => {
                     </td>
                     {!isConverted && (
                       <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenNegotiate(line)}
+                            className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium text-[11px] rounded-lg border border-purple-200 transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Negotiate pricing or counter-discount"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            Negotiate
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleOpenEditLine(line)}
                             className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                            title="Edit quantity or discount"
+                            title="Edit line item"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
@@ -737,6 +832,226 @@ export const QuotationDetailPage = () => {
         </div>
       )}
 
+      {/* ── Tab: Negotiation & Client Counter-Offers Hub ──────── */}
+      {activeTab === 'negotiation' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0 border border-purple-400/30">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm">Commercial Negotiation &amp; Counter-Offers Hub</h3>
+                <p className="text-xs text-purple-200 mt-0.5">
+                  Review customer proposed discounts, inspect margin impact, and communicate directly on line items.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              size="xs"
+              icon={ExternalLink}
+              onClick={handleGeneratePortal}
+              className="shrink-0 bg-white/10 hover:bg-white/20 text-white border-white/20"
+            >
+              Customer Portal Link
+            </Button>
+          </div>
+
+          {/* Section 1: Customer Counter-Offers Log */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-purple-600" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Customer Counter-Offers &amp; Change Requests ({quote.changeRequests?.length || 0})
+              </h4>
+            </div>
+
+            {quote.changeRequests && quote.changeRequests.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3">
+                {quote.changeRequests.map((change) => (
+                  <div
+                    key={change.id}
+                    className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-[11px]">
+                          {change.changeType || 'Counter-Offer'}
+                        </span>
+                        <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(change.createdAtUtc).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-slate-800 font-medium">{change.description}</p>
+                    </div>
+
+                    {!isConverted && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="primary"
+                          size="xs"
+                          icon={Sparkles}
+                          onClick={() => {
+                            if (quote.lines && quote.lines.length > 0) {
+                              handleOpenNegotiate(quote.lines[0]);
+                            }
+                          }}
+                        >
+                          Review &amp; Apply
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-slate-400 border border-dashed rounded-xl border-slate-200 text-xs bg-slate-50/50">
+                No active counter-offers requested by the customer. All deliverables are currently at standard quoted terms.
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Line-by-Line Negotiation & Inquiries */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-600" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Line Items &amp; Customer Inquiries Thread
+              </h4>
+            </div>
+
+            <div className="space-y-4">
+              {quote.lines?.map((line) => (
+                <div
+                  key={line.id}
+                  className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs"
+                >
+                  {/* Line Item Header Strip */}
+                  <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span className="font-bold text-slate-900">{line.productName}</span>
+                      <span className="font-mono text-slate-400 ml-2 text-[11px]">{line.sku || line.productSKU}</span>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs">
+                      <div>
+                        <span className="text-slate-400">Qty:</span>{' '}
+                        <strong className="text-slate-800">{line.quantity}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Discount:</span>{' '}
+                        <strong className="text-blue-600">{line.discountPercent}%</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Net:</span>{' '}
+                        <strong className="font-mono text-slate-900">{formatCurrency(line.netAmount || 0, quote.currency || 'INR')}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Margin:</span>{' '}
+                        <strong className={line.marginAmount >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                          {formatCurrency(line.marginAmount || 0, quote.currency || 'INR')}
+                        </strong>
+                      </div>
+                      {!isConverted && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenNegotiate(line)}
+                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-medium text-[11px] rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Propose Counter
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Comments Thread for this Line */}
+                  <div className="p-4 space-y-3 text-xs bg-slate-50/30">
+                    {line.comments && line.comments.length > 0 ? (
+                      <div className="space-y-2">
+                        {line.comments.map((comm) => (
+                          <div
+                            key={comm.id || Math.random()}
+                            className="p-3 rounded-lg bg-white border border-slate-200 text-xs flex items-start gap-2.5"
+                          >
+                            <UserIcon className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-slate-800">{comm.authorName || 'Collaborator'}</span>
+                                <span className="text-slate-400 font-mono">
+                                  {comm.createdAtUtc ? new Date(comm.createdAtUtc).toLocaleString() : ''}
+                                </span>
+                              </div>
+                              <p className="text-slate-700 leading-relaxed">{comm.comment}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">No inquiries or audit comments on this item yet.</p>
+                    )}
+
+                    {/* Inline Reply Box */}
+                    {!isConverted && (
+                      <div className="pt-2 border-t border-slate-200/80">
+                        {replyingLineId === line.id ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              className="w-full p-2.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Type response to customer inquiry or internal note..."
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              disabled={isSubmittingReply}
+                              autoFocus
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => {
+                                  setReplyingLineId(null);
+                                  setReplyText('');
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                variant="primary"
+                                size="xs"
+                                isLoading={isSubmittingReply}
+                                icon={Send}
+                                onClick={() => handleSendLineComment(line.id)}
+                              >
+                                Send Response
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplyingLineId(line.id);
+                              setReplyText('');
+                            }}
+                            className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            Add Response / Comment on {line.productName}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'recommendations' && (
         <div className="space-y-4">
@@ -1099,6 +1414,156 @@ export const QuotationDetailPage = () => {
             </div>
           </form>
         )}
+      </Drawer>
+
+      {/* ── Commercial Negotiation Drawer ─────────────────────── */}
+      <Drawer
+        isOpen={isNegotiateDrawerOpen}
+        onClose={() => setIsNegotiateDrawerOpen(false)}
+        title="Propose Commercial Counter-Terms"
+        subtitle={`Adjust pricing, discounts, and volume terms for ${negotiatingLine?.productName}`}
+      >
+        {negotiatingLine && (() => {
+          const cost = negotiatingLine.costPrice || 0;
+          const listPrice = negotiatingLine.product?.basePrice || negotiatingLine.unitPrice || 0;
+          const curDisc = parseFloat(negDiscount) || 0;
+          const curUnitP = parseFloat(negPrice) || 0;
+          const qty = parseInt(negQty, 10) || 1;
+
+          // Discounted unit price
+          const effUnitNet = curUnitP * (1 - curDisc / 100);
+          const effLineNet = effUnitNet * qty;
+          const effUnitMargin = effUnitNet - cost;
+          const effMarginPercent = effUnitNet > 0 ? (effUnitMargin / effUnitNet) * 100 : 0;
+          const effTotalMargin = effUnitMargin * qty;
+          const tierCeil = quote?.customer?.tier?.maxDiscountPercent || 5.0;
+          const exceedsTier = curDisc > tierCeil;
+
+          return (
+            <form onSubmit={handleApplyNegotiation} className="space-y-4 text-xs">
+              {/* Product Reference Card */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 text-sm">{negotiatingLine.productName}</span>
+                  <span className="font-mono text-slate-500 text-[11px]">{negotiatingLine.sku || negotiatingLine.productSKU}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-200">
+                  <div>Base Unit Price: <strong className="font-mono text-slate-800">{formatCurrency(listPrice, quote?.currency || 'INR')}</strong></div>
+                  <div>Internal Unit Cost: <strong className="font-mono text-slate-800">{formatCurrency(cost, quote?.currency || 'INR')}</strong></div>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Contract Quantity"
+                  type="number"
+                  min="1"
+                  required
+                  value={negQty}
+                  onChange={(e) => setNegQty(e.target.value)}
+                />
+
+                <Input
+                  label={`Unit List Price (${quote?.currency === 'USD' ? '$' : '₹'})`}
+                  type="number"
+                  step="0.01"
+                  required
+                  value={negPrice}
+                  onChange={(e) => setNegPrice(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-slate-700">Target Discount (%)</label>
+                  <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-xs">
+                    {curDisc.toFixed(1)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="40"
+                  step="0.5"
+                  value={curDisc}
+                  onChange={(e) => setNegDiscount(parseFloat(e.target.value))}
+                  className="w-full accent-purple-600 cursor-pointer"
+                />
+              </div>
+
+              {/* Live Margin Simulation Card */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-purple-50/80 to-indigo-50/50 border border-purple-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                    Live Margin Simulation
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    exceedsTier
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  }`}>
+                    {exceedsTier ? `⚠ Exceeds ${tierCeil}% Tier Limit (Manager Approval Required)` : `✓ Within ${tierCeil}% Tier Limit`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div className="bg-white p-2 rounded-lg border border-purple-100">
+                    <span className="text-[10px] text-slate-400 block uppercase">Net Line Total</span>
+                    <span className="text-xs font-mono font-bold text-slate-900">
+                      {formatCurrency(effLineNet, quote?.currency || 'INR')}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-purple-100">
+                    <span className="text-[10px] text-slate-400 block uppercase">Line Margin %</span>
+                    <span className={`text-xs font-mono font-bold ${
+                      effMarginPercent >= 20 ? 'text-emerald-700' : 'text-rose-700'
+                    }`}>
+                      {effMarginPercent.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-purple-100">
+                    <span className="text-[10px] text-slate-400 block uppercase">Total Profit</span>
+                    <span className={`text-xs font-mono font-bold ${
+                      effTotalMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                    }`}>
+                      {formatCurrency(effTotalMargin, quote?.currency || 'INR')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Justification Textarea */}
+              <Textarea
+                label="Commercial Justification / Governance Note"
+                placeholder="e.g., Extended 8% discount against committed 50-unit order volume expansion."
+                value={negReason}
+                onChange={(e) => setNegReason(e.target.value)}
+                rows={3}
+              />
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsNegotiateDrawerOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isSubmittingNegotiate}
+                  icon={Sparkles}
+                >
+                  Apply Commercial Terms
+                </Button>
+              </div>
+            </form>
+          );
+        })()}
       </Drawer>
 
       {/* ── 6. Client Portal Magic Link Modal ─────────────────── */}
