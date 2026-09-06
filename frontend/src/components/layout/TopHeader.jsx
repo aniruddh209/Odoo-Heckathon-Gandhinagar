@@ -11,11 +11,9 @@ import {
   Shield,
   Activity,
   Bell,
-  RotateCw,
   ExternalLink,
   FileText,
   Kanban,
-  XSquare,
 } from 'lucide-react';
 import { Button } from '../ui';
 
@@ -128,33 +126,16 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
             <Kanban className="w-3.5 h-3.5" />
             <span>Pipeline</span>
           </Link>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            title="Reload live data"
-            className="px-2 py-1 rounded-lg text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1"
-          >
-            <RotateCw className="w-3.5 h-3.5 text-slate-400" />
-            <span>Reload Data</span>
-          </button>
           {(isAdmin || isSalesManager) && (
             <Link
               to="/admin/products"
               title="Go to Admin/Backend Management"
-              className="px-2 py-1 rounded-lg text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
             >
-              <Database className="w-3.5 h-3.5 text-slate-400" />
+              <Database className="w-3.5 h-3.5" />
               <span>Go to Backend</span>
             </Link>
           )}
-          <Link
-            to="/dashboard"
-            title="Close workspace"
-            className="px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
-          >
-            <XSquare className="w-3.5 h-3.5 text-slate-400" />
-            <span>Close Workspace</span>
-          </Link>
         </div>
 
 
