@@ -78,3 +78,30 @@ export function formatDate(dateVal, includeTime = false) {
   };
   return new Intl.DateTimeFormat('en-IN', options).format(d);
 }
+
+/**
+ * Formats a monetary amount into a compact representation using Indian numbering notation.
+ * e.g., 8804626 -> ₹88.05L, 15000000 -> ₹1.50Cr, 75000 -> ₹75.0k, 500 -> ₹500
+ * @param {number|string} val 
+ * @param {string} [currency='INR']
+ * @returns {string}
+ */
+export function formatCompactCurrency(val, currency = 'INR') {
+  if (val === null || val === undefined || val === '') return '₹0';
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return '₹0';
+  const prefix = currency === 'USD' ? '$' : '₹';
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+
+  if (abs >= 10000000) {
+    return `${sign}${prefix}${(abs / 10000000).toFixed(2)}Cr`;
+  }
+  if (abs >= 100000) {
+    return `${sign}${prefix}${(abs / 100000).toFixed(2)}L`;
+  }
+  if (abs >= 1000) {
+    return `${sign}${prefix}${(abs / 1000).toFixed(1)}k`;
+  }
+  return `${sign}${prefix}${Math.round(abs)}`;
+}

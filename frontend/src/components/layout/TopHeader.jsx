@@ -132,25 +132,25 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
             type="button"
             onClick={() => window.location.reload()}
             title="Reload live data"
-            className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
+            className="px-2 py-1 rounded-lg text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1"
           >
-            <RotateCw className="w-3.5 h-3.5" />
+            <RotateCw className="w-3.5 h-3.5 text-slate-400" />
             <span>Reload Data</span>
           </button>
           {(isAdmin || isSalesManager) && (
             <Link
               to="/admin/products"
               title="Go to Admin/Backend Management"
-              className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
+              className="px-2 py-1 rounded-lg text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1"
             >
-              <Database className="w-3.5 h-3.5" />
+              <Database className="w-3.5 h-3.5 text-slate-400" />
               <span>Go to Backend</span>
             </Link>
           )}
           <Link
             to="/dashboard"
             title="Close workspace"
-            className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors flex items-center gap-1"
+            className="px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
           >
             <XSquare className="w-3.5 h-3.5 text-slate-400" />
             <span>Close Workspace</span>
@@ -159,20 +159,20 @@ export const TopHeader = ({ onOpenMobile, onToggleCollapse }) => {
 
 
         {/* Role Pill - Prominently Displayed */}
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border shadow-2xs ${roleInfo.bg}`}>
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border shadow-2xs ${roleInfo.bg}`}>
           {roleInfo.label}
         </span>
 
-        {/* Quick New Quote / Add Product Action */}
+        {/* Primary CTA: New Quote */}
         {(isSalesRep || isSalesManager || isAdmin) && (
           <Button
             variant="primary"
             size="xs"
             icon={Plus}
-            onClick={() => isAdmin ? navigate('/admin/products') : navigate('/workspace/quotations/new')}
+            onClick={() => navigate('/workspace/quotations/new')}
             className="hidden sm:inline-flex h-8 shadow-xs font-semibold"
           >
-            {isAdmin ? 'Add Product' : 'New Quote'}
+            New Quote
           </Button>
         )}
 
