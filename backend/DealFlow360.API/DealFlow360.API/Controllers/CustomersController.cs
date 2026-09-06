@@ -186,6 +186,34 @@ public class CustomersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("me/quotations/{id}/counter-offer/accept")]
+    [Authorize(Roles = "Customer,Admin")]
+    public async Task<IActionResult> AcceptMyCounterOffer(int id, [FromBody] AcceptRepCounterRequest? request)
+    {
+        var customerId = GetCurrentCustomerId();
+        if (!customerId.HasValue)
+        {
+            return BadRequest(new { message = "User is not linked to a customer account." });
+        }
+
+        var result = await _customerService.AcceptRepCounterOfferAsync(customerId.Value, id, request?.Remarks);
+        return Ok(result);
+    }
+
+    [HttpPost("me/quotations/{id}/counter-offer/reject")]
+    [Authorize(Roles = "Customer,Admin")]
+    public async Task<IActionResult> RejectMyCounterOffer(int id, [FromBody] RejectRepCounterRequest request)
+    {
+        var customerId = GetCurrentCustomerId();
+        if (!customerId.HasValue)
+        {
+            return BadRequest(new { message = "User is not linked to a customer account." });
+        }
+
+        var result = await _customerService.RejectRepCounterOfferAsync(customerId.Value, id, request);
+        return Ok(result);
+    }
+
     [HttpGet("me/orders")]
     [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> GetMyOrders()

@@ -12,6 +12,8 @@ import {
   X,
   Layers,
   ChevronDown,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { formatCompactCurrency, formatCurrency } from '../utils/formatters';
 
@@ -32,9 +34,10 @@ export const PipelinePage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  // Search & Filter State
+  // Search & Filter & View State
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' or 'list'
   const [selectedRep, setSelectedRep] = useState('all');
   const [selectedRisk, setSelectedRisk] = useState('all'); // all, low, medium, high
   const [selectedValueRange, setSelectedValueRange] = useState('all'); // all, under1L, 1Lto5L, over5L
@@ -252,8 +255,37 @@ export const PipelinePage = () => {
           )}
         </div>
 
-        {/* Filter Trigger & Popover */}
-        <div className="relative flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* View Toggle */}
+          <div className="hidden sm:flex items-center bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/60">
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                viewMode === 'kanban'
+                  ? 'bg-white text-slate-800 shadow-xs border border-slate-200/50'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Kanban Board</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                viewMode === 'list'
+                  ? 'bg-white text-slate-800 shadow-xs border border-slate-200/50'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Detailed List</span>
+            </button>
+          </div>
+
+          {/* Filter Trigger & Popover */}
+          <div className="relative flex items-center gap-2">
           <button
             type="button"
             onClick={() => setIsFilterOpen(!isFilterOpen)}
@@ -377,6 +409,7 @@ export const PipelinePage = () => {
             </>
           )}
         </div>
+        </div>
       </div>
 
       {error && <ErrorAlert message={error} onRetry={() => loadPipeline()} />}
@@ -425,6 +458,81 @@ export const PipelinePage = () => {
               <div className="h-20 bg-white rounded-xl border border-slate-200/60" />
             </div>
           ))}
+        </div>
+      ) : viewMode === 'list' ? (
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-slate-50/80 border-b border-slate-200/80 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <tr>
+                <th className="px-4 py-3">Quote #</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Sales Rep</th>
+                <th className="px-4 py-3">Stage</th>
+                <th className="px-4 py-3 text-right">Value</th>
+                <th className="px-4 py-3 text-right">Margin</th>
+                <th className="px-4 py-3 text-center">Risk</th>
+                <th className="px-4 py-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredQuotes.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
+                    No deals match your filters.
+                  </td>
+                </tr>
+              ) : (
+                filteredQuotes.map((quote) => {
+                  const risk = Number(quote.riskScore) || 0;
+                  const margin = Number(quote.margin) || 0;
+                  return (
+                    <tr key={quote.id} className="hover:bg-slate-50/60 transition-colors group">
+                      <td className="px-4 py-3 font-mono font-medium text-blue-600 text-xs">
+                        <button onClick={() => handleCardClick(quote)} className="hover:underline">
+                          {quote.quotationNumber}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900">{quote.customerName}</div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 text-xs">
+                        {quote.salesRepName || 'Unassigned'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
+                          {STAGES.find(s => s.key === quote.status)?.title || quote.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
+                        {formatCurrency(quote.grandTotal, 'INR')}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                          margin >= 25 ? 'bg-emerald-50 text-emerald-700' :
+                          margin >= 15 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
+                        }`}>
+                          {margin > 0 ? '+' : ''}{margin.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                          risk < 30 ? 'bg-emerald-50 text-emerald-700' :
+                          risk < 70 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
+                        }`}>
+                          {risk < 30 ? 'Low' : risk < 70 ? 'Med' : 'High'} ({risk})
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Button variant="outline" size="xs" onClick={() => handleCardClick(quote)}>
+                          Inspect
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       ) : (
         <>

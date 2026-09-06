@@ -16,6 +16,8 @@ public interface IPortalService
     Task<CustomerQuoteDto> SubmitCounterOfferAsync(string token, CounterDiscountRequest request);
     Task<CustomerQuoteDto> SubmitChangeRequestAsync(string token, SubmitChangeRequest request);
     Task<CustomerQuoteDto> ConfirmQuoteAsync(string token);
+    Task<CustomerQuoteDto> AcceptRepCounterOfferAsync(string token, string? remarks = null);
+    Task<CustomerQuoteDto> RejectRepCounterOfferAsync(string token, RejectRepCounterRequest request);
 }
 
 public class PortalService : IPortalService
@@ -420,6 +422,135 @@ public class PortalService : IPortalService
         return MapToCustomerQuoteDto(quotation, changes, order, billingInfo?.InvoiceNumber, billingInfo?.ActiveSubscriptionsCount);
     }
 
+    public async Task<CustomerQuoteDto> AcceptRepCounterOfferAsync(string token, string? remarks = null)
+    {
+        var (isValid, quotationId, customerEmail) = _jwtService.ValidatePortalToken(token);
+        if (!isValid) throw new UnauthorizedAccessException("Invalid or expired customer portal link.");
+
+        var quotation = await _context.Quotations
+            .Include(q => q.Customer).ThenInclude(c => c.Tier)
+            .Include(q => q.Lines).ThenInclude(l => l.Product)
+            .Include(q => q.Lines).ThenInclude(l => l.Comments)
+            .Include(q => q.Lines).ThenInclude(l => l.SubscriptionPlan)
+            .FirstOrDefaultAsync(q => q.Id == quotationId);
+
+        if (quotation == null) throw new KeyNotFoundException("Quotation not found.");
+        if (quotation.Status == QuoteStatus.ConvertedToOrder || quotation.Status == QuoteStatus.Confirmed)
+        {
+            throw new InvalidOperationException("Quotation is already confirmed.");
+        }
+
+        // Governance tier ceiling check
+        decimal tierLimit = quotation.Customer?.Tier?.MaxDiscountPercent ?? 5.0m;
+        decimal maxDisc = quotation.Lines.Any() ? quotation.Lines.Max(l => l.DiscountPercent) : 0m;
+
+        if (maxDisc <= tierLimit)
+        {
+            quotation.Status = QuoteStatus.Approved;
+            quotation.ApprovalStatus = ApprovalStatus.Approved;
+
+            // Remove all pending approval requests
+            var pendingApprovals = await _context.ApprovalRequests
+                .Where(ar => ar.QuotationId == quotation.Id && ar.Status == ApprovalStatus.Pending)
+                .ToListAsync();
+            if (pendingApprovals.Any())
+            {
+                _context.ApprovalRequests.RemoveRange(pendingApprovals);
+            }
+        }
+        else
+        {
+            quotation.Status = QuoteStatus.PendingApproval;
+            quotation.ApprovalStatus = ApprovalStatus.Pending;
+        }
+
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.QuotationChanges.Add(new QuotationChange
+        {
+            QuotationId = quotation.Id,
+            ChangeType = "CustomerAcceptedRepCounter",
+            Description = $"Customer {customerEmail ?? quotation.Customer?.Name} accepted the sales representative's counter-offer. {(remarks ?? "")}".Trim(),
+            RequestedByUserId = quotation.SalesRepId,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            EntityName = "Quotation",
+            EntityId = quotation.Id,
+            Action = "CustomerAcceptedRepCounter",
+            Reason = $"Customer accepted sales rep counter-offer ({maxDisc}% discount). Status transitioned to {quotation.Status}.",
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _notificationService.SendNotificationAsync(
+            quotation.SalesRepId,
+            $"Counter-Offer Accepted by {quotation.Customer?.Name}",
+            $"Customer has accepted your counter-offer on quotation {quotation.QuotationNumber}. Terms are officially approved and ready for order confirmation.",
+            "CounterOfferAccepted",
+            "Quotation",
+            quotation.Id);
+
+        await _context.SaveChangesAsync();
+
+        var changes = await _context.QuotationChanges
+            .Where(c => c.QuotationId == quotation.Id)
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .ToListAsync();
+
+        return MapToCustomerQuoteDto(quotation, changes);
+    }
+
+    public async Task<CustomerQuoteDto> RejectRepCounterOfferAsync(string token, RejectRepCounterRequest request)
+    {
+        var (isValid, quotationId, customerEmail) = _jwtService.ValidatePortalToken(token);
+        if (!isValid) throw new UnauthorizedAccessException("Invalid or expired customer portal link.");
+
+        var quotation = await _context.Quotations
+            .Include(q => q.Customer).ThenInclude(c => c.Tier)
+            .Include(q => q.Lines).ThenInclude(l => l.Product)
+            .Include(q => q.Lines).ThenInclude(l => l.Comments)
+            .Include(q => q.Lines).ThenInclude(l => l.SubscriptionPlan)
+            .FirstOrDefaultAsync(q => q.Id == quotationId);
+
+        if (quotation == null) throw new KeyNotFoundException("Quotation not found.");
+        if (quotation.Status == QuoteStatus.ConvertedToOrder || quotation.Status == QuoteStatus.Confirmed)
+        {
+            throw new InvalidOperationException("Quotation is already confirmed.");
+        }
+
+        quotation.Status = QuoteStatus.UnderNegotiation;
+        quotation.UpdatedAtUtc = DateTime.UtcNow;
+
+        _context.QuotationChanges.Add(new QuotationChange
+        {
+            QuotationId = quotation.Id,
+            ChangeType = "CustomerRejectedRepCounter",
+            Description = $"Customer {customerEmail ?? quotation.Customer?.Name} declined the counter-offer. Note: {request.Reason ?? "Customer requested further discussion."}",
+            RequestedByUserId = quotation.SalesRepId,
+            NewValueJson = request.CounterDiscountPercent.HasValue ? JsonSerializer.Serialize(new { ProposedDiscount = request.CounterDiscountPercent.Value, Reason = request.Reason }) : null,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        await _notificationService.SendNotificationAsync(
+            quotation.SalesRepId,
+            $"Counter-Offer Declined by {quotation.Customer?.Name}",
+            $"Customer declined your counter-offer on quote {quotation.QuotationNumber}. Reason: {request.Reason ?? "Customer requested further adjustments."}",
+            "CounterOfferDeclined",
+            "Quotation",
+            quotation.Id);
+
+        await _context.SaveChangesAsync();
+
+        var changes = await _context.QuotationChanges
+            .Where(c => c.QuotationId == quotation.Id)
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .ToListAsync();
+
+        return MapToCustomerQuoteDto(quotation, changes);
+    }
+
     private CustomerQuoteDto MapToCustomerQuoteDto(
         Quotation q, 
         List<QuotationChange>? changes = null,
@@ -433,6 +564,50 @@ public class PortalService : IPortalService
         var linkedOrder = order ?? _context.Orders.FirstOrDefault(o => o.QuotationId == q.Id);
         var invNum = invoiceNumber ?? (linkedOrder != null ? _context.Invoices.Where(i => i.OrderId == linkedOrder.Id).Select(i => i.InvoiceNumber).FirstOrDefault() : null);
         var subsCount = activeSubsCount ?? (linkedOrder != null ? _context.BillingSchedules.Count(s => s.OrderLine.OrderId == linkedOrder.Id) : 0);
+
+        // Evaluate sales rep counter-offer state
+        var latestRepCounter = changes?
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .FirstOrDefault(c => c.ChangeType == "RepCounterOffer");
+
+        bool wasAcceptedOrRejected = false;
+        if (latestRepCounter != null && changes != null)
+        {
+            wasAcceptedOrRejected = changes.Any(c => 
+                c.CreatedAtUtc > latestRepCounter.CreatedAtUtc && 
+                (c.ChangeType == "CustomerAcceptedRepCounter" || c.ChangeType == "CustomerRejectedRepCounter" || c.ChangeType == "RepAcceptedCounterOffer"));
+        }
+
+        bool hasRepCounter = (q.Status == QuoteStatus.UnderNegotiation || q.Status == QuoteStatus.Sent) && 
+                             latestRepCounter != null && 
+                             !wasAcceptedOrRejected;
+
+        decimal? repDisc = null;
+        string? repReason = null;
+        int? repLineId = null;
+
+        if (latestRepCounter != null)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(latestRepCounter.NewValueJson))
+                {
+                    using var doc = JsonDocument.Parse(latestRepCounter.NewValueJson);
+                    if (doc.RootElement.TryGetProperty("CounterDiscount", out var cd))
+                        repDisc = cd.GetDecimal();
+                    if (doc.RootElement.TryGetProperty("Reason", out var r))
+                        repReason = r.GetString();
+                    if (doc.RootElement.TryGetProperty("LineId", out var lid))
+                        repLineId = lid.GetInt32();
+                }
+            }
+            catch { }
+
+            if (string.IsNullOrEmpty(repReason) && !string.IsNullOrEmpty(latestRepCounter.Description))
+            {
+                repReason = latestRepCounter.Description;
+            }
+        }
 
         return new CustomerQuoteDto
         {
@@ -452,6 +627,10 @@ public class PortalService : IPortalService
             GrandTotal = q.GrandTotal,
             ExpectedCloseDate = q.ExpectedCloseDate,
             Notes = q.Notes,
+            HasRepCounterOffer = hasRepCounter,
+            RepCounterDiscount = repDisc,
+            RepCounterReason = repReason,
+            RepCounterLineId = repLineId,
             Lines = q.Lines.Select(l => new CustomerQuoteLineDto
             {
                 Id = l.Id,

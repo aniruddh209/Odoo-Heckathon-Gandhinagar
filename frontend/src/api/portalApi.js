@@ -30,6 +30,17 @@ export const portalApi = {
     return apiClient.post(`portal/quote/${token}/confirm`);
   },
 
+  acceptRepCounterOffer: async (token, remarks = null) => {
+    return apiClient.post(`portal/quote/${token}/counter-offer/accept`, { remarks });
+  },
+
+  rejectRepCounterOffer: async (token, { reason, counterDiscountPercent = null } = {}) => {
+    return apiClient.post(`portal/quote/${token}/counter-offer/reject`, {
+      reason,
+      counterDiscountPercent,
+    });
+  },
+
   downloadPdf: async (token, quotationNumber = 'Proposal') => {
     const filename = `DealFlow360_Quotation_${quotationNumber}.pdf`;
     return apiClient.download(`portal/quote/${token}/pdf`, filename, { token: null });

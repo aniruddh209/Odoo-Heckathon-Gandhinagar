@@ -53,6 +53,17 @@ export const customerApi = {
     return apiClient.post(`customers/me/quotations/${id}/confirm`);
   },
 
+  acceptRepCounterOffer: async (id, remarks = null) => {
+    return apiClient.post(`customers/me/quotations/${id}/counter-offer/accept`, { remarks });
+  },
+
+  rejectRepCounterOffer: async (id, { reason, counterDiscountPercent = null } = {}) => {
+    return apiClient.post(`customers/me/quotations/${id}/counter-offer/reject`, {
+      reason,
+      counterDiscountPercent,
+    });
+  },
+
   getMyOrderById: async (id) => {
     return apiClient.get(`customers/me/orders/${id}`);
   },

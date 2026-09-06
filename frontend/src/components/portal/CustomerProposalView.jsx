@@ -24,6 +24,9 @@ import {
   History,
   Clock,
   FileDown,
+  RotateCcw,
+  XCircle,
+  Tag,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { portalApi } from '../../api/portalApi';
@@ -52,6 +55,13 @@ export const CustomerProposalView = ({
   const [proposedDiscount, setProposedDiscount] = useState('');
   const [counterReason, setCounterReason] = useState('');
   const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
+
+  // Sales Rep Counter-Offer Action States
+  const [isAcceptingRepCounter, setIsAcceptingRepCounter] = useState(false);
+  const [rejectCounterModalOpen, setRejectCounterModalOpen] = useState(false);
+  const [rejectCounterReason, setRejectCounterReason] = useState('');
+  const [rejectCounterDiscount, setRejectCounterDiscount] = useState('');
+  const [isRejectingRepCounter, setIsRejectingRepCounter] = useState(false);
 
   // Change Request Modal State
   const [changeModalOpen, setChangeModalOpen] = useState(false);
@@ -240,6 +250,54 @@ export const CustomerProposalView = ({
     }
   };
 
+  const handleAcceptRepCounter = async () => {
+    setIsAcceptingRepCounter(true);
+    try {
+      if (token) {
+        await portalApi.acceptRepCounterOffer(token);
+      } else {
+        await customerApi.acceptRepCounterOffer(quote.id);
+      }
+      toast.success(
+        'Counter-Offer Accepted!',
+        'Agreed terms are officially authorized and locked. You can now confirm the quotation.'
+      );
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      toast.error('Acceptance Failed', err.message || 'Could not accept counter-offer.');
+    } finally {
+      setIsAcceptingRepCounter(false);
+    }
+  };
+
+  const handleRejectRepCounter = async (e) => {
+    e.preventDefault();
+    setIsRejectingRepCounter(true);
+    try {
+      const payload = {
+        reason: rejectCounterReason.trim() || 'Customer requested further adjustments.',
+        counterDiscountPercent: rejectCounterDiscount ? parseFloat(rejectCounterDiscount) : null,
+      };
+      if (token) {
+        await portalApi.rejectRepCounterOffer(token, payload);
+      } else {
+        await customerApi.rejectRepCounterOffer(quote.id, payload);
+      }
+      toast.info(
+        'Counter-Offer Declined',
+        'Your response and requirements have been relayed to the sales representative.'
+      );
+      setRejectCounterModalOpen(false);
+      setRejectCounterReason('');
+      setRejectCounterDiscount('');
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      toast.error('Decline Failed', err.message || 'Could not process decline.');
+    } finally {
+      setIsRejectingRepCounter(false);
+    }
+  };
+
   const handleConfirmQuote = async () => {
     if (!termsAgreed) {
       toast.warning('Agreement Required', 'Please check the box to confirm legal acceptance.');
@@ -331,12 +389,35 @@ export const CustomerProposalView = ({
                 Request Changes
               </Button>
             )}
+            {quote.hasRepCounterOffer && !isFinalized && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={RotateCcw}
+                  onClick={() => setRejectCounterModalOpen(true)}
+                  className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  Decline / Counter
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={CheckCircle2}
+                  isLoading={isAcceptingRepCounter}
+                  onClick={handleAcceptRepCounter}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                >
+                  Accept Counter-Offer
+                </Button>
+              </div>
+            )}
             {isApproved && !isFinalized && (
               <Badge variant="emerald" dot>
                 Approved &amp; Ready to Confirm
               </Badge>
             )}
-            {canConfirm && (
+            {canConfirm && !quote.hasRepCounterOffer && (
               <Button
                 variant="primary"
                 size="sm"
@@ -413,25 +494,70 @@ export const CustomerProposalView = ({
           </div>
         )}
 
-        {quote.status === 'UnderNegotiation' && (
+        {/* ── Active Sales Representative Counter-Offer Banner ── */}
+        {quote.hasRepCounterOffer && !isFinalized && (
+          <div className="px-6 py-4 bg-gradient-to-r from-amber-50 via-purple-50 to-indigo-50 border-b-2 border-indigo-300 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Sales Representative Counter-Offer Received
+                  </h3>
+                  {quote.repCounterDiscount != null && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-600 text-white shadow-2xs">
+                      {quote.repCounterDiscount}% Revised Discount
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300">
+                    Action Required
+                  </span>
+                </div>
+                {quote.repCounterReason && (
+                  <p className="text-xs text-slate-700 italic bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 mt-1">
+                    "{quote.repCounterReason}"
+                  </p>
+                )}
+                <p className="text-xs text-slate-600">
+                  The sales representative has proposed these revised commercial terms. Accepting will lock in the agreed pricing, resolve internal approval escalations, and unlock instant order confirmation.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={RotateCcw}
+                className="border-slate-300 text-slate-700 hover:bg-white"
+                onClick={() => setRejectCounterModalOpen(true)}
+              >
+                Decline / Counter
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={CheckCircle2}
+                isLoading={isAcceptingRepCounter}
+                onClick={handleAcceptRepCounter}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+              >
+                Accept Counter-Offer
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {quote.status === 'UnderNegotiation' && !quote.hasRepCounterOffer && (
           <div className="px-6 py-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-purple-900 text-xs">
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
               <span>
-                <strong>Counter-Offer Applied by Sales Representative:</strong> Commercial terms have been updated with revised unit pricing and discounts. Review the deliverables below. You can accept and confirm directly, or propose another adjustment.
+                <strong>Under Negotiation:</strong> Commercial terms are currently under discussion with your sales representative. Review the deliverables below, propose adjustments, or connect with your dedicated sales team.
               </span>
             </div>
-            {canConfirm && (
-              <Button
-                variant="primary"
-                size="xs"
-                icon={CheckCircle2}
-                onClick={() => setConfirmModalOpen(true)}
-                className="shrink-0 bg-purple-700 hover:bg-purple-800 text-white"
-              >
-                Accept Counter-Offer
-              </Button>
-            )}
           </div>
         )}
 
@@ -1113,6 +1239,70 @@ export const CustomerProposalView = ({
               icon={Send}
             >
               Submit Change Request
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal 5: Decline / Counter Sales Rep Offer Modal */}
+      <Modal
+        isOpen={rejectCounterModalOpen}
+        onClose={() => setRejectCounterModalOpen(false)}
+        title="Respond to Sales Counter-Offer"
+        description={`Decline or submit a counter-proposal on proposal ${quote.quotationNumber}`}
+      >
+        <form onSubmit={handleRejectRepCounter} className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+            <span className="font-semibold text-slate-700 block">Current Sales Representative Proposal:</span>
+            {quote.repCounterDiscount != null && (
+              <span className="inline-block px-2.5 py-0.5 rounded bg-indigo-100 text-indigo-900 font-bold text-xs">
+                {quote.repCounterDiscount}% Special Discount
+              </span>
+            )}
+            {quote.repCounterReason && (
+              <p className="text-slate-600 italic bg-white p-2 rounded border border-slate-100 mt-1">
+                "{quote.repCounterReason}"
+              </p>
+            )}
+          </div>
+
+          <Textarea
+            label="Reason for Declining / Feedback (Optional)"
+            placeholder="e.g., We need a slightly higher discount to fit within our current budget limits."
+            value={rejectCounterReason}
+            onChange={(e) => setRejectCounterReason(e.target.value)}
+            rows={3}
+          />
+
+          <Input
+            label="Alternative Discount Request (%) (Optional)"
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            placeholder="e.g. 15"
+            value={rejectCounterDiscount}
+            onChange={(e) => setRejectCounterDiscount(e.target.value)}
+            helperText="Specify an alternative percentage if you'd like to counter-offer back to the sales executive."
+          />
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRejectCounterModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isRejectingRepCounter}
+              icon={Send}
+              className="bg-slate-900 hover:bg-slate-800 text-white"
+            >
+              Relay Response
             </Button>
           </div>
         </form>

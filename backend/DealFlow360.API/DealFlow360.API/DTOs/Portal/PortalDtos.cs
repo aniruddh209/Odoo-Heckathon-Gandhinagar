@@ -41,9 +41,26 @@ public class CustomerQuoteDto
     public List<CustomerQuoteLineDto> Lines { get; set; } = new();
     public List<NegotiationHistoryResponse> ChangeRequests { get; set; } = new();
 
+    // Sales Representative Counter-Offer Terms
+    public bool HasRepCounterOffer { get; set; }
+    public decimal? RepCounterDiscount { get; set; }
+    public string? RepCounterReason { get; set; }
+    public int? RepCounterLineId { get; set; }
+
     // STRICT ZERO-LEAK SECURITY INVARIANT:
     // CostPrice, UnitMargin, MarginPercent, TotalCost, BlendedRiskScore,
     // and ManagerRemarks are NOT present on this DTO.
+}
+
+public class AcceptRepCounterRequest
+{
+    public string? Remarks { get; set; }
+}
+
+public class RejectRepCounterRequest
+{
+    public string? Reason { get; set; }
+    public decimal? CounterDiscountPercent { get; set; }
 }
 
 public class CustomerQuoteLineDto

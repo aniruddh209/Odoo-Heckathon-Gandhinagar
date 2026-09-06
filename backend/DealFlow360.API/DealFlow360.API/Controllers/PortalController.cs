@@ -70,6 +70,20 @@ public class PortalController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("quote/{token}/counter-offer/accept")]
+    public async Task<IActionResult> AcceptRepCounterOffer(string token, [FromBody] AcceptRepCounterRequest? request)
+    {
+        var result = await _portalService.AcceptRepCounterOfferAsync(token, request?.Remarks);
+        return Ok(result);
+    }
+
+    [HttpPost("quote/{token}/counter-offer/reject")]
+    public async Task<IActionResult> RejectRepCounterOffer(string token, [FromBody] RejectRepCounterRequest request)
+    {
+        var result = await _portalService.RejectRepCounterOfferAsync(token, request);
+        return Ok(result);
+    }
+
     [HttpGet("quote/{token}/pdf")]
     public async Task<IActionResult> DownloadPortalQuotePdf(string token)
     {
